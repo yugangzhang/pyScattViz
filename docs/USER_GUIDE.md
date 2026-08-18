@@ -91,13 +91,16 @@ sets when memory becomes constrained.
 
 ## Updating
 
+The start paths are platform-specific: Windows virtual environments use
+`.venv\Scripts`, while macOS and Linux use `.venv/bin`.
+
 On Windows PowerShell:
 
 ```powershell
 cd $HOME\pyScattViz
 git pull
 .\.venv\Scripts\python.exe -m pip install --upgrade .
-.\.venv\Scripts\pyscattviz.exe
+.\start_windows.bat
 ```
 
 On macOS or Linux:
@@ -106,5 +109,10 @@ On macOS or Linux:
 cd "$HOME/pyScattViz"
 git pull
 ./.venv/bin/python -m pip install --upgrade .
-./.venv/bin/pyscattviz
+./.venv/bin/python -m pyscattviz
 ```
+
+For normal daily startup, I included `start_windows.bat`,
+`start_macos.command`, and `start_linux.sh` in the repository root. On Windows,
+the PowerShell error that says `./.venv/bin/pyscattviz` is not recognized means
+that a macOS/Linux path was used. Run `.\start_windows.bat` instead.

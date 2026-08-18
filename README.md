@@ -22,6 +22,11 @@ Installing Python or Git may require an administrator password or help from the
 computer's IT department. Python 3.9–3.12 is supported; I recommend 64-bit
 Python 3.12 for a new installation.
 
+> **The environment folder is different on each platform.** Windows commands
+> use `.venv\Scripts`; macOS and Linux commands use `.venv/bin`. I included a
+> separate start file for each platform so the path does not need to be
+> remembered.
+
 ### Windows 10 or 11
 
 #### 1. Open PowerShell or Windows Terminal
@@ -99,8 +104,14 @@ script-execution policy are not involved.
 
 #### 6. Start pyScattViz
 
+The easiest method is to open the `pyScattViz` folder in File Explorer and
+double-click **`start_windows.bat`**. If Windows displays a security prompt,
+select **More info → Run anyway**.
+
+The PowerShell method is:
+
 ```powershell
-.\.venv\Scripts\pyscattviz.exe
+.\.venv\Scripts\python.exe -m pyscattviz
 ```
 
 The browser should open at <http://127.0.0.1:8501>. Keep the PowerShell window
@@ -112,8 +123,11 @@ Open PowerShell from the Start menu and run:
 
 ```powershell
 cd $HOME\pyScattViz
-.\.venv\Scripts\pyscattviz.exe
+.\start_windows.bat
 ```
+
+The `Scripts` folder in these Windows commands is required. A command such as
+`./.venv/bin/pyscattviz` is for macOS/Linux and PowerShell cannot find it.
 
 ### macOS
 
@@ -161,8 +175,14 @@ return.
 
 #### 5. Start pyScattViz
 
+In Finder, open the `pyScattViz` folder and double-click
+**`start_macos.command`**. If macOS blocks it the first time, Control-click the
+file, select **Open**, and then select **Open** again.
+
+The Terminal method is:
+
 ```bash
-./.venv/bin/pyscattviz
+./.venv/bin/python -m pyscattviz
 ```
 
 The browser should open at <http://127.0.0.1:8501>. Keep Terminal open. On
@@ -170,7 +190,7 @@ another day, open Terminal and run:
 
 ```bash
 cd "$HOME/pyScattViz"
-./.venv/bin/pyscattviz
+./start_macos.command
 ```
 
 ### Linux
@@ -225,8 +245,11 @@ If the repository was already downloaded, skip `git clone` and begin with
 
 #### 4. Start pyScattViz
 
+From the file manager, double-click **`start_linux.sh`** and select **Run** if
+the desktop asks how to open it. The terminal method is:
+
 ```bash
-./.venv/bin/pyscattviz
+./.venv/bin/python -m pyscattviz
 ```
 
 The browser should open at <http://127.0.0.1:8501>. Keep the terminal open. On
@@ -234,7 +257,7 @@ another day, open a terminal and run:
 
 ```bash
 cd "$HOME/pyScattViz"
-./.venv/bin/pyscattviz
+./start_linux.sh
 ```
 
 ### Stop or update pyScattViz
@@ -248,7 +271,7 @@ To install a later update on Windows:
 cd $HOME\pyScattViz
 git pull
 .\.venv\Scripts\python.exe -m pip install --upgrade .
-.\.venv\Scripts\pyscattviz.exe
+.\start_windows.bat
 ```
 
 To install a later update on macOS or Linux:
@@ -257,8 +280,29 @@ To install a later update on macOS or Linux:
 cd "$HOME/pyScattViz"
 git pull
 ./.venv/bin/python -m pip install --upgrade .
-./.venv/bin/pyscattviz
+./.venv/bin/python -m pyscattviz
 ```
+
+### Troubleshooting startup
+
+**PowerShell says `./.venv/bin/pyscattviz` is not recognized:** this is a
+macOS/Linux path. From the `pyScattViz` folder on Windows, run:
+
+```powershell
+.\start_windows.bat
+```
+
+or:
+
+```powershell
+.\.venv\Scripts\python.exe -m pyscattviz
+```
+
+**A start file says pyScattViz is not installed:** return to the installation
+section for that operating system and create `.venv` before starting the app.
+
+**The browser does not open automatically:** enter <http://127.0.0.1:8501> in
+a web browser while the terminal window is still running.
 
 If port 8501 is already in use, start on another port by adding `--port 8502`
 to the final start command. The application listens only on the local computer

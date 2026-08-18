@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Added named startup files for Windows, macOS, and Linux.
+- Added the cross-platform `python -m pyscattviz` entry point.
+- Clarified the Windows `Scripts` and macOS/Linux `bin` environment paths.
+
 ## 0.2.0
 
 - Consolidated Yugang Zhang's earlier pyViz plotting library under
