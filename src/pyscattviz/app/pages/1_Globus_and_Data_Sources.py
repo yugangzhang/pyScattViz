@@ -11,20 +11,22 @@ from pyscattviz.globus import (
     GLOBUS_FILE_MANAGER,
     NSLS2_GLOBUS_GUIDE,
     default_cache,
+    globus_file_manager_url,
     proposal_path,
 )
 
 st.set_page_config(page_title="Globus & Data Sources", page_icon="🌐", layout="wide")
 st.title("🌐 Globus & Data Sources")
-st.caption("Transfer from the NSLS2 collection, then review the local destination folder.")
+st.caption("Browse the NSLS2 collection online, or register a mounted/local data folder.")
 
-globus_tab, local_tab = st.tabs(["Globus transfer (recommended)", "Local folders"])
+globus_tab, local_tab = st.tabs(["Globus online / transfer", "Mounted or local folders"])
 
 with globus_tab:
     st.markdown(
         """
-I recommend Globus for proposal data because it provides resumable,
-checksum-verified transfers on Windows, macOS, and Linux.
+Globus File Manager can browse the proposal without downloading it. When data
+must be opened in pyScattViz, transfer only the required result folders, or use
+a network/mounted folder that appears as a normal path on this computer.
 
 1. Connect to the BNL campus network or VPN when required by the local setup.
 2. Install and start **Globus Connect Personal** on the destination computer.
@@ -46,6 +48,15 @@ checksum-verified transfers on Windows, macOS, and Linux.
             remote_path = proposal_path(beamline, cycle, proposal)
             st.markdown("**NSLS2 collection path**")
             st.code(remote_path, language=None)
+            st.link_button(
+                "Browse this proposal in Globus (no transfer)",
+                globus_file_manager_url(remote_path),
+                type="primary",
+            )
+            st.caption(
+                "If Globus asks for a collection, select **NSLS2**, then paste the path "
+                "shown above. Browsing alone does not download the proposal."
+            )
             suggested = str(default_cache(proposal))
         except ValueError as exc:
             st.error(str(exc))
@@ -58,7 +69,7 @@ checksum-verified transfers on Windows, macOS, and Linux.
         value=st.session_state.get("pyscattviz_cache", suggested),
         help="Globus Connect Personal must permit access to this folder.",
     )
-    if st.button("Save as active local folder", type="primary", disabled=not destination):
+    if st.button("Save transferred folder", disabled=not destination):
         resolved = str(Path(destination).expanduser().resolve(strict=False))
         st.session_state["pyscattviz_cache"] = resolved
         st.session_state["pyscattviz_active_root"] = resolved
@@ -72,12 +83,17 @@ checksum-verified transfers on Windows, macOS, and Linux.
     link2.link_button("NSLS-II Globus guide", NSLS2_GLOBUS_GUIDE)
     link3.link_button("BNL illustrated guide", BNL_GLOBUS_GUIDE)
 
-    st.warning(
-        "The NSLS2 collection is remote storage, not a local disk path. "
-        "Complete the Globus transfer before selecting the destination in a viewer."
+    st.info(
+        "A Globus path such as /nsls2/data/... is a remote reference, not a Windows "
+        "or local filesystem path. pyScattViz can browse it in Globus, but loading a "
+        "frame requires a transferred result folder or an SFTP/SSHFS/network mount."
     )
 
 with local_tab:
+    st.markdown(
+        "Use this tab for a local disk, external disk, SMB share, or a mounted remote "
+        "folder. On Windows, a mapped network drive typically looks like `Z:\\\\...`."
+    )
     existing = st.session_state.get("pyscattviz_roots", [])
     paths_text = st.text_area(
         "Folder paths (one per line)",

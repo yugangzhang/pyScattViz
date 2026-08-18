@@ -4,10 +4,10 @@
 
 I organized the application around five pages.
 
-1. **Globus & Data Sources** builds the NSLS-II collection path and records one
-   or more local folders.
-2. **File Selection** scans filenames, applies boolean or exact-list filters,
-   and saves canonical frame names.
+1. **Globus & Data Sources** builds the NSLS-II collection path for online
+   browsing and records one or more mounted/local folders.
+2. **File Selection** includes a folder navigator, scans filenames, applies
+   boolean or exact-list filters, and saves canonical frame names.
 3. **GISAXS / GIWAXS Explorer** reviews grazing-incidence results.
 4. **Transmission SAXS / WAXS** reviews transmission results and supports
    editable raw-detector folder locations.
@@ -21,8 +21,17 @@ Entering one product folder, such as `.../giwaxs/q_image`, focuses the viewer on
 that product. Entering the parent `.../giwaxs` allows any available combination.
 
 Folder lists can contain local disks, external drives, institutional mounted
-storage, and completed Globus destinations. The current release does not treat
-a Globus collection path as a mounted filesystem.
+storage, and completed Globus destinations. A Globus `/nsls2/data/...` path can
+be opened in Globus File Manager without transferring it, but it is not a
+Windows/local filesystem path. To load frames lazily, use a transferred result
+folder or expose the remote data as a mapped/mounted network folder.
+
+File Selection supports direct path pasting and a safe command bar. Use `pwd`
+to show the current folder, `ls [path]` to list it, `cd <path>` to move through
+the tree, and `du [path]` for a size estimate. These are built-in read-only
+operations; pyScattViz does not open a system shell. Quote paths containing
+spaces. The `du` scan stops after 5,000 files to remain responsive on large
+network trees.
 
 ## Selecting filenames
 

@@ -1,8 +1,9 @@
 # NSLS-II data transfer with Globus
 
 I use Globus as the primary transfer route because transfers are resumable and
-verified. pyScattViz reads the local destination after the transfer; it does not
-store BNL credentials or proxy the remote collection through the web app.
+verified. pyScattViz can open Globus File Manager at the proposal path for
+online browsing. It reads data only from a transferred or mounted filesystem
+folder; it does not store BNL credentials or proxy the remote collection.
 
 ## One-time setup
 
@@ -33,7 +34,8 @@ store BNL credentials or proxy the remote collection through the web app.
 7. Wait for Globus to report a successful task before reviewing the destination.
 
 The **Globus & Data Sources** page builds the proposal path and records the local
-destination. It also links to both BNL guides.
+destination. Its browse-only button does not start a transfer. It also links to
+both BNL guides.
 
 ## Small review transfer
 

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from pyscattviz.globus import default_cache, proposal_path
+from pyscattviz.globus import default_cache, globus_file_manager_url, proposal_path
 
 
 def test_proposal_path_supports_cms_and_smi():
@@ -25,3 +25,9 @@ def test_proposal_path_rejects_invalid_values(beamline, cycle, proposal):
 
 def test_default_cache_is_under_home():
     assert default_cache("123456") == Path.home() / "pyScattViz-data" / "pass-123456"
+
+
+def test_globus_browser_url_carries_remote_path():
+    url = globus_file_manager_url("/nsls2/data/smi/proposals/2026-2/pass-319371")
+    assert url.startswith("https://app.globus.org/file-manager?")
+    assert "origin_path=%2Fnsls2%2Fdata%2Fsmi" in url

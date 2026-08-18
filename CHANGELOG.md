@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added browse-only Globus proposal links without starting a transfer.
+- Added a cross-platform mounted/local folder navigator with safe `pwd`, `ls`,
+  `cd`, and bounded `du` commands on the File Selection page.
+- Added project issue-reporting and scientific-contact links to Home.
+
 ## 0.2.1
 
 - Added named startup files for Windows, macOS, and Linux.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import urlencode
 
 GLOBUS_FILE_MANAGER = "https://app.globus.org/file-manager"
 NSLS2_GLOBUS_GUIDE = "https://wiki-nsls2.bnl.gov/MX/index.php?title=Globus"
@@ -33,3 +34,9 @@ def default_cache(proposal: str) -> Path:
     match = _PROPOSAL.fullmatch(proposal.strip())
     suffix = f"pass-{match.group(1)}" if match else "pass-xxxxxx"
     return Path.home() / "pyScattViz-data" / suffix
+
+
+def globus_file_manager_url(remote_path: str) -> str:
+    """Build a File Manager link that carries the collection path to Globus."""
+
+    return f"{GLOBUS_FILE_MANAGER}?{urlencode({'origin_path': remote_path})}"

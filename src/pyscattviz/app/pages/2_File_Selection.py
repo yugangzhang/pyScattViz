@@ -11,6 +11,7 @@ from pyscattviz.app.components.scattering import (
     discover_scattering_products,
     index_frames,
 )
+from pyscattviz.browser import list_directory, run_browser_command
 from pyscattviz.filters import FilterSyntaxError, parse_filename_list
 
 st.set_page_config(page_title="File Selection", page_icon="🔎", layout="wide")
@@ -18,10 +19,101 @@ st.title("🔎 File Selection")
 st.caption("Filter filenames first; detector and q-space arrays remain unopened.")
 
 default_root = st.session_state.get("pyscattviz_active_root", "")
+st.session_state.setdefault("pyscattviz_file_root", default_root)
+browser_start = (
+    default_root
+    if default_root and Path(default_root).expanduser().is_dir()
+    else Path.home()
+)
+st.session_state.setdefault("pyscattviz_browser_cwd", str(browser_start))
+
+
+def _browse_to(path: str) -> None:
+    result = run_browser_command(
+        f'cd "{path}"', st.session_state["pyscattviz_browser_cwd"]
+    )
+    st.session_state["pyscattviz_browser_result"] = result
+    if not result["error"]:
+        st.session_state["pyscattviz_browser_cwd"] = result["cwd"]
+
+
+with st.expander("📁 Browse folders or use pwd / ls / cd / du", expanded=True):
+    browser_cwd = st.session_state["pyscattviz_browser_cwd"]
+    st.markdown("**Current folder**")
+    st.code(browser_cwd, language=None)
+
+    command = st.text_input(
+        "Folder command",
+        value="ls",
+        placeholder='cd projects or ls "folder with spaces"',
+        help=(
+            "Supported read-only commands: pwd, ls [path], cd <path>, du [path]. "
+            "du is capped at 5,000 files so a large network tree cannot scan forever."
+        ),
+    )
+    if st.button("Run command"):
+        result = run_browser_command(command, browser_cwd)
+        st.session_state["pyscattviz_browser_result"] = result
+        if not result["error"]:
+            st.session_state["pyscattviz_browser_cwd"] = result["cwd"]
+            if result["cwd"] != browser_cwd:
+                st.rerun()
+
+    result = st.session_state.get("pyscattviz_browser_result")
+    if result is None:
+        try:
+            rows, truncated = list_directory(browser_cwd)
+            result = {
+                "cwd": browser_cwd,
+                "output": browser_cwd + (" (first 500 entries)" if truncated else ""),
+                "rows": rows,
+                "error": None,
+            }
+        except OSError as exc:
+            result = {"cwd": browser_cwd, "output": "", "rows": [], "error": str(exc)}
+
+    if result["error"]:
+        st.error(result["error"])
+    elif result["output"]:
+        st.code(result["output"], language=None)
+
+    rows = result["rows"]
+    if rows:
+        display_rows = [
+            {key: row[key] for key in ("name", "type", "size", "modified")}
+            for row in rows
+        ]
+        st.dataframe(display_rows, width="stretch", hide_index=True)
+        folders = [row for row in rows if row["is_dir"]]
+        if folders:
+            selected_folder = st.selectbox(
+                "Subfolder",
+                folders,
+                format_func=lambda row: row["name"],
+            )
+            st.button(
+                "Open selected subfolder",
+                on_click=_browse_to,
+                args=(selected_folder["path"],),
+            )
+
+    nav_left, nav_right = st.columns(2)
+    nav_left.button(
+        "↑ Parent folder",
+        on_click=_browse_to,
+        args=(str(Path(st.session_state["pyscattviz_browser_cwd"]).parent),),
+        use_container_width=True,
+    )
+    if nav_right.button("Use current folder", type="primary", use_container_width=True):
+        st.session_state["pyscattviz_file_root"] = st.session_state[
+            "pyscattviz_browser_cwd"
+        ]
+
 root_input = st.text_input(
     "Result folder",
-    value=default_root,
+    key="pyscattviz_file_root",
     placeholder=".../Results/gisaxs or .../Results/giwaxs",
+    help="Paste a local path, mapped Windows drive, or mounted network path.",
 )
 if root_input:
     st.session_state["pyscattviz_active_root"] = str(
