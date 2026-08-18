@@ -9,43 +9,129 @@ The package focuses on data review. It includes lazy filename selection, QC
 images, q-space images, q–φ maps, circular averages, interactive line cuts,
 publication-figure export, and a reusable Python plotting API. I consolidated
 my earlier `pyViz` plotting work into this repository so one installation now
-covers both GUI review and notebook/script plotting. It does not include Data
-Manager or UV-Vis tools.
+covers both GUI review and notebook/script plotting.
 
 ## Quick start
 
-Python 3.9–3.12 is supported; Python 3.11 or 3.12 is recommended for a new
-installation.
+Python 3.9–3.12 is supported. I recommend 64-bit Python 3.12 for a new
+installation. Follow the section for the operating system in use.
 
-```bash
-git clone https://github.com/yugangzhang/pyScattViz.git
-cd pyScattViz
-python -m venv .venv
-```
+### Windows 10 or 11 — PowerShell
 
-Activate the environment on macOS or Linux:
-
-```bash
-source .venv/bin/activate
-```
-
-Activate it in Windows PowerShell:
+Install Python once before creating the environment. The following command
+uses Windows Package Manager:
 
 ```powershell
-.venv\Scripts\Activate.ps1
+winget install --exact --id Python.Python.3.12
 ```
 
-Install and launch:
+If Git is not already installed:
+
+```powershell
+winget install --exact --id Git.Git
+```
+
+Close every PowerShell window after installation, open a new PowerShell window,
+and verify both programs:
+
+```powershell
+py -3.12 --version
+git --version
+```
+
+If `winget` is unavailable, install the 64-bit release from
+[python.org/downloads/windows](https://www.python.org/downloads/windows/).
+Select **Add python.exe to PATH** and install the **Python launcher (`py`)**,
+then reopen PowerShell.
+
+Clone and install pyScattViz:
+
+```powershell
+cd $HOME
+git clone https://github.com/yugangzhang/pyScattViz.git
+cd .\pyScattViz
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\pyscattviz.exe
+```
+
+For an existing clone, start at `cd $HOME\pyScattViz`. These commands call the
+environment executables directly, so PowerShell script-execution policy does
+not need to be changed and environment activation is optional.
+
+If Windows displays “Python was not found; run without arguments to install
+from the Microsoft Store,” a real Python installation is missing or the Store
+alias is taking precedence. Install Python as shown above and use `py -3.12`
+instead of `python`.
+
+### macOS — Terminal
+
+Confirm that Python 3.9 or newer and Git are available:
 
 ```bash
-python -m pip install --upgrade pip
-python -m pip install .
-pyscattviz
+python3 --version
+git --version
 ```
 
-Open <http://127.0.0.1:8501> if the browser does not open automatically.
-The default server address is local-only so data are not exposed to the campus
-network.
+If Python is missing or too old, install Python 3.12 from
+[python.org/downloads/macos](https://www.python.org/downloads/macos/) or use
+Homebrew with `brew install python@3.12 git`. Then run:
+
+```bash
+cd "$HOME"
+git clone https://github.com/yugangzhang/pyScattViz.git
+cd pyScattViz
+python3.12 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install .
+./.venv/bin/pyscattviz
+```
+
+### Linux — Terminal
+
+On Ubuntu or Debian, install the prerequisites once:
+
+```bash
+sudo apt update
+sudo apt install git python3 python3-venv python3-pip
+```
+
+On Fedora, use `sudo dnf install git python3`. Then run:
+
+```bash
+cd "$HOME"
+git clone https://github.com/yugangzhang/pyScattViz.git
+cd pyScattViz
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install .
+./.venv/bin/pyscattviz
+```
+
+### Opening and stopping the application
+
+Open <http://127.0.0.1:8501> if the browser does not open automatically. Stop
+the application with `Ctrl+C` in the terminal. The default server address is
+local-only so data are not exposed to the campus network.
+
+For a later update on Windows:
+
+```powershell
+cd $HOME\pyScattViz
+git pull
+.\.venv\Scripts\python.exe -m pip install --upgrade .
+.\.venv\Scripts\pyscattviz.exe
+```
+
+For a later update on macOS or Linux:
+
+```bash
+cd "$HOME/pyScattViz"
+git pull
+./.venv/bin/python -m pip install --upgrade .
+./.venv/bin/pyscattviz
+```
 
 ## NSLS-II Globus workflow
 

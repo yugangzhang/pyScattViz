@@ -32,8 +32,7 @@ on the local computer and opens data only when a frame is selected.
 
 The package also includes Yugang's reusable plotting tools under
 `pyscattviz.plotting`: publication themes, custom scattering colormaps,
-1D/2D/3D/N-D plots, layouts, overlays, transforms, and figure export. It does
-not include Data Manager or UV-Vis tools.
+1D/2D/3D/N-D plots, layouts, overlays, transforms, and figure export.
 """
 )
 

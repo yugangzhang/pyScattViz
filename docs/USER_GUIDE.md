@@ -91,11 +91,20 @@ sets when memory becomes constrained.
 
 ## Updating
 
-From a cloned repository:
+On Windows PowerShell:
 
-```bash
+```powershell
+cd $HOME\pyScattViz
 git pull
-python -m pip install . --upgrade
+.\.venv\Scripts\python.exe -m pip install --upgrade .
+.\.venv\Scripts\pyscattviz.exe
 ```
 
-Run `pyscattviz` again after the update.
+On macOS or Linux:
+
+```bash
+cd "$HOME/pyScattViz"
+git pull
+./.venv/bin/python -m pip install --upgrade .
+./.venv/bin/pyscattviz
+```
