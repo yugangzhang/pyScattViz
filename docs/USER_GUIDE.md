@@ -1,0 +1,80 @@
+# pyScattViz user guide
+
+## Application flow
+
+I organized the application around four pages.
+
+1. **Globus & Data Sources** builds the NSLS-II collection path and records one
+   or more local folders.
+2. **File Selection** scans filenames, applies boolean or exact-list filters,
+   and saves canonical frame names.
+3. **GISAXS / GIWAXS Explorer** reviews grazing-incidence results.
+4. **Transmission SAXS / WAXS** reviews transmission results and supports
+   editable raw-detector folder locations.
+
+## Selecting folders
+
+A result root normally contains `cir_avg`, `q_image`, `qc`, and `qphi`.
+Entering one product folder, such as `.../giwaxs/q_image`, focuses the viewer on
+that product. Entering the parent `.../giwaxs` allows any available combination.
+
+Folder lists can contain local disks, external drives, institutional mounted
+storage, and completed Globus destinations. The current release does not treat
+a Globus collection path as a mounted filesystem.
+
+## Selecting filenames
+
+Use a boolean expression for reproducible groups:
+
+```text
+polymer_A AND (0.08deg OR 0.10deg) NOT calibration
+```
+
+Operator order is `NOT`, then `AND`, then `OR`. Parentheses override this order.
+Matching is case-insensitive. A term without wildcards is a substring; terms
+with `*`, `?`, or `[]` use whole-filename wildcard matching.
+
+Use the exact-list box for filenames copied from a spreadsheet, log, or Python
+script. Lines and commas are both accepted. Product-specific names are reduced
+to the common frame stem before matching.
+
+## Understanding the panels
+
+- **Raw / stitched** shows detector or stitched pixel coordinates.
+- **QC** shows the reduction quality-control image when present.
+- **q-image** shows `qx–qz` or `qr–qz` data from the selected NPZ.
+- **q–φ** shows intensity as a function of q and azimuth.
+- **Circular average** shows I(q) from the selected CSV.
+
+The range panel controls intensity limits, axis limits, aspect ratio, line
+style, and log scaling. Large 2D arrays are stride-downsampled for browser
+display while line cuts use the loaded array values.
+
+## Line cuts
+
+The grazing-incidence viewer supports bands on q-images and q–φ maps. Enter one
+or more centers separated by spaces or commas and set a band width. The shaded
+bands appear on the map, and the averaged profiles appear below the panels.
+Download exports every displayed profile to one CSV table.
+
+## Memory and performance
+
+Filename indexing uses an iterator and retains only matching canonical stems.
+The default selection cap is 5,000 frames. A broad query may still take time on
+a network filesystem because directory entries must be inspected, but array
+data are not loaded during that scan.
+
+The viewer loads one active frame and caches it for interaction. Close the app
+or use Streamlit's cache controls after switching between many very large data
+sets when memory becomes constrained.
+
+## Updating
+
+From a cloned repository:
+
+```bash
+git pull
+python -m pip install . --upgrade
+```
+
+Run `pyscattviz` again after the update.

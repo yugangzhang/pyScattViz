@@ -21,3 +21,17 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+build/
+dist/
+
+# Streamlit and local data/configuration
+.streamlit/secrets.toml
+pyScattViz-data/
