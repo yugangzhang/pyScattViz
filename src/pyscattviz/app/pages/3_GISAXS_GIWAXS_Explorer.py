@@ -437,7 +437,7 @@ def _render_image(path, title, *, flip=False):
         y_range=a_yr,
         aspect=_aspect_arg(),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def _render_panel(panel):
@@ -471,7 +471,7 @@ def _render_panel(panel):
                 y_range=b_qzr,
                 aspect=_aspect_arg(),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("No q-image for this frame.")
     elif panel == "qphi":
@@ -493,7 +493,7 @@ def _render_panel(panel):
                 x_range=c_qr,
                 y_range=c_phir,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("No q–φ map for this frame.")
     elif panel == "cir_avg":
@@ -516,7 +516,7 @@ def _render_panel(panel):
                 template="plotly_white",
                 margin=dict(l=60, r=15, t=40, b=45),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("No circular average for this frame.")
 
@@ -581,7 +581,7 @@ if centers:
             margin=dict(l=60, r=15, t=25, b=50),
             legend=dict(orientation="h", y=1.05),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         # CSV export: outer-join all profiles on their common x-axis.
         buf = io.StringIO()
@@ -616,6 +616,6 @@ with st.expander("📋 Frame table", expanded=False):
                 "has_cir",
             ]
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )

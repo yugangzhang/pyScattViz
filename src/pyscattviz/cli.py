@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from importlib.resources import files
@@ -35,8 +36,10 @@ def main() -> None:
         f"--server.address={args.address}",
         "--browser.gatherUsageStats=false",
     ]
+    environment = os.environ.copy()
+    environment.setdefault("MPLBACKEND", "Agg")
     try:
-        return_code = subprocess.call(command)
+        return_code = subprocess.call(command, env=environment)
     except KeyboardInterrupt:
         return
     raise SystemExit(return_code)

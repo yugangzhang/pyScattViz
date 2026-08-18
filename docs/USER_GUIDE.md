@@ -2,7 +2,7 @@
 
 ## Application flow
 
-I organized the application around four pages.
+I organized the application around five pages.
 
 1. **Globus & Data Sources** builds the NSLS-II collection path and records one
    or more local folders.
@@ -11,6 +11,8 @@ I organized the application around four pages.
 3. **GISAXS / GIWAXS Explorer** reviews grazing-incidence results.
 4. **Transmission SAXS / WAXS** reviews transmission results and supports
    editable raw-detector folder locations.
+5. **Publication Plot** turns selected circular averages into static figures
+   for papers, reports, and presentations.
 
 ## Selecting folders
 
@@ -56,6 +58,25 @@ The grazing-incidence viewer supports bands on q-images and q–φ maps. Enter o
 or more centers separated by spaces or commas and set a band width. The shaded
 bands appear on the map, and the averaged profiles appear below the panels.
 Download exports every displayed profile to one CSV table.
+
+## Publication figures
+
+The Publication Plot page shares the active result folder and saved File
+Selection. It indexes `cir_avg` names first, then opens only the CSV files
+explicitly selected in the multiselect box. I cap one figure at 50 curves to
+keep legends and browser memory manageable.
+
+Available controls include:
+
+- science, notebook, presentation, and poster themes;
+- maximum or integral normalization;
+- q-range limits, logarithmic axes, and additive waterfall offsets;
+- figure dimensions and legend visibility;
+- 300-DPI PNG or vector SVG/PDF download.
+
+For notebook and Python-script use, import the same plotting layer with
+`import pyscattviz.plotting as pv`. The complete API is documented in
+[PLOTTING_API.md](PLOTTING_API.md).
 
 ## Memory and performance
 

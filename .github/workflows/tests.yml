@@ -1,5 +1,8 @@
 name: tests
 
+env:
+  MPLBACKEND: Agg
+
 on:
   push:
   pull_request:

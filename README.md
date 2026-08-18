@@ -5,9 +5,12 @@ GISAXS, GIWAXS, SAXS, and WAXS reduction products on their own computers. The
 application runs locally on Windows, macOS, and Linux. Globus is the recommended
 route from the NSLS2 collection to a local folder.
 
-The first public release focuses on data review. It includes lazy filename
-selection, QC images, q-space images, q–φ maps, circular averages, interactive
-line cuts, and CSV export. It does not include Data Manager or UV-Vis tools.
+The package focuses on data review. It includes lazy filename selection, QC
+images, q-space images, q–φ maps, circular averages, interactive line cuts,
+publication-figure export, and a reusable Python plotting API. I consolidated
+my earlier `pyViz` plotting work into this repository so one installation now
+covers both GUI review and notebook/script plotting. It does not include Data
+Manager or UV-Vis tools.
 
 ## Quick start
 
@@ -89,6 +92,35 @@ selection. Product prefixes and extensions are normalized, so
 `Cir_Avg_sample.tif.csv`, `qimg_sample.tif.npz`, and `sample` select the same
 frame.
 
+## Publication plots
+
+The **Publication Plot** page reads only the explicitly selected circular-average
+CSVs. It supports science/notebook/presentation/poster themes, maximum or
+integral normalization, q-range selection, log axes, vertical offsets, legend
+control, and PNG/SVG/PDF downloads.
+
+## Python plotting API
+
+The earlier `pyViz` functionality now lives under the supported pyScattViz
+namespace:
+
+```python
+import numpy as np
+import pyscattviz.plotting as pv
+
+pv.set_theme("science")
+
+q = np.logspace(-3, 0, 200)
+intensity = 1e3 * q**-2
+ax = pv.plot1d(intensity, x=q, logx=True, logy=True, xlabel=r"q ($\AA^{-1}$)", ylabel="I(q)")
+ax.figure.savefig("scattering_curve.svg", bbox_inches="tight")
+```
+
+The API includes 1D overlays and fits, 2D images and transforms, 3D plots,
+N-D correlations, custom scattering colormaps, multi-panel layouts, ROI
+overlays, safe scientific labels, and figure serialization. See
+[the plotting API guide](docs/PLOTTING_API.md).
+
 ## Supported reduction layout
 
 The scattering viewers recognize these direct product folders:
@@ -114,8 +146,9 @@ pytest -q
 ruff check .
 ```
 
-More detail is available in [the user guide](docs/USER_GUIDE.md) and
-[the Globus guide](docs/GLOBUS.md).
+More detail is available in [the user guide](docs/USER_GUIDE.md),
+[the Globus guide](docs/GLOBUS.md), and
+[the plotting API guide](docs/PLOTTING_API.md).
 
 ## Contact and license
 

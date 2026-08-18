@@ -1,0 +1,147 @@
+"""Build export-ready overlays from selected circular-average files."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import streamlit as st
+
+from pyscattviz.app.components.scattering import (
+    discover_scattering_products,
+    index_frames,
+    load_cir,
+)
+from pyscattviz.filters import FilterSyntaxError
+from pyscattviz.plotting import fig_to_bytes
+from pyscattviz.publication import Curve, build_curve_figure
+
+st.set_page_config(page_title="Publication Plot", page_icon="📈", layout="wide")
+st.title("📈 Publication Plot")
+st.caption("Overlay selected circular averages and export PNG, SVG, or PDF.")
+
+default_root = st.session_state.get("pyscattviz_active_root", "")
+path_input = st.text_input(
+    "Result folder",
+    value=default_root,
+    placeholder=".../Results/gisaxs or .../Results/giwaxs",
+)
+if not path_input or not Path(path_input).expanduser().is_dir():
+    st.info("Select an available scattering result folder to start.")
+    st.stop()
+
+analysis_root, products, _focused = discover_scattering_products(path_input)
+if "cir_avg" not in {product["key"] for product in products}:
+    st.error("No cir_avg folder was found at this result path.")
+    st.stop()
+st.session_state["pyscattviz_active_root"] = analysis_root
+
+saved_stems = st.session_state.get("pyscattviz_selected_stems", ())
+saved_root = st.session_state.get("pyscattviz_selected_root")
+saved_available = bool(saved_stems and saved_root == analysis_root)
+
+c1, c2, c3 = st.columns([2, 1, 1])
+use_saved = c2.checkbox(
+    f"Saved selection ({len(saved_stems):,})",
+    value=saved_available,
+    disabled=not saved_available,
+)
+query = c1.text_input(
+    "Boolean filename filter",
+    placeholder="sample_A AND (0.10deg OR 0.15deg)",
+    disabled=use_saved,
+)
+max_frames = c3.number_input("Maximum names", 1, 5_000, 500, 100, disabled=use_saved)
+
+try:
+    table = index_frames(
+        analysis_root,
+        product_keys=("cir_avg",),
+        query="" if use_saved else query,
+        filename_list=tuple(saved_stems) if use_saved else (),
+        max_frames=len(saved_stems) if use_saved else int(max_frames),
+    )
+except FilterSyntaxError as exc:
+    st.error(f"Filter error: {exc}")
+    st.stop()
+
+available = table[table["has_cir"]]
+if available.empty:
+    st.warning("No circular-average files match this selection.")
+    st.stop()
+
+st.caption(f"{len(available):,} matching curves; filename scanning does not open CSV contents.")
+options = available["stem"].tolist()
+selected = st.multiselect(
+    "Curves to plot (maximum 50)",
+    options,
+    default=options[: min(5, len(options))],
+)
+if not selected:
+    st.info("Select at least one curve.")
+    st.stop()
+if len(selected) > 50:
+    st.error("Select no more than 50 curves for one publication figure.")
+    st.stop()
+
+st.subheader("Figure controls")
+f1, f2, f3, f4 = st.columns(4)
+theme = f1.selectbox("Theme", ["science", "notebook", "present", "poster"])
+normalization = f2.selectbox("Normalization", ["none", "maximum", "integral"])
+logx = f3.checkbox("Log q", value=True)
+logy = f4.checkbox("Log intensity", value=True)
+
+r1, r2, r3, r4 = st.columns(4)
+q_min = r1.number_input("q minimum (blank = auto)", value=None, format="%.5g")
+q_max = r2.number_input("q maximum (blank = auto)", value=None, format="%.5g")
+offset = r3.number_input("Vertical offset", value=0.0, format="%.5g")
+legend = r4.checkbox("Show legend", value=True)
+
+s1, s2, s3 = st.columns([2, 1, 1])
+title = s1.text_input("Title", value="")
+figure_width = s2.number_input("Width (in)", 3.0, 20.0, 7.0, 0.5)
+figure_height = s3.number_input("Height (in)", 3.0, 20.0, 5.0, 0.5)
+
+rows = available.set_index("stem")
+curves = []
+for stem in selected:
+    q, intensity = load_cir(rows.loc[stem, "cir"])
+    curves.append(Curve(stem, q, intensity))
+
+try:
+    figure = build_curve_figure(
+        curves,
+        theme=theme,
+        normalization=normalization,
+        q_min=q_min,
+        q_max=q_max,
+        offset=float(offset),
+        logx=logx,
+        logy=logy,
+        title=title,
+        ylabel="Normalized I(q)" if normalization != "none" else "I(q)",
+        figsize=(float(figure_width), float(figure_height)),
+        legend=legend,
+    )
+except ValueError as exc:
+    st.error(str(exc))
+    st.stop()
+
+st.pyplot(figure, width="content")
+
+e1, e2, e3 = st.columns([1, 1, 2])
+export_format = e1.selectbox("Export format", ["png", "svg", "pdf"])
+dpi = e2.number_input("DPI", 72, 1200, 300, 50, disabled=export_format != "png")
+mime = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}
+with e3:
+    st.write("")
+    st.write("")
+    st.download_button(
+        "Download publication figure",
+        fig_to_bytes(figure, format=export_format, dpi=int(dpi)),
+        file_name=f"pyscattviz_curves.{export_format}",
+        mime=mime[export_format],
+        type="primary",
+    )
+
+plt.close(figure)

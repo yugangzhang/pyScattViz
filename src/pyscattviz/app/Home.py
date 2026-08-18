@@ -28,10 +28,12 @@ on the local computer and opens data only when a frame is selected.
 2. Transfer the required proposal or result folders with Globus Connect Personal.
 3. Open **File Selection** to filter thousands of filenames without loading arrays.
 4. Open **GISAXS / GIWAXS Explorer** or **Transmission SAXS / WAXS**.
+5. Open **Publication Plot** to overlay selected I(q) curves and export PNG, SVG, or PDF.
 
-The first release focuses on reduced scattering products: QC images, q-images,
-q–φ maps, circular averages, and line cuts. It does not include Data Manager or
-UV-Vis tools.
+The package also includes Yugang's reusable plotting tools under
+`pyscattviz.plotting`: publication themes, custom scattering colormaps,
+1D/2D/3D/N-D plots, layouts, overlays, transforms, and figure export. It does
+not include Data Manager or UV-Vis tools.
 """
 )
 

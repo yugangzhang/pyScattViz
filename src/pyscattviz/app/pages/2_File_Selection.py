@@ -119,7 +119,7 @@ if frame_table is not None and selected_root == normalized_root:
         "has_cir",
     ]
     display_columns = [column for column in display_columns if column in frame_table]
-    st.dataframe(frame_table[display_columns], use_container_width=True, hide_index=True)
+    st.dataframe(frame_table[display_columns], width="stretch", hide_index=True)
     text_export = "\n".join(frame_table["stem"].tolist())
     st.download_button(
         "Download selected filename list",

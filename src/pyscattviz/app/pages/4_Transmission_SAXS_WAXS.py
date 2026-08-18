@@ -351,7 +351,7 @@ with rowA[0]:
             y_range=a_yr,
             aspect=_aspect_arg(),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     elif "stitched" in active_products:
         st.info("No raw image for this frame.")
 
@@ -377,7 +377,7 @@ with rowA[1]:
             vmax_I=None,
             aspect=_aspect_arg(),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     elif "q_image" in active_products:
         st.info(
             "🔧 **q-image** — no qx–qz remesh exists for this transmission "
@@ -407,7 +407,7 @@ with rowB[0]:
             x_range=c_qr,
             y_range=c_phir,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     elif "qphi" in active_products:
         st.info("No qphi map for this frame.")
 
@@ -432,7 +432,7 @@ with rowB[1]:
             template="plotly_white",
             margin=dict(l=60, r=15, t=40, b=45),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     elif "cir_avg" in active_products:
         st.info("No circular average for this frame.")
 
@@ -441,7 +441,7 @@ if "qc" in active_products:
     qc_cols = st.columns(2)
     with qc_cols[0]:
         if sel["has_qc"]:
-            st.image(sel["qc"], caption="QC image", use_container_width=True)
+            st.image(sel["qc"], caption="QC image", width="stretch")
         else:
             st.info("No QC image for this frame.")
 
@@ -489,7 +489,7 @@ if centers:
             margin=dict(l=60, r=15, t=25, b=50),
             legend=dict(orientation="h", y=1.05),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         # CSV export: outer-join all profiles on their common x-axis.
         buf = io.StringIO()
@@ -510,6 +510,6 @@ if centers:
 with st.expander("📋 Frame table", expanded=False):
     st.dataframe(
         work[["stem", "well", "timestamp", "has_raw", "has_qc", "has_qimg", "has_qphi", "has_cir"]],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
