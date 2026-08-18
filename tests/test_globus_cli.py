@@ -7,6 +7,7 @@ from pyscattviz.globus_cli import (
     GlobusCLIError,
     GlobusConsentRequired,
     _run_globus,
+    find_current_nsls2_collection,
     globus_identity,
     list_globus_directory,
     normalize_globus_path,
@@ -61,13 +62,43 @@ def test_globus_consent_error_has_a_specific_exception(monkeypatch):
     payload = {
         "code": "ConsentRequired",
         "message": "Missing required data_access consent",
+        "required_scopes": ["urn:globus:auth:scope:transfer.api.globus.org:all"],
     }
     monkeypatch.setattr(
         "pyscattviz.globus_cli.subprocess.run",
         lambda *args, **kwargs: _completed("", returncode=4, stderr=json.dumps(payload)),
     )
-    with pytest.raises(GlobusConsentRequired, match="one-time"):
-        _run_globus(["ls", "collection:/path"], executable="globus")
+    with pytest.raises(GlobusConsentRequired, match="one-time") as error:
+        _run_globus(
+            ["ls", "819379a8-47db-439d-a5ba-a2387b79add9:/path"],
+            executable="globus",
+        )
+    assert error.value.required_scopes == (
+        "urn:globus:auth:scope:transfer.api.globus.org:all",
+        "https://auth.globus.org/scopes/819379a8-47db-439d-a5ba-a2387b79add9/data_access",
+    )
+
+
+def test_current_nsls2_collection_excludes_retired_and_prefers_domain(monkeypatch):
+    payload = {
+        "DATA": [
+            {
+                "id": "old",
+                "display_name": "NSLS2 (this endpoint is retired)",
+                "domain": "old.data.globus.org",
+            },
+            {
+                "id": "current",
+                "display_name": "NSLS2",
+                "domain": "globus.nsls2.bnl.gov",
+            },
+        ]
+    }
+    monkeypatch.setattr(
+        "pyscattviz.globus_cli.subprocess.run",
+        lambda *args, **kwargs: _completed(payload),
+    )
+    assert find_current_nsls2_collection(executable="globus") == "current"
 
 
 def test_normalize_globus_path():

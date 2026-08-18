@@ -357,6 +357,12 @@ Globus CLI once from the repository folder:
 .\.venv\Scripts\globus.exe login
 ```
 
+On macOS or Linux, the equivalent command is:
+
+```bash
+./.venv/bin/globus login
+```
+
 After the BNL browser login and Duo verification succeed, start pyScattViz and
 open **Globus & Data Sources → Globus CLI browser**. Select **Check Globus
 login**, paste the `/nsls2/data/...` path, and select **List remote folder**.
@@ -364,11 +370,17 @@ The first listing may require one additional collection-specific consent. If
 the GUI requests it, run:
 
 ```powershell
-.\.venv\Scripts\globus.exe session consent "https://auth.globus.org/scopes/819379a8-47db-439d-a5ba-a2387b79add9/data_access"
+.\.venv\Scripts\globus.exe session consent "urn:globus:auth:scope:transfer.api.globus.org:all" "https://auth.globus.org/scopes/819379a8-47db-439d-a5ba-a2387b79add9/data_access"
 ```
 
 Complete the BNL browser approval/Duo flow, return to the GUI, and select
-**List remote folder** again. This consent is normally required only once.
+**Retry remote listing after consent**. The GUI does not need to be restarted,
+and this consent is normally required only once. On macOS/Linux, substitute
+`./.venv/bin/globus` for `.\.venv\Scripts\globus.exe`.
+
+The collection UUID is editable in the GUI. Select **Refresh current NSLS2
+collection ID** if NSLS-II replaces the collection in the future; the browser
+will search for the current non-retired `NSLS2` collection.
 This remote browser does not download arrays. Viewer loading will use a
 selective local Globus cache rather than a mounted Windows drive.
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path, PurePosixPath
 
 import streamlit as st
@@ -17,9 +18,11 @@ from pyscattviz.globus import (
 )
 from pyscattviz.globus_cli import (
     NSLS2_COLLECTION_ID,
-    NSLS2_DATA_ACCESS_SCOPE,
+    TRANSFER_ALL_SCOPE,
     GlobusCLIError,
     GlobusConsentRequired,
+    collection_data_access_scope,
+    find_current_nsls2_collection,
     find_globus_cli,
     globus_identity,
     list_globus_directory,
@@ -107,6 +110,10 @@ def _select_globus_path(path: str) -> None:
     st.session_state["pyscattviz_globus_auto_browse"] = True
 
 
+def _retry_globus_listing() -> None:
+    st.session_state["pyscattviz_globus_auto_browse"] = True
+
+
 with cli_tab:
     st.markdown(
         """
@@ -115,10 +122,14 @@ list NSLS-II folders without SSHFS, a Windows drive, or a bulk transfer. The BNL
 login and Duo tokens remain in Globus CLI's own local credential store.
 """
     )
-    st.markdown("**One-time PowerShell login**")
+    cli_display_command = (
+        ".\\.venv\\Scripts\\globus.exe" if os.name == "nt" else "./.venv/bin/globus"
+    )
+    shell_language = "powershell" if os.name == "nt" else "bash"
+    st.markdown("**One-time Globus CLI login**")
     st.code(
-        ".\\.venv\\Scripts\\globus.exe login",
-        language="powershell",
+        f"{cli_display_command} login",
+        language=shell_language,
     )
 
     cli_executable = find_globus_cli()
@@ -141,7 +152,20 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         st.success(f"Logged in as {st.session_state['pyscattviz_globus_identity']}")
 
     st.markdown("**Active NSLS2 collection**")
-    st.code(NSLS2_COLLECTION_ID, language=None)
+    st.session_state.setdefault("pyscattviz_globus_collection_id", NSLS2_COLLECTION_ID)
+    if st.button("Refresh current NSLS2 collection ID", disabled=not cli_executable):
+        try:
+            current_collection = find_current_nsls2_collection(cli_executable)
+        except GlobusCLIError as exc:
+            st.error(str(exc))
+        else:
+            st.session_state["pyscattviz_globus_collection_id"] = current_collection
+            st.success(f"Current NSLS2 collection: {current_collection}")
+    collection_id = st.text_input(
+        "Collection ID",
+        key="pyscattviz_globus_collection_id",
+        help="Editable in case NSLS-II replaces its Globus collection in the future.",
+    )
     st.caption("The retired `88c7648d-...` collection is intentionally not used.")
 
     st.session_state.setdefault(
@@ -172,7 +196,7 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         try:
             remote_rows = list_globus_directory(
                 remote_browser_path,
-                collection_id=NSLS2_COLLECTION_ID,
+                collection_id=collection_id,
                 executable=cli_executable,
             )
         except GlobusConsentRequired as exc:
@@ -181,6 +205,11 @@ login and Duo tokens remain in Globus CLI's own local credential store.
                 "rows": [],
                 "error": None,
                 "consent_required": str(exc),
+                "required_scopes": exc.required_scopes
+                or (
+                    TRANSFER_ALL_SCOPE,
+                    collection_data_access_scope(collection_id),
+                ),
             }
         except GlobusCLIError as exc:
             st.session_state["pyscattviz_globus_listing"] = {
@@ -188,6 +217,7 @@ login and Duo tokens remain in Globus CLI's own local credential store.
                 "rows": [],
                 "error": str(exc),
                 "consent_required": None,
+                "required_scopes": (),
             }
         else:
             st.session_state["pyscattviz_globus_listing"] = {
@@ -195,6 +225,7 @@ login and Duo tokens remain in Globus CLI's own local credential store.
                 "rows": remote_rows,
                 "error": None,
                 "consent_required": None,
+                "required_scopes": (),
             }
 
     remote_listing = st.session_state.get("pyscattviz_globus_listing")
@@ -202,16 +233,26 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         if remote_listing.get("consent_required"):
             st.warning(remote_listing["consent_required"])
             st.markdown(
-                "Run this once in PowerShell. A browser will open for BNL approval/Duo:"
+                "Run this once in a separate terminal. A browser will open for BNL "
+                "approval/Duo:"
             )
+            consent_scopes = remote_listing.get("required_scopes") or (
+                TRANSFER_ALL_SCOPE,
+                collection_data_access_scope(collection_id),
+            )
+            quoted_scopes = " ".join(f'"{scope}"' for scope in consent_scopes)
             st.code(
-                ".\\.venv\\Scripts\\globus.exe session consent "
-                f'"{NSLS2_DATA_ACCESS_SCOPE}"',
-                language="powershell",
+                f"{cli_display_command} session consent {quoted_scopes}",
+                language=shell_language,
             )
             st.caption(
                 "After Globus reports that the CLI session was updated, return here and "
-                "select **List remote folder** again."
+                "retry. The running GUI does not need to be restarted."
+            )
+            st.button(
+                "Retry remote listing after consent",
+                type="primary",
+                on_click=_retry_globus_listing,
             )
         elif remote_listing["error"]:
             st.error(remote_listing["error"])

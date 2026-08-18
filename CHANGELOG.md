@@ -9,6 +9,8 @@
   with login detection and remote parent/subfolder navigation without transfer.
 - Added friendly detection and instructions for the NSLS2 collection's one-time
   Globus data-access consent instead of displaying a raw JSON API error.
+- Added in-place consent retry, platform-specific Windows/macOS/Linux commands,
+  preservation of required scopes, and refresh/edit controls for the collection ID.
 - Retained path mappings only as an advanced option for genuine existing mounts;
   BNL Duo-authenticated proposal access now uses Globus rather than SSHFS-Win.
 - Added project issue-reporting and scientific-contact links to Home.

@@ -56,14 +56,23 @@ client once using the same BNL browser login and Duo flow as File Manager:
 .\.venv\Scripts\globus.exe login
 ```
 
+On macOS or Linux:
+
+```bash
+./.venv/bin/globus login
+```
+
 The NSLS2 collection may request one additional data-access consent on the
 first directory listing. The GUI detects this response and shows the command:
 
 ```powershell
-.\.venv\Scripts\globus.exe session consent "https://auth.globus.org/scopes/819379a8-47db-439d-a5ba-a2387b79add9/data_access"
+.\.venv\Scripts\globus.exe session consent "urn:globus:auth:scope:transfer.api.globus.org:all" "https://auth.globus.org/scopes/819379a8-47db-439d-a5ba-a2387b79add9/data_access"
 ```
 
-Complete the browser approval/Duo flow once, then retry the remote listing.
+Complete the browser approval/Duo flow once, then select **Retry remote listing
+after consent**. A GUI restart is not necessary. The GUI generates the command
+with Windows or macOS/Linux paths as appropriate and preserves all scopes
+returned by Globus.
 
 Then open **Globus & Data Sources → Globus CLI browser**. The page detects the
 CLI login and lists remote folders through the active NSLS2 collection:
@@ -76,6 +85,10 @@ The retired `88c7648d-...` collection is not used. Online directory listing
 does not transfer the proposal. Array loading still requires selected files to
 be transferred into a local cache; Globus cannot expose the collection as a
 Windows drive.
+
+If NSLS-II replaces the collection UUID, use **Refresh current NSLS2 collection
+ID**. The ID is also editable for recovery and is not assumed to remain fixed
+forever.
 
 ## Access and transfer troubleshooting
 
