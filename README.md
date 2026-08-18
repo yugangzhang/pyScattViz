@@ -270,9 +270,27 @@ To install a later update on Windows:
 
 ```powershell
 cd $HOME\pyScattViz
-git pull
+git pull --ff-only
 .\.venv\Scripts\python.exe -m pip install --upgrade .
 .\start_windows.bat
+```
+
+> **Do not run `python3 -m venv .venv` on Windows after `git pull`.** The
+> `python3` command is normally for macOS/Linux, and pulling an update does not
+> remove the existing environment. Check it first:
+
+```powershell
+.\.venv\Scripts\python.exe --version
+```
+
+If that prints a Python version, keep the environment and run the update
+commands above. Only when Windows reports that `.venv\Scripts\python.exe` does
+not exist should the environment be created again:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install .
 ```
 
 To install a later update on macOS or Linux:
@@ -298,6 +316,10 @@ or:
 ```powershell
 .\.venv\Scripts\python.exe -m pyscattviz
 ```
+
+**PowerShell says `python3` was not found or opens the Microsoft Store:** do
+not use `python3` on Windows. Use `py -3.12` when creating an environment, or
+call `.\.venv\Scripts\python.exe` directly when the environment already exists.
 
 **A start file says pyScattViz is not installed:** return to the installation
 section for that operating system and create `.venv` before starting the app.
@@ -327,6 +349,19 @@ by default.
    transferring only `Results/gisaxs`, `Results/giwaxs`, `Results/tsaxs`, or
    `Results/twaxs` is much smaller than transferring the complete raw dataset.
 7. Start pyScattViz and save the local destination on **Globus & Data Sources**.
+
+To browse NSLS-II directory names without transferring them, authenticate the
+Globus CLI once from the repository folder:
+
+```powershell
+.\.venv\Scripts\globus.exe login
+```
+
+After the BNL browser login and Duo verification succeed, start pyScattViz and
+open **Globus & Data Sources → Globus CLI browser**. Select **Check Globus
+login**, paste the `/nsls2/data/...` path, and select **List remote folder**.
+This remote browser does not download arrays. Viewer loading will use a
+selective local Globus cache rather than a mounted Windows drive.
 
 Official references:
 
