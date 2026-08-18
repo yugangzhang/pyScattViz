@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyScattViz"
-version = "0.2.1"
+version = "0.3.0"
 description = "Local, lazy-loading visualization for NSLS-II scattering data"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -29,6 +29,7 @@ dependencies = [
   "matplotlib>=3.5",
   "pandas>=1.5",
   "Pillow>=9",
+  "globus-cli>=3.41,<4",
   "plotly>=5.18",
   "scipy>=1.7",
   "seaborn>=0.12",

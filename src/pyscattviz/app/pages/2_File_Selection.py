@@ -140,9 +140,9 @@ if active_mapping:
 if not root_input or not Path(effective_root).expanduser().is_dir():
     if root_input.startswith("/nsls2/") and not active_mapping:
         st.warning(
-            "This NSLS-II path is not mounted on this computer. Open Globus & Data "
-            "Sources → Remote mount (lazy access), mount the folder, and save its "
-            "remote-to-mounted path mapping."
+            "This NSLS-II path is remote. Browse it under Globus & Data Sources → "
+            "Globus CLI browser. File Selection currently requires the selectively "
+            "transferred local cache/destination before it can index frame files."
         )
     else:
         st.info("Select an available result folder to start.")

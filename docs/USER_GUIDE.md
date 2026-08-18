@@ -4,8 +4,8 @@
 
 I organized the application around five pages.
 
-1. **Globus & Data Sources** builds the NSLS-II collection path for online
-   browsing and records one or more mounted/local folders.
+1. **Globus & Data Sources** builds the NSLS-II collection path, browses it
+   through an authenticated Globus CLI session, and records local folders.
 2. **File Selection** includes a folder navigator, scans filenames, applies
    boolean or exact-list filters, and saves canonical frame names.
 3. **GISAXS / GIWAXS Explorer** reviews grazing-incidence results.
@@ -21,10 +21,10 @@ Entering one product folder, such as `.../giwaxs/q_image`, focuses the viewer on
 that product. Entering the parent `.../giwaxs` allows any available combination.
 
 Folder lists can contain local disks, external drives, institutional mounted
-storage, and completed Globus destinations. A Globus `/nsls2/data/...` path can
-be opened in Globus File Manager without transferring it, but it is not a
-Windows/local filesystem path. To load frames lazily, use a transferred result
-folder or expose the remote data as a mapped/mounted network folder.
+storage, and completed Globus destinations. The Globus CLI browser can list a
+remote `/nsls2/data/...` path without transferring it, but that path is not a
+Windows/local filesystem path. Viewers load arrays only after the required
+files have been transferred into a local destination/cache.
 
 File Selection supports direct path pasting and a safe command bar. Use `pwd`
 to show the current folder, `ls [path]` to list it, `cd <path>` to move through
@@ -32,12 +32,6 @@ the tree, and `du [path]` for a size estimate. These are built-in read-only
 operations; pyScattViz does not open a system shell. Quote paths containing
 spaces. The `du` scan stops after 5,000 files to remain responsive on large
 network trees.
-
-When a remote-to-mounted mapping has been saved on the Remote mount tab, the
-original `/nsls2/data/...` path can be pasted directly in **Result folder** or
-used with `cd` and `ls`. For example, mapping an NSLS-II proposal to Windows
-drive `Z:` makes a pasted `/nsls2/.../Results/giwaxs` path resolve under `Z:\`
-automatically.
 
 ## Selecting filenames
 

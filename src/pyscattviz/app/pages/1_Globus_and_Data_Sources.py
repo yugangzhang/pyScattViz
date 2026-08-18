@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import streamlit as st
 
-from pyscattviz.data_sources import (
-    add_path_mapping,
-    load_path_mappings,
-    save_path_mappings,
-    sshfs_windows_unc,
-    translate_remote_path,
-)
+from pyscattviz.data_sources import load_path_mappings, save_path_mappings
 from pyscattviz.globus import (
     BNL_GLOBUS_GUIDE,
     GLOBUS_FILE_MANAGER,
@@ -21,14 +15,21 @@ from pyscattviz.globus import (
     globus_file_manager_url,
     proposal_path,
 )
+from pyscattviz.globus_cli import (
+    NSLS2_COLLECTION_ID,
+    GlobusCLIError,
+    find_globus_cli,
+    globus_identity,
+    list_globus_directory,
+)
 
 st.set_page_config(page_title="Globus & Data Sources", page_icon="🌐", layout="wide")
 st.title("🌐 Globus & Data Sources")
 st.caption("Browse the NSLS2 collection online, or register a mounted/local data folder.")
 
 st.session_state.setdefault("pyscattviz_path_mappings", load_path_mappings())
-globus_tab, mount_tab, local_tab = st.tabs(
-    ["Globus online / transfer", "Remote mount (lazy access)", "Local folders"]
+globus_tab, cli_tab, local_tab = st.tabs(
+    ["Globus online / transfer", "Globus CLI browser", "Local folders"]
 )
 
 with globus_tab:
@@ -95,148 +96,137 @@ a network/mounted folder that appears as a normal path on this computer.
 
     st.info(
         "A Globus path such as /nsls2/data/... is a remote reference, not a Windows "
-        "or local filesystem path. pyScattViz can browse it in Globus, but loading a "
-        "frame requires a transferred result folder or an SFTP/SSHFS/network mount."
+        "or local filesystem path. The Globus CLI browser can list it without a transfer; "
+        "loading arrays still requires selective transfer into a local cache."
     )
 
-with mount_tab:
+def _select_globus_path(path: str) -> None:
+    st.session_state["pyscattviz_globus_path"] = path
+    st.session_state["pyscattviz_globus_auto_browse"] = True
+
+
+with cli_tab:
     st.markdown(
         """
-An SSHFS mount makes an NSLS-II SFTP folder appear as a normal drive. The data
-remain at NSLS-II; directory names and only the files opened by pyScattViz cross
-the network. This is separate from Globus and requires BNL SFTP access plus the
-BNL network or VPN.
-
-### Windows one-time setup
-
-Open **PowerShell as Administrator** and install the filesystem drivers:
+This browser uses the Globus CLI login already completed in PowerShell. It can
+list NSLS-II folders without SSHFS, a Windows drive, or a bulk transfer. The BNL
+login and Duo tokens remain in Globus CLI's own local credential store.
 """
     )
+    st.markdown("**One-time PowerShell login**")
     st.code(
-        "winget install --exact --id WinFsp.WinFsp\n"
-        "winget install --exact --id SSHFS-Win.SSHFS-Win",
+        ".\\.venv\\Scripts\\globus.exe login",
         language="powershell",
     )
-    st.info(
-        "A restart is usually not necessary. After installation, close the old PowerShell "
-        "window, open a new one, connect the BNL VPN, and try the mount below. Restart "
-        "Windows only if it reports that the network name/provider cannot be found."
-    )
 
-    st.markdown("### Mount the NSLS-II folder as a Windows drive")
-
-    mount_remote = st.text_input(
-        "NSLS-II folder to mount",
-        value=remote_path or "/nsls2/data/smi/proposals",
-        placeholder="/nsls2/data/smi/proposals/2026-2/pass-319371",
-    )
-    mount_left, mount_right, mount_drive = st.columns([2, 2, 1])
-    bnl_username = mount_left.text_input(
-        "BNL username",
-        placeholder="yuzhang",
-        help="Used only to generate the mount address; pyScattViz does not save a password.",
-    )
-    mounted_folder = mount_right.text_input(
-        "Mounted/local folder",
-        value="Z:\\",
-        help="The Windows drive or local mount point representing the remote folder.",
-    )
-    drive_letter = mount_drive.text_input("Windows drive", value="Z:")
-
-    command_username = bnl_username.strip() or "BNL_USERNAME"
-    try:
-        unc_path = sshfs_windows_unc(command_username, mount_remote)
-    except ValueError as exc:
-        st.error(str(exc))
+    cli_executable = find_globus_cli()
+    if cli_executable:
+        st.success(f"Globus CLI found: {cli_executable}")
     else:
-        st.markdown(
-            "**Option A — PowerShell:** open a new regular PowerShell window and run:"
-        )
-        st.code(
-            f'net use {drive_letter} "{unc_path}" /persistent:yes',
-            language="powershell",
-        )
-        st.markdown(
-            "Windows may first print *The password is invalid* and then ask for the "
-            "username/password; that initial message is normal for the first connection. "
-            "Enter your BNL credentials when prompted. Then verify the drive:"
-        )
-        st.code(f"Get-ChildItem {drive_letter}\\", language="powershell")
-
-        st.markdown(
-            "**Option B — File Explorer:** open **This PC → ⋯ → Map network drive**, "
-            f"select **{drive_letter}**, and paste this folder address:"
-        )
-        st.code(unc_path, language=None)
-        st.caption(
-            "Windows handles the password through SSHFS-Win. pyScattViz never receives "
-            "or stores it. To disconnect later, use "
-            f"`net use {drive_letter} /delete`."
+        st.error(
+            "Globus CLI was not found in this environment. Reinstall pyScattViz with "
+            "`.\\.venv\\Scripts\\python.exe -m pip install --upgrade .`, then log in."
         )
 
-    if st.button("Check whether the mounted folder is available"):
-        if Path(mounted_folder).expanduser().is_dir():
-            st.success(f"Mount is available: {mounted_folder}")
-        else:
-            st.error(
-                f"{mounted_folder} is not available yet. Run the mount command above, "
-                "then check again."
-            )
-
-    st.markdown("### Save the path translation after the drive opens")
-    st.caption(
-        "This mapping does not create the drive. Save it after the mount command and "
-        f"`Get-ChildItem {drive_letter}\\` work."
-    )
-    if st.button("Save remote-to-mounted path mapping", type="primary"):
+    if st.button("Check Globus login", disabled=not cli_executable):
         try:
-            mappings = add_path_mapping(
-                st.session_state["pyscattviz_path_mappings"],
-                mount_remote,
-                mounted_folder,
-            )
-            config_file = save_path_mappings(mappings)
-        except (OSError, ValueError) as exc:
+            identity = globus_identity(cli_executable)
+        except GlobusCLIError as exc:
             st.error(str(exc))
         else:
-            st.session_state["pyscattviz_path_mappings"] = mappings
-            translated, _mapping = translate_remote_path(mount_remote, mappings)
-            st.success(f"Saved mapping: {mount_remote} → {translated}")
-            st.caption(f"Saved locally in `{config_file}`; no credentials are stored.")
-            if Path(translated).is_dir():
-                st.success("The mounted folder is available now.")
-            else:
-                st.warning(
-                    "The mapping is saved, but the mounted folder is not available yet. "
-                    "Complete the Windows drive mapping or connect the VPN."
+            st.session_state["pyscattviz_globus_identity"] = identity
+    if st.session_state.get("pyscattviz_globus_identity"):
+        st.success(f"Logged in as {st.session_state['pyscattviz_globus_identity']}")
+
+    st.markdown("**Active NSLS2 collection**")
+    st.code(NSLS2_COLLECTION_ID, language=None)
+    st.caption("The retired `88c7648d-...` collection is intentionally not used.")
+
+    st.session_state.setdefault(
+        "pyscattviz_globus_path",
+        remote_path or "/nsls2/data/smi/proposals",
+    )
+    remote_browser_path = st.text_input(
+        "Remote NSLS-II folder",
+        key="pyscattviz_globus_path",
+        placeholder="/nsls2/data/smi/proposals/2026-2/pass-319371/projects",
+    )
+    if remote_path:
+        st.button(
+            "Use proposal path from the first tab",
+            on_click=_select_globus_path,
+            args=(remote_path,),
+        )
+
+    browse_requested = st.button(
+        "List remote folder",
+        type="primary",
+        disabled=not cli_executable,
+    )
+    browse_requested = browse_requested or st.session_state.pop(
+        "pyscattviz_globus_auto_browse", False
+    )
+    if browse_requested and cli_executable:
+        try:
+            remote_rows = list_globus_directory(
+                remote_browser_path,
+                collection_id=NSLS2_COLLECTION_ID,
+                executable=cli_executable,
+            )
+        except GlobusCLIError as exc:
+            st.session_state["pyscattviz_globus_listing"] = {
+                "path": remote_browser_path,
+                "rows": [],
+                "error": str(exc),
+            }
+        else:
+            st.session_state["pyscattviz_globus_listing"] = {
+                "path": remote_browser_path,
+                "rows": remote_rows,
+                "error": None,
+            }
+
+    remote_listing = st.session_state.get("pyscattviz_globus_listing")
+    if remote_listing:
+        if remote_listing["error"]:
+            st.error(remote_listing["error"])
+        else:
+            st.success(
+                f"Found {len(remote_listing['rows']):,} entries in "
+                f"{remote_listing['path']}"
+            )
+            display_rows = [
+                {
+                    key: row[key]
+                    for key in ("name", "type", "size", "modified")
+                }
+                for row in remote_listing["rows"]
+            ]
+            st.dataframe(display_rows, width="stretch", hide_index=True)
+            folders = [row for row in remote_listing["rows"] if row["is_dir"]]
+            if folders:
+                selected_remote_folder = st.selectbox(
+                    "Remote subfolder",
+                    folders,
+                    format_func=lambda row: row["name"],
+                )
+                st.button(
+                    "Open selected remote subfolder",
+                    on_click=_select_globus_path,
+                    args=(selected_remote_folder["path"],),
                 )
 
-    mappings = st.session_state["pyscattviz_path_mappings"]
-    if mappings:
-        st.markdown("**Saved path mappings**")
-        st.dataframe(mappings, width="stretch", hide_index=True)
-        remove_mapping = st.selectbox(
-            "Mapping to remove",
-            mappings,
-            format_func=lambda item: f"{item['remote_root']}  →  {item['local_root']}",
-        )
-        if st.button("Remove selected mapping"):
-            remaining = [item for item in mappings if item != remove_mapping]
-            try:
-                save_path_mappings(remaining)
-            except OSError as exc:
-                st.error(str(exc))
-            else:
-                st.session_state["pyscattviz_path_mappings"] = remaining
-                st.rerun()
-
-    with st.expander("macOS / Linux SSHFS command"):
-        st.code(
-            "mkdir -p ~/NSLS_II_Link/smi_remote\n"
-            "sshfs USERNAME@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals "
-            "~/NSLS_II_Link/smi_remote",
-            language="bash",
-        )
+    parent_path = str(PurePosixPath(remote_browser_path).parent)
+    st.button(
+        "↑ Remote parent folder",
+        on_click=_select_globus_path,
+        args=(parent_path,),
+        disabled=remote_browser_path == "/",
+    )
+    st.info(
+        "This release browses remote names only. Loading a selected frame will require "
+        "a selective Globus transfer into the local cache; that is not a filesystem mount."
+    )
 
 with local_tab:
     st.markdown(
@@ -278,3 +268,28 @@ with local_tab:
             st.success("Folder is available on this computer.")
         else:
             st.info("Folder is saved but is not currently available.")
+
+    mappings = st.session_state["pyscattviz_path_mappings"]
+    if mappings:
+        with st.expander("Remove an old mounted-drive path mapping"):
+            st.caption(
+                "These mappings are retained for real institutional/network mounts. "
+                "Remove the failed SSHFS-Win mapping if `Z:\\` was never created."
+            )
+            st.dataframe(mappings, width="stretch", hide_index=True)
+            remove_mapping = st.selectbox(
+                "Mapping to remove",
+                mappings,
+                format_func=lambda item: (
+                    f"{item['remote_root']}  →  {item['local_root']}"
+                ),
+            )
+            if st.button("Remove selected mapping"):
+                remaining = [item for item in mappings if item != remove_mapping]
+                try:
+                    save_path_mappings(remaining)
+                except OSError as exc:
+                    st.error(str(exc))
+                else:
+                    st.session_state["pyscattviz_path_mappings"] = remaining
+                    st.rerun()

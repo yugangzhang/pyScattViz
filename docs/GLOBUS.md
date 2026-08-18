@@ -1,9 +1,9 @@
 # NSLS-II data transfer with Globus
 
 I use Globus as the primary transfer route because transfers are resumable and
-verified. pyScattViz can open Globus File Manager at the proposal path for
-online browsing. It reads data only from a transferred or mounted filesystem
-folder; it does not store BNL credentials or proxy the remote collection.
+verified. pyScattViz can open Globus File Manager or use an authenticated
+Globus CLI session for online browsing. It does not store BNL credentials or
+proxy the remote collection.
 
 ## One-time setup
 
@@ -47,46 +47,26 @@ images must appear in the viewer.
 For repeat reviews, enable Globus sync by modification time or checksum. This
 copies only new or changed files.
 
-## Remote mount without a bulk download
+## Browse through Globus CLI without downloading
 
-Globus Connect Personal is a transfer client, not a filesystem mount. To make
-an NSLS-II proposal appear as a Windows drive without copying the whole tree,
-open **Globus & Data Sources → Remote mount (lazy access)**. The tab guides a
-Windows user through installing WinFsp and SSHFS-Win and generates the network
-address for `sftp.nsls2.bnl.gov`. BNL SFTP access and the campus network or VPN
-are required.
-
-A Windows restart is not normally required. After installing the two drivers,
-close the old PowerShell window, open a new one, connect the VPN, and try the
-generated `net use` command. For example:
+Globus is not a filesystem mount. On Windows, authenticate its command-line
+client once using the same BNL browser login and Duo flow as File Manager:
 
 ```powershell
-net use Z: "\\sshfs.r\USERNAME@sftp.nsls2.bnl.gov\nsls2\data\smi\proposals" /persistent:yes
-Get-ChildItem Z:\
+.\.venv\Scripts\globus.exe login
 ```
 
-On the first connection, `net use` may print that the password is invalid and
-then prompt for the BNL username and password; this is the expected SSHFS-Win
-credential flow. Restart Windows only if a new PowerShell window reports that
-the network name or provider cannot be found (commonly system error 67).
-
-For example, mount this remote proposal as drive `Z:`:
+Then open **Globus & Data Sources → Globus CLI browser**. The page detects the
+CLI login and lists remote folders through the active NSLS2 collection:
 
 ```text
-/nsls2/data/smi/proposals/2026-2/pass-319371
+819379a8-47db-439d-a5ba-a2387b79add9
 ```
 
-Then save this path mapping in the same tab:
-
-```text
-/nsls2/data/smi/proposals/2026-2/pass-319371  →  Z:\
-```
-
-Afterward, File Selection accepts the original Globus/NSLS-II path, including
-deeper `projects/.../Results/giwaxs` components. pyScattViz translates it to
-the mounted drive and opens only directory listings and selected frame files.
-The mapping is saved under `.pyscattviz` in the user's home folder and contains
-no username or password.
+The retired `88c7648d-...` collection is not used. Online directory listing
+does not transfer the proposal. Array loading still requires selected files to
+be transferred into a local cache; Globus cannot expose the collection as a
+Windows drive.
 
 ## Access and transfer troubleshooting
 
@@ -97,5 +77,5 @@ no username or password.
   not running.
 - A completed transfer with no visible files can result from choosing a local
   path outside the directories permitted by the personal collection.
-- pyScattViz cannot open `/nsls2/...` on a collaborator's laptop. Select the
-  local Globus destination instead.
+- The CLI browser can list `/nsls2/...`, but viewers cannot open remote arrays
+  until selected files have reached a local Globus destination/cache.

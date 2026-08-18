@@ -113,13 +113,3 @@ def translate_remote_path(remote_path: str, mappings) -> tuple[str, dict | None]
             translated = str(Path(local_root).expanduser().joinpath(*relative_parts))
         return translated, {"remote_root": remote_root, "local_root": local_root}
     return remote_path, None
-
-
-def sshfs_windows_unc(username: str, remote_path: str) -> str:
-    """Build an SSHFS-Win root-relative UNC path for the NSLS-II SFTP host."""
-
-    user = username.strip()
-    if not user or any(character in user for character in "\\/@"):
-        raise ValueError("Enter only the BNL account username.")
-    remote = normalize_remote_root(remote_path).lstrip("/").replace("/", "\\")
-    return rf"\\sshfs.r\{user}@sftp.nsls2.bnl.gov\{remote}"

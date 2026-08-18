@@ -1,12 +1,9 @@
 import json
 
-import pytest
-
 from pyscattviz.data_sources import (
     add_path_mapping,
     load_path_mappings,
     save_path_mappings,
-    sshfs_windows_unc,
     translate_remote_path,
 )
 
@@ -43,11 +40,3 @@ def test_mapping_round_trip(tmp_path):
     assert save_path_mappings(mappings, config) == config
     assert load_path_mappings(config) == mappings
     assert json.loads(config.read_text())[0]["remote_root"] == REMOTE_ROOT
-
-
-def test_windows_sshfs_unc_and_username_validation():
-    assert sshfs_windows_unc("yuzhang", REMOTE_ROOT) == (
-        r"\\sshfs.r\yuzhang@sftp.nsls2.bnl.gov\nsls2\data\smi\proposals"
-    )
-    with pytest.raises(ValueError):
-        sshfs_windows_unc("domain/user", REMOTE_ROOT)
