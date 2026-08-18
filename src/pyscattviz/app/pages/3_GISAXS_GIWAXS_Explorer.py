@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import io
 import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -93,8 +94,26 @@ with st.sidebar:
         "Data path (gisaxs/giwaxs/ or one product folder)",
         value=st.session_state.get("pyscattviz_active_root", ""),
     )
-    if analysis:
+    analysis_available = bool(analysis and Path(analysis).expanduser().is_dir())
+    if analysis_available:
         st.session_state["pyscattviz_active_root"] = analysis
+    elif analysis:
+        st.session_state.pop("pyscattviz_active_root", None)
+
+    pending_remote = str(st.session_state.get("pyscattviz_file_root", ""))
+    if not analysis_available:
+        if pending_remote.startswith("/nsls2/"):
+            st.warning(
+                "The selected NSLS2 folder is still remote. Return to File Selection, "
+                "scan the remote filenames, and complete the selective Globus transfer "
+                "before opening this viewer."
+            )
+        elif analysis:
+            st.warning(
+                "This data path is not available on this computer. Choose an existing "
+                "local, mounted, or transferred cache folder."
+            )
+        st.stop()
 
     analysis_root, products, selected_products = scattering_product_selector(
         "giwaxs_products", analysis

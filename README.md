@@ -411,6 +411,11 @@ Globus does not mount the NSLS2 collection as a Windows drive. Remote browsing
 and filename filtering remain online; only the selected frame files enter the
 local cache.
 
+If an older failed SSHFS setup left a saved `/nsls2/... → Z:\` mapping,
+pyScattViz ignores it whenever the translated `Z:` folder is unavailable and
+continues with Globus. The obsolete mapping can be removed under **Globus &
+Data Sources → Local folders**.
+
 Official references:
 
 - [NSLS-II Globus instructions](https://wiki-nsls2.bnl.gov/MX/index.php?title=Globus)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+- Ignored saved remote-to-drive mappings when their translated folder is not
+  currently available, allowing the Globus remote workflow to continue.
+- Cleared stale local selections during a remote-folder handoff and added a
+  viewer message when a selective transfer is still required.
+
 ## 0.4.1
 
 - Fixed the Globus-to-File-Selection handoff so it no longer rewrites an

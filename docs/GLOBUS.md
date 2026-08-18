@@ -115,6 +115,9 @@ Windows example is Globus path
 
 Globus cannot expose the NSLS2 collection as a Windows drive. Only the selected
 frame files are transferred into the local cache; the proposal remains remote.
+An old saved SSHFS or mapped-drive rule is ignored when its translated folder
+does not exist. Remove obsolete rules under **Globus & Data Sources → Local
+folders**.
 
 If NSLS-II replaces the collection UUID, use **Refresh current NSLS2 collection
 ID**. The ID is also editable for recovery and is not assumed to remain fixed

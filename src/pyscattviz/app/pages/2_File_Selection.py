@@ -440,22 +440,33 @@ root_input = st.text_input(
 effective_root, active_mapping = translate_remote_path(
     root_input, st.session_state["pyscattviz_path_mappings"]
 )
-is_remote_globus = root_input.startswith("/nsls2/") and not active_mapping
+effective_path_available = Path(effective_root).expanduser().is_dir()
+unavailable_mapping = bool(active_mapping and not effective_path_available)
+is_remote_globus = root_input.startswith("/nsls2/") and (
+    not active_mapping or unavailable_mapping
+)
 if root_input and not is_remote_globus:
     st.session_state["pyscattviz_active_root"] = str(
         Path(effective_root).expanduser().resolve(strict=False)
     )
-if active_mapping:
+if active_mapping and effective_path_available:
     st.info(
         f"Remote path mapped through `{active_mapping['remote_root']}` to "
         f"`{effective_root}`."
+    )
+elif unavailable_mapping:
+    st.warning(
+        f"The saved mapping `{active_mapping['remote_root']}` → "
+        f"`{active_mapping['local_root']}` was ignored because `{effective_root}` "
+        "is not available on this computer. Remote Globus browsing will be used. "
+        "You can remove the old mapping under Globus & Data Sources → Local folders."
     )
 
 if is_remote_globus:
     _render_remote_selection(root_input.rstrip("/"))
     st.stop()
 
-if not root_input or not Path(effective_root).expanduser().is_dir():
+if not root_input or not effective_path_available:
     st.info("Select an available result folder to start.")
     st.stop()
 

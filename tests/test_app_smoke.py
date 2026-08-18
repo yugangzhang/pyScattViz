@@ -62,6 +62,34 @@ def test_file_selection_accepts_unmounted_globus_path_for_remote_workflow():
     assert any(button.label == "Find remote product folders" for button in app.button)
 
 
+def test_file_selection_ignores_unavailable_saved_drive_mapping():
+    page = (
+        Path(__file__).parents[1]
+        / "src"
+        / "pyscattviz"
+        / "app"
+        / "pages"
+        / "2_File_Selection.py"
+    )
+    remote_root = (
+        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
+        "projects/microbeam_Kim/Results/giwaxs"
+    )
+    app = AppTest.from_file(str(page), default_timeout=10)
+    app.session_state["pyscattviz_file_root"] = remote_root
+    app.session_state["pyscattviz_path_mappings"] = [
+        {
+            "remote_root": "/nsls2/data/smi/proposals/2026-2/pass-319371",
+            "local_root": "Z:\\",
+        }
+    ]
+    app.run()
+
+    assert not app.exception
+    assert any(button.label == "Find remote product folders" for button in app.button)
+    assert any("was ignored" in warning.value for warning in app.warning)
+
+
 def test_globus_current_folder_handoff_does_not_rewrite_widget_state():
     page = (
         Path(__file__).parents[1]
@@ -80,6 +108,8 @@ def test_globus_current_folder_handoff_does_not_rewrite_widget_state():
     app.session_state["pyscattviz_globus_collection_id"] = (
         "819379a8-47db-439d-a5ba-a2387b79add9"
     )
+    app.session_state["pyscattviz_active_root"] = r"Z:\projects\old"
+    app.session_state["pyscattviz_selected_stems"] = ("old-frame",)
     app.run()
     handoff = next(
         button
@@ -94,4 +124,28 @@ def test_globus_current_folder_handoff_does_not_rewrite_widget_state():
 
     assert not app.exception
     assert app.session_state["pyscattviz_file_root"] == remote_root
+    assert "pyscattviz_active_root" not in app.session_state.filtered_state
+    assert "pyscattviz_selected_stems" not in app.session_state.filtered_state
     switch_page.assert_called_once_with("pages/2_File_Selection.py")
+
+
+def test_scattering_viewers_explain_that_remote_data_need_transfer():
+    pages_dir = (
+        Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
+    )
+    remote_root = (
+        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
+        "projects/microbeam_Kim/Results/giwaxs"
+    )
+    for filename in (
+        "3_GISAXS_GIWAXS_Explorer.py",
+        "4_Transmission_SAXS_WAXS.py",
+    ):
+        app = AppTest.from_file(str(pages_dir / filename), default_timeout=10)
+        app.session_state["pyscattviz_file_root"] = remote_root
+        app.session_state["pyscattviz_active_root"] = r"Z:\projects\missing"
+        app.run()
+
+        assert not app.exception
+        assert any("still remote" in warning.value for warning in app.warning)
+        assert "pyscattviz_active_root" not in app.session_state.filtered_state

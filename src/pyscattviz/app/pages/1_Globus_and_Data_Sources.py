@@ -114,6 +114,20 @@ def _retry_globus_listing() -> None:
     st.session_state["pyscattviz_globus_auto_browse"] = True
 
 
+def _prepare_remote_file_selection(path: str) -> None:
+    """Hand off a remote root without retaining an unrelated local selection."""
+
+    st.session_state["pyscattviz_file_root"] = path
+    for key in (
+        "pyscattviz_active_root",
+        "pyscattviz_selection_table",
+        "pyscattviz_selected_stems",
+        "pyscattviz_selected_root",
+        "pyscattviz_selected_products",
+    ):
+        st.session_state.pop(key, None)
+
+
 with cli_tab:
     st.markdown(
         """
@@ -288,9 +302,7 @@ login and Duo tokens remain in Globus CLI's own local credential store.
                     type="primary",
                     use_container_width=True,
                 ):
-                    st.session_state["pyscattviz_file_root"] = selected_remote_folder[
-                        "path"
-                    ]
+                    _prepare_remote_file_selection(selected_remote_folder["path"])
                     st.switch_page("pages/2_File_Selection.py")
 
     parent_path = str(PurePosixPath(remote_browser_path).parent)
@@ -305,7 +317,7 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         type="primary",
         disabled=not remote_browser_path.startswith("/nsls2/"),
     ):
-        st.session_state["pyscattviz_file_root"] = remote_browser_path
+        _prepare_remote_file_selection(remote_browser_path)
         st.switch_page("pages/2_File_Selection.py")
     st.info(
         "Use either File Selection button after reaching a result folder. File Selection "
