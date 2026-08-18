@@ -107,6 +107,11 @@ To visualize the selection:
 6. Check the task status. After success, open the transferred files in File
    Selection and continue to a scattering viewer.
 
+Moving to another pyScattViz page does not discard the remote path, product
+choices, filters, scan table, or cache settings. Before transfer, the viewers
+show the number of saved remote frame names and direct the user back to File
+Selection; names alone cannot render the arrays.
+
 The Globus collection root and local filesystem root are not always named the
 same way. Confirm their correspondence in Globus File Manager. A common
 Windows example is Globus path

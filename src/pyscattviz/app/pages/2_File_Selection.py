@@ -13,6 +13,11 @@ from pyscattviz.app.components.scattering import (
     index_frames,
     index_remote_frames,
 )
+from pyscattviz.app.state import (
+    prepare_persistent_widget,
+    set_persistent_value,
+    store_persistent_widget,
+)
 from pyscattviz.browser import list_directory, run_browser_command
 from pyscattviz.data_sources import load_path_mappings, translate_remote_path
 from pyscattviz.filters import FilterSyntaxError, parse_filename_list
@@ -58,7 +63,7 @@ def _browse_to(path: str) -> None:
 
 def _activate_local_cache(path: str) -> None:
     local_root = str(Path(path).expanduser().resolve(strict=False))
-    st.session_state["pyscattviz_file_root"] = local_root
+    set_persistent_value(st.session_state, "pyscattviz_file_root", local_root)
     st.session_state["pyscattviz_active_root"] = local_root
     st.session_state["pyscattviz_browser_cwd"] = local_root
     st.session_state.pop("pyscattviz_selection_table", None)
@@ -89,12 +94,16 @@ def _render_remote_selection(remote_root: str) -> None:
     if not executable:
         st.error("Globus CLI was not found in this Python environment.")
         return
+    source_collection_key = prepare_persistent_widget(
+        st.session_state,
+        "pyscattviz_file_source_collection",
+        st.session_state.get("pyscattviz_globus_collection_id", NSLS2_COLLECTION_ID),
+    )
     collection_id = st.text_input(
         "Source NSLS2 collection ID",
-        value=st.session_state.get(
-            "pyscattviz_globus_collection_id", NSLS2_COLLECTION_ID
-        ),
-        key="pyscattviz_file_source_collection",
+        key=source_collection_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_file_source_collection"),
     )
 
     product_state = st.session_state.get("pyscattviz_remote_products")
@@ -130,25 +139,59 @@ def _render_remote_selection(remote_root: str) -> None:
         st.error("No recognized scattering product folders were found remotely.")
         return
 
+    if st.session_state.get("pyscattviz_remote_controls_root") != remote_root:
+        set_persistent_value(
+            st.session_state,
+            "pyscattviz_remote_selected_products",
+            available_keys,
+        )
+        st.session_state["pyscattviz_remote_controls_root"] = remote_root
+    else:
+        saved_products = st.session_state.get(
+            "pyscattviz_remote_selected_products", available_keys
+        )
+        valid_products = [key for key in saved_products if key in available_keys]
+        if valid_products != saved_products:
+            set_persistent_value(
+                st.session_state,
+                "pyscattviz_remote_selected_products",
+                valid_products,
+            )
+    selected_products_key = prepare_persistent_widget(
+        st.session_state,
+        "pyscattviz_remote_selected_products",
+        available_keys,
+    )
     selected_products = st.multiselect(
         "Remote products to index and transfer",
         available_keys,
-        default=available_keys,
         format_func=lambda key: SCATTERING_PRODUCTS[key]["label"],
-        key="pyscattviz_remote_selected_products",
+        key=selected_products_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_remote_selected_products"),
     )
     left, right = st.columns(2)
     with left:
+        remote_query_key = prepare_persistent_widget(
+            st.session_state, "pyscattviz_remote_query", ""
+        )
         query = st.text_input(
             "Boolean filename filter",
             placeholder="Kim AND (0.1000deg OR 0.1500deg) NOT AgBH",
-            key="pyscattviz_remote_query",
+            key=remote_query_key,
+            on_change=store_persistent_widget,
+            args=(st.session_state, "pyscattviz_remote_query"),
         )
     with right:
+        remote_names_key = prepare_persistent_widget(
+            st.session_state, "pyscattviz_remote_exact_names", ""
+        )
         pasted = st.text_area(
             "Exact filename or stem list (optional)",
             height=110,
-            key="pyscattviz_remote_exact_names",
+            key=remote_names_key,
+            on_change=store_persistent_widget,
+            args=(st.session_state, "pyscattviz_remote_exact_names"),
         )
         upload = st.file_uploader(
             "Load a .txt/.csv filename list",
@@ -162,13 +205,18 @@ def _render_remote_selection(remote_root: str) -> None:
         except UnicodeDecodeError:
             st.error("The filename list must be UTF-8 text.")
     exact_names = parse_filename_list([pasted, uploaded_text])
+    remote_max_key = prepare_persistent_widget(
+        st.session_state, "pyscattviz_remote_max_frames", 5_000
+    )
     max_frames = st.number_input(
         "Maximum matching remote frames",
         min_value=1,
         max_value=50_000,
         value=5_000,
         step=500,
-        key="pyscattviz_remote_max_frames",
+        key=remote_max_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_remote_max_frames"),
     )
 
     if st.button(
@@ -211,6 +259,10 @@ def _render_remote_selection(remote_root: str) -> None:
         f"Selected {len(frame_table):,} remote frame(s) after scanning "
         f"{scanned:,} filenames. No arrays have been downloaded."
     )
+    st.caption(
+        "This path, filter, product choice, and scan table are saved while the GUI is "
+        "running, so you can visit another page and return without rescanning."
+    )
     display_columns = [
         column
         for column in (
@@ -247,31 +299,82 @@ def _render_remote_selection(remote_root: str) -> None:
     personal = st.session_state.get("pyscattviz_personal_collections", [])
     selected_personal_id = ""
     if personal:
-        selected_personal = st.selectbox(
-            "Personal destination collection",
-            personal,
-            format_func=lambda item: (
-                f"{item['display_name']} — {item['id']}"
-                + (" (offline)" if item.get("connected") is False else "")
-            ),
+        personal_by_id = {item["id"]: item for item in personal}
+        personal_ids = list(personal_by_id)
+        if st.session_state.get("pyscattviz_personal_collection_id") not in personal_ids:
+            set_persistent_value(
+                st.session_state,
+                "pyscattviz_personal_collection_id",
+                personal_ids[0],
+            )
+        personal_collection_key = prepare_persistent_widget(
+            st.session_state,
+            "pyscattviz_personal_collection_id",
+            personal_ids[0],
         )
-        selected_personal_id = selected_personal["id"]
+        selected_personal_id = st.selectbox(
+            "Personal destination collection",
+            personal_ids,
+            format_func=lambda collection_id: (
+                f"{personal_by_id[collection_id]['display_name']} — {collection_id}"
+                + (
+                    " (offline)"
+                    if personal_by_id[collection_id].get("connected") is False
+                    else ""
+                )
+            ),
+            key=personal_collection_key,
+            on_change=store_persistent_widget,
+            args=(st.session_state, "pyscattviz_personal_collection_id"),
+        )
+    manual_destination_key = prepare_persistent_widget(
+        st.session_state, "pyscattviz_manual_destination_id", ""
+    )
     manual_destination_id = st.text_input(
         "Or paste destination collection ID",
         placeholder="Collection UUID from Globus File Manager",
+        key=manual_destination_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_manual_destination_id"),
     ).strip()
     destination_collection_id = manual_destination_id or selected_personal_id
 
     cache_name = _remote_cache_name(dataset_root)
     suggested_local_cache = Path.home() / "pyScattViz-data" / cache_name
+    if st.session_state.get("pyscattviz_remote_cache_config_root") != dataset_root:
+        set_persistent_value(
+            st.session_state,
+            "pyscattviz_local_cache_path",
+            str(suggested_local_cache),
+        )
+        set_persistent_value(
+            st.session_state,
+            "pyscattviz_destination_collection_path",
+            local_path_to_globus_path(suggested_local_cache),
+        )
+        st.session_state["pyscattviz_remote_cache_config_root"] = dataset_root
+    local_cache_key = prepare_persistent_widget(
+        st.session_state,
+        "pyscattviz_local_cache_path",
+        str(suggested_local_cache),
+    )
     local_cache = st.text_input(
         "The same destination folder on this computer",
-        value=str(suggested_local_cache),
+        key=local_cache_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_local_cache_path"),
         placeholder=r"C:\Users\yuzhang\pyScattViz-data\microbeam_Kim-giwaxs",
+    )
+    destination_folder_key = prepare_persistent_widget(
+        st.session_state,
+        "pyscattviz_destination_collection_path",
+        local_path_to_globus_path(suggested_local_cache),
     )
     destination_folder = st.text_input(
         "Destination folder as shown in the personal Globus collection",
-        value=local_path_to_globus_path(suggested_local_cache),
+        key=destination_folder_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_destination_collection_path"),
         placeholder="/C/Users/yuzhang/pyScattViz-data/microbeam_Kim-giwaxs",
     )
     transfer_columns = ("raw", "qc", "qimg", "qphi", "cir")
@@ -424,13 +527,22 @@ with st.expander(
         use_container_width=True,
     )
     if nav_right.button("Use current folder", type="primary", use_container_width=True):
-        st.session_state["pyscattviz_file_root"] = st.session_state[
-            "pyscattviz_browser_cwd"
-        ]
+        set_persistent_value(
+            st.session_state,
+            "pyscattviz_file_root",
+            st.session_state["pyscattviz_browser_cwd"],
+        )
 
+file_root_widget_key = prepare_persistent_widget(
+    st.session_state,
+    "pyscattviz_file_root",
+    default_root,
+)
 root_input = st.text_input(
     "Result folder",
-    key="pyscattviz_file_root",
+    key=file_root_widget_key,
+    on_change=store_persistent_widget,
+    args=(st.session_state, "pyscattviz_file_root"),
     placeholder="/nsls2/data/.../Results/giwaxs or Z:\\...\\Results\\giwaxs",
     help=(
         "Paste an original /nsls2 Globus path, a local folder, or a mapped-drive path. "

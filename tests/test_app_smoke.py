@@ -62,6 +62,34 @@ def test_file_selection_accepts_unmounted_globus_path_for_remote_workflow():
     assert any(button.label == "Find remote product folders" for button in app.button)
 
 
+def test_remote_product_choice_is_copied_to_persistent_state():
+    page = (
+        Path(__file__).parents[1]
+        / "src"
+        / "pyscattviz"
+        / "app"
+        / "pages"
+        / "2_File_Selection.py"
+    )
+    remote_root = (
+        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
+        "projects/microbeam_Kim/Results/giwaxs"
+    )
+    app = AppTest.from_file(str(page), default_timeout=10)
+    app.session_state["pyscattviz_file_root"] = remote_root
+    app.session_state["pyscattviz_path_mappings"] = []
+    app.session_state["pyscattviz_remote_products"] = {
+        "root": remote_root,
+        "keys": ["q_image", "cir_avg"],
+    }
+    app.run()
+    app.multiselect[0].set_value(["cir_avg"]).run()
+
+    assert not app.exception
+    assert app.session_state["pyscattviz_file_root"] == remote_root
+    assert app.session_state["pyscattviz_remote_selected_products"] == ["cir_avg"]
+
+
 def test_file_selection_ignores_unavailable_saved_drive_mapping():
     page = (
         Path(__file__).parents[1]
@@ -144,8 +172,13 @@ def test_scattering_viewers_explain_that_remote_data_need_transfer():
         app = AppTest.from_file(str(pages_dir / filename), default_timeout=10)
         app.session_state["pyscattviz_file_root"] = remote_root
         app.session_state["pyscattviz_active_root"] = r"Z:\projects\missing"
+        app.session_state["pyscattviz_remote_selection_root"] = remote_root
+        app.session_state["pyscattviz_remote_selection_table"] = [None] * 994
         app.run()
 
         assert not app.exception
-        assert any("still remote" in warning.value for warning in app.warning)
+        assert any(
+            "994 remotely scanned frame names are saved" in warning.value
+            for warning in app.warning
+        )
         assert "pyscattviz_active_root" not in app.session_state.filtered_state

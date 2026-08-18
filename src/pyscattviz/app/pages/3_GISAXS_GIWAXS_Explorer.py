@@ -103,10 +103,22 @@ with st.sidebar:
     pending_remote = str(st.session_state.get("pyscattviz_file_root", ""))
     if not analysis_available:
         if pending_remote.startswith("/nsls2/"):
+            remote_table = st.session_state.get("pyscattviz_remote_selection_table")
+            remote_table_root = st.session_state.get("pyscattviz_remote_selection_root")
+            saved_count = (
+                len(remote_table)
+                if remote_table is not None and remote_table_root == pending_remote
+                else 0
+            )
+            saved_prefix = (
+                f"Your {saved_count:,} remotely scanned frame names are saved. "
+                if saved_count
+                else ""
+            )
             st.warning(
-                "The selected NSLS2 folder is still remote. Return to File Selection, "
-                "scan the remote filenames, and complete the selective Globus transfer "
-                "before opening this viewer."
+                f"{saved_prefix}The selected NSLS2 folder is still remote. Return to "
+                "File Selection and complete the selective Globus transfer before "
+                "opening this viewer."
             )
         elif analysis:
             st.warning(

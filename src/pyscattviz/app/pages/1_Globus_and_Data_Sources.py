@@ -7,6 +7,11 @@ from pathlib import Path, PurePosixPath
 
 import streamlit as st
 
+from pyscattviz.app.state import (
+    prepare_persistent_widget,
+    set_persistent_value,
+    store_persistent_widget,
+)
 from pyscattviz.data_sources import load_path_mappings, save_path_mappings
 from pyscattviz.globus import (
     BNL_GLOBUS_GUIDE,
@@ -106,7 +111,7 @@ a network/mounted folder that appears as a normal path on this computer.
     )
 
 def _select_globus_path(path: str) -> None:
-    st.session_state["pyscattviz_globus_path"] = path
+    set_persistent_value(st.session_state, "pyscattviz_globus_path", path)
     st.session_state["pyscattviz_globus_auto_browse"] = True
 
 
@@ -117,7 +122,7 @@ def _retry_globus_listing() -> None:
 def _prepare_remote_file_selection(path: str) -> None:
     """Hand off a remote root without retaining an unrelated local selection."""
 
-    st.session_state["pyscattviz_file_root"] = path
+    set_persistent_value(st.session_state, "pyscattviz_file_root", path)
     for key in (
         "pyscattviz_active_root",
         "pyscattviz_selection_table",
@@ -173,11 +178,22 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         except GlobusCLIError as exc:
             st.error(str(exc))
         else:
-            st.session_state["pyscattviz_globus_collection_id"] = current_collection
+            set_persistent_value(
+                st.session_state,
+                "pyscattviz_globus_collection_id",
+                current_collection,
+            )
             st.success(f"Current NSLS2 collection: {current_collection}")
+    collection_widget_key = prepare_persistent_widget(
+        st.session_state,
+        "pyscattviz_globus_collection_id",
+        NSLS2_COLLECTION_ID,
+    )
     collection_id = st.text_input(
         "Collection ID",
-        key="pyscattviz_globus_collection_id",
+        key=collection_widget_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_globus_collection_id"),
         help="Editable in case NSLS-II replaces its Globus collection in the future.",
     )
     st.caption("The retired `88c7648d-...` collection is intentionally not used.")
@@ -186,9 +202,16 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         "pyscattviz_globus_path",
         remote_path or "/nsls2/data/smi/proposals",
     )
+    globus_path_widget_key = prepare_persistent_widget(
+        st.session_state,
+        "pyscattviz_globus_path",
+        remote_path or "/nsls2/data/smi/proposals",
+    )
     remote_browser_path = st.text_input(
         "Remote NSLS-II folder",
-        key="pyscattviz_globus_path",
+        key=globus_path_widget_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_globus_path"),
         placeholder="/nsls2/data/smi/proposals/2026-2/pass-319371/projects",
     )
     if remote_path:

@@ -407,6 +407,11 @@ remote workflow:
    Selection** after it succeeds. The scattering viewers can then open the
    selected local files.
 
+The remote path, product choices, filename filters, scan table, and transfer
+settings remain saved in the running GUI when moving between pages. If a viewer
+is opened before transfer, it reports how many remotely scanned frame names are
+waiting and directs the user back to File Selection.
+
 Globus does not mount the NSLS2 collection as a Windows drive. Remote browsing
 and filename filtering remain online; only the selected frame files enter the
 local cache.

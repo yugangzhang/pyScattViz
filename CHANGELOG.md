@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3
+
+- Preserved the Globus path, collection ID, product choices, filename filters,
+  remote scan table, and cache settings across Streamlit page navigation.
+- Added the saved remote frame count to scattering-viewer guidance while a
+  selective transfer is still pending.
+
 ## 0.4.2
 
 - Ignored saved remote-to-drive mappings when their translated folder is not
