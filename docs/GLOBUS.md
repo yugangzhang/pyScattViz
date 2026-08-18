@@ -56,6 +56,20 @@ Windows user through installing WinFsp and SSHFS-Win and generates the network
 address for `sftp.nsls2.bnl.gov`. BNL SFTP access and the campus network or VPN
 are required.
 
+A Windows restart is not normally required. After installing the two drivers,
+close the old PowerShell window, open a new one, connect the VPN, and try the
+generated `net use` command. For example:
+
+```powershell
+net use Z: "\\sshfs.r\USERNAME@sftp.nsls2.bnl.gov\nsls2\data\smi\proposals" /persistent:yes
+Get-ChildItem Z:\
+```
+
+On the first connection, `net use` may print that the password is invalid and
+then prompt for the BNL username and password; this is the expected SSHFS-Win
+credential flow. Restart Windows only if a new PowerShell window reports that
+the network name or provider cannot be found (commonly system error 67).
+
 For example, mount this remote proposal as drive `Z:`:
 
 ```text

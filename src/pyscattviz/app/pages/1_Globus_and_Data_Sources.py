@@ -117,7 +117,13 @@ Open **PowerShell as Administrator** and install the filesystem drivers:
         "winget install --exact --id SSHFS-Win.SSHFS-Win",
         language="powershell",
     )
-    st.caption("Restart Windows after the first installation, then start the BNL VPN.")
+    st.info(
+        "A restart is usually not necessary. After installation, close the old PowerShell "
+        "window, open a new one, connect the BNL VPN, and try the mount below. Restart "
+        "Windows only if it reports that the network name/provider cannot be found."
+    )
+
+    st.markdown("### Mount the NSLS-II folder as a Windows drive")
 
     mount_remote = st.text_input(
         "NSLS-II folder to mount",
@@ -137,28 +143,51 @@ Open **PowerShell as Administrator** and install the filesystem drivers:
     )
     drive_letter = mount_drive.text_input("Windows drive", value="Z:")
 
-    if bnl_username and mount_remote:
-        try:
-            unc_path = sshfs_windows_unc(bnl_username, mount_remote)
-        except ValueError as exc:
-            st.error(str(exc))
+    command_username = bnl_username.strip() or "BNL_USERNAME"
+    try:
+        unc_path = sshfs_windows_unc(command_username, mount_remote)
+    except ValueError as exc:
+        st.error(str(exc))
+    else:
+        st.markdown(
+            "**Option A — PowerShell:** open a new regular PowerShell window and run:"
+        )
+        st.code(
+            f'net use {drive_letter} "{unc_path}" /persistent:yes',
+            language="powershell",
+        )
+        st.markdown(
+            "Windows may first print *The password is invalid* and then ask for the "
+            "username/password; that initial message is normal for the first connection. "
+            "Enter your BNL credentials when prompted. Then verify the drive:"
+        )
+        st.code(f"Get-ChildItem {drive_letter}\\", language="powershell")
+
+        st.markdown(
+            "**Option B — File Explorer:** open **This PC → ⋯ → Map network drive**, "
+            f"select **{drive_letter}**, and paste this folder address:"
+        )
+        st.code(unc_path, language=None)
+        st.caption(
+            "Windows handles the password through SSHFS-Win. pyScattViz never receives "
+            "or stores it. To disconnect later, use "
+            f"`net use {drive_letter} /delete`."
+        )
+
+    if st.button("Check whether the mounted folder is available"):
+        if Path(mounted_folder).expanduser().is_dir():
+            st.success(f"Mount is available: {mounted_folder}")
         else:
-            st.markdown("**Map the drive**")
-            st.markdown(
-                "In File Explorer, open **This PC → ⋯ → Map network drive**, choose the "
-                f"drive **{drive_letter}**, and paste this folder address:"
-            )
-            st.code(unc_path, language=None)
-            st.caption(
-                "Windows will request the BNL password. The password is handled by Windows/"
-                "SSHFS-Win and is never entered into pyScattViz."
-            )
-            st.markdown("Equivalent PowerShell command:")
-            st.code(
-                f"net use {drive_letter} '{unc_path}' /persistent:yes",
-                language="powershell",
+            st.error(
+                f"{mounted_folder} is not available yet. Run the mount command above, "
+                "then check again."
             )
 
+    st.markdown("### Save the path translation after the drive opens")
+    st.caption(
+        "This mapping does not create the drive. Save it after the mount command and "
+        f"`Get-ChildItem {drive_letter}\\` work."
+    )
     if st.button("Save remote-to-mounted path mapping", type="primary"):
         try:
             mappings = add_path_mapping(
@@ -173,7 +202,7 @@ Open **PowerShell as Administrator** and install the filesystem drivers:
             st.session_state["pyscattviz_path_mappings"] = mappings
             translated, _mapping = translate_remote_path(mount_remote, mappings)
             st.success(f"Saved mapping: {mount_remote} → {translated}")
-            st.caption(f"Saved locally in {config_file}; no credentials are stored.")
+            st.caption(f"Saved locally in `{config_file}`; no credentials are stored.")
             if Path(translated).is_dir():
                 st.success("The mounted folder is available now.")
             else:

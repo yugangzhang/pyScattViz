@@ -7,6 +7,8 @@
   `cd`, and bounded `du` commands on the File Selection page.
 - Added Windows SSHFS mount guidance and persistent `/nsls2/...`-to-mounted-drive
   mappings, allowing original NSLS-II paths in File Selection and browser commands.
+- Made the generated Windows `net use`, verification, Explorer, restart, and
+  unmount instructions explicit before the path-mapping control.
 - Added project issue-reporting and scientific-contact links to Home.
 
 ## 0.2.1
