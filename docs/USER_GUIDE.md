@@ -33,6 +33,12 @@ operations; pyScattViz does not open a system shell. Quote paths containing
 spaces. The `du` scan stops after 5,000 files to remain responsive on large
 network trees.
 
+When a remote-to-mounted mapping has been saved on the Remote mount tab, the
+original `/nsls2/data/...` path can be pasted directly in **Result folder** or
+used with `cd` and `ls`. For example, mapping an NSLS-II proposal to Windows
+drive `Z:` makes a pasted `/nsls2/.../Results/giwaxs` path resolve under `Z:\`
+automatically.
+
 ## Selecting filenames
 
 Use a boolean expression for reproducible groups:

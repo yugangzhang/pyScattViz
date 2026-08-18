@@ -5,6 +5,8 @@
 - Added browse-only Globus proposal links without starting a transfer.
 - Added a cross-platform mounted/local folder navigator with safe `pwd`, `ls`,
   `cd`, and bounded `du` commands on the File Selection page.
+- Added Windows SSHFS mount guidance and persistent `/nsls2/...`-to-mounted-drive
+  mappings, allowing original NSLS-II paths in File Selection and browser commands.
 - Added project issue-reporting and scientific-contact links to Home.
 
 ## 0.2.1

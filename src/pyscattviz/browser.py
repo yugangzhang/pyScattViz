@@ -7,6 +7,8 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
+from pyscattviz.data_sources import translate_remote_path
+
 
 def human_size(size: int) -> str:
     """Format a byte count for the folder browser."""
@@ -96,7 +98,7 @@ def _split_command(command: str, windows: bool | None = None) -> list[str]:
     return parts
 
 
-def run_browser_command(command: str, cwd: str | Path) -> dict:
+def run_browser_command(command: str, cwd: str | Path, path_mappings=()) -> dict:
     """Run one safe browser command without invoking a system shell.
 
     Supported commands intentionally mirror the read-only shell operations
@@ -133,7 +135,9 @@ def run_browser_command(command: str, cwd: str | Path) -> dict:
     elif len(arguments) > 1:
         error = f"{operation} accepts one path; quote paths that contain spaces."
     else:
-        target = resolve_browser_path(arguments[0] if arguments else ".", current)
+        requested_path = arguments[0] if arguments else "."
+        mapped_path, _mapping = translate_remote_path(requested_path, path_mappings)
+        target = resolve_browser_path(mapped_path, current)
         try:
             if operation == "cd":
                 if not target.is_dir():

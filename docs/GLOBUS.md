@@ -47,6 +47,33 @@ images must appear in the viewer.
 For repeat reviews, enable Globus sync by modification time or checksum. This
 copies only new or changed files.
 
+## Remote mount without a bulk download
+
+Globus Connect Personal is a transfer client, not a filesystem mount. To make
+an NSLS-II proposal appear as a Windows drive without copying the whole tree,
+open **Globus & Data Sources → Remote mount (lazy access)**. The tab guides a
+Windows user through installing WinFsp and SSHFS-Win and generates the network
+address for `sftp.nsls2.bnl.gov`. BNL SFTP access and the campus network or VPN
+are required.
+
+For example, mount this remote proposal as drive `Z:`:
+
+```text
+/nsls2/data/smi/proposals/2026-2/pass-319371
+```
+
+Then save this path mapping in the same tab:
+
+```text
+/nsls2/data/smi/proposals/2026-2/pass-319371  →  Z:\
+```
+
+Afterward, File Selection accepts the original Globus/NSLS-II path, including
+deeper `projects/.../Results/giwaxs` components. pyScattViz translates it to
+the mounted drive and opens only directory listings and selected frame files.
+The mapping is saved under `.pyscattviz` in the user's home folder and contains
+no username or password.
+
 ## Access and transfer troubleshooting
 
 - An empty collection search often means a collection filter remains enabled.

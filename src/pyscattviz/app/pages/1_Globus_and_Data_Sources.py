@@ -6,6 +6,13 @@ from pathlib import Path
 
 import streamlit as st
 
+from pyscattviz.data_sources import (
+    add_path_mapping,
+    load_path_mappings,
+    save_path_mappings,
+    sshfs_windows_unc,
+    translate_remote_path,
+)
 from pyscattviz.globus import (
     BNL_GLOBUS_GUIDE,
     GLOBUS_FILE_MANAGER,
@@ -19,7 +26,10 @@ st.set_page_config(page_title="Globus & Data Sources", page_icon="🌐", layout=
 st.title("🌐 Globus & Data Sources")
 st.caption("Browse the NSLS2 collection online, or register a mounted/local data folder.")
 
-globus_tab, local_tab = st.tabs(["Globus online / transfer", "Mounted or local folders"])
+st.session_state.setdefault("pyscattviz_path_mappings", load_path_mappings())
+globus_tab, mount_tab, local_tab = st.tabs(
+    ["Globus online / transfer", "Remote mount (lazy access)", "Local folders"]
+)
 
 with globus_tab:
     st.markdown(
@@ -88,6 +98,116 @@ a network/mounted folder that appears as a normal path on this computer.
         "or local filesystem path. pyScattViz can browse it in Globus, but loading a "
         "frame requires a transferred result folder or an SFTP/SSHFS/network mount."
     )
+
+with mount_tab:
+    st.markdown(
+        """
+An SSHFS mount makes an NSLS-II SFTP folder appear as a normal drive. The data
+remain at NSLS-II; directory names and only the files opened by pyScattViz cross
+the network. This is separate from Globus and requires BNL SFTP access plus the
+BNL network or VPN.
+
+### Windows one-time setup
+
+Open **PowerShell as Administrator** and install the filesystem drivers:
+"""
+    )
+    st.code(
+        "winget install --exact --id WinFsp.WinFsp\n"
+        "winget install --exact --id SSHFS-Win.SSHFS-Win",
+        language="powershell",
+    )
+    st.caption("Restart Windows after the first installation, then start the BNL VPN.")
+
+    mount_remote = st.text_input(
+        "NSLS-II folder to mount",
+        value=remote_path or "/nsls2/data/smi/proposals",
+        placeholder="/nsls2/data/smi/proposals/2026-2/pass-319371",
+    )
+    mount_left, mount_right, mount_drive = st.columns([2, 2, 1])
+    bnl_username = mount_left.text_input(
+        "BNL username",
+        placeholder="yuzhang",
+        help="Used only to generate the mount address; pyScattViz does not save a password.",
+    )
+    mounted_folder = mount_right.text_input(
+        "Mounted/local folder",
+        value="Z:\\",
+        help="The Windows drive or local mount point representing the remote folder.",
+    )
+    drive_letter = mount_drive.text_input("Windows drive", value="Z:")
+
+    if bnl_username and mount_remote:
+        try:
+            unc_path = sshfs_windows_unc(bnl_username, mount_remote)
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.markdown("**Map the drive**")
+            st.markdown(
+                "In File Explorer, open **This PC → ⋯ → Map network drive**, choose the "
+                f"drive **{drive_letter}**, and paste this folder address:"
+            )
+            st.code(unc_path, language=None)
+            st.caption(
+                "Windows will request the BNL password. The password is handled by Windows/"
+                "SSHFS-Win and is never entered into pyScattViz."
+            )
+            st.markdown("Equivalent PowerShell command:")
+            st.code(
+                f"net use {drive_letter} '{unc_path}' /persistent:yes",
+                language="powershell",
+            )
+
+    if st.button("Save remote-to-mounted path mapping", type="primary"):
+        try:
+            mappings = add_path_mapping(
+                st.session_state["pyscattviz_path_mappings"],
+                mount_remote,
+                mounted_folder,
+            )
+            config_file = save_path_mappings(mappings)
+        except (OSError, ValueError) as exc:
+            st.error(str(exc))
+        else:
+            st.session_state["pyscattviz_path_mappings"] = mappings
+            translated, _mapping = translate_remote_path(mount_remote, mappings)
+            st.success(f"Saved mapping: {mount_remote} → {translated}")
+            st.caption(f"Saved locally in {config_file}; no credentials are stored.")
+            if Path(translated).is_dir():
+                st.success("The mounted folder is available now.")
+            else:
+                st.warning(
+                    "The mapping is saved, but the mounted folder is not available yet. "
+                    "Complete the Windows drive mapping or connect the VPN."
+                )
+
+    mappings = st.session_state["pyscattviz_path_mappings"]
+    if mappings:
+        st.markdown("**Saved path mappings**")
+        st.dataframe(mappings, width="stretch", hide_index=True)
+        remove_mapping = st.selectbox(
+            "Mapping to remove",
+            mappings,
+            format_func=lambda item: f"{item['remote_root']}  →  {item['local_root']}",
+        )
+        if st.button("Remove selected mapping"):
+            remaining = [item for item in mappings if item != remove_mapping]
+            try:
+                save_path_mappings(remaining)
+            except OSError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state["pyscattviz_path_mappings"] = remaining
+                st.rerun()
+
+    with st.expander("macOS / Linux SSHFS command"):
+        st.code(
+            "mkdir -p ~/NSLS_II_Link/smi_remote\n"
+            "sshfs USERNAME@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals "
+            "~/NSLS_II_Link/smi_remote",
+            language="bash",
+        )
 
 with local_tab:
     st.markdown(

@@ -3,7 +3,9 @@
 I developed **pyScattViz** to help NSLS-II collaborators transfer and review
 GISAXS, GIWAXS, SAXS, and WAXS reduction products on their own computers. The
 application runs locally on Windows, macOS, and Linux. Globus is the recommended
-route from the NSLS2 collection to a local folder.
+route from the NSLS2 collection to a local folder. For users with BNL SFTP
+access, the application also guides an SSHFS network mount so selected frames
+can be read lazily without transferring an entire proposal.
 
 The package focuses on data review. It includes lazy filename selection, QC
 images, q-space images, q–φ maps, circular averages, interactive line cuts,

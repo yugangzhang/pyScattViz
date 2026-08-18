@@ -25,7 +25,7 @@ on the local computer and opens data only when a frame is selected.
 ### Recommended workflow
 
 1. Open **Globus & Data Sources** and build the NSLS-II proposal path.
-2. Transfer the required proposal or result folders with Globus Connect Personal.
+2. Transfer the required result folders, or configure a remote SSHFS mount for lazy access.
 3. Open **File Selection** to filter thousands of filenames without loading arrays.
 4. Open **GISAXS / GIWAXS Explorer** or **Transmission SAXS / WAXS**.
 5. Open **Publication Plot** to overlay selected I(q) curves and export PNG, SVG, or PDF.

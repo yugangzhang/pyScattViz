@@ -34,3 +34,21 @@ def test_windows_command_split_preserves_backslashes_and_removes_quotes():
         "cd",
         r"Z:\proposal data\Results",
     ]
+
+
+def test_cd_translates_a_remote_path_mapping(tmp_path):
+    mounted = tmp_path / "2026-2" / "pass-319371"
+    mounted.mkdir(parents=True)
+    mappings = [
+        {
+            "remote_root": "/nsls2/data/smi/proposals",
+            "local_root": str(tmp_path),
+        }
+    ]
+    result = run_browser_command(
+        "cd /nsls2/data/smi/proposals/2026-2/pass-319371",
+        tmp_path,
+        mappings,
+    )
+    assert result["error"] is None
+    assert Path(result["cwd"]) == mounted

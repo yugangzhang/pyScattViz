@@ -12,12 +12,14 @@ from pyscattviz.app.components.scattering import (
     index_frames,
 )
 from pyscattviz.browser import list_directory, run_browser_command
+from pyscattviz.data_sources import load_path_mappings, translate_remote_path
 from pyscattviz.filters import FilterSyntaxError, parse_filename_list
 
 st.set_page_config(page_title="File Selection", page_icon="🔎", layout="wide")
 st.title("🔎 File Selection")
 st.caption("Filter filenames first; detector and q-space arrays remain unopened.")
 
+st.session_state.setdefault("pyscattviz_path_mappings", load_path_mappings())
 default_root = st.session_state.get("pyscattviz_active_root", "")
 st.session_state.setdefault("pyscattviz_file_root", default_root)
 browser_start = (
@@ -30,7 +32,9 @@ st.session_state.setdefault("pyscattviz_browser_cwd", str(browser_start))
 
 def _browse_to(path: str) -> None:
     result = run_browser_command(
-        f'cd "{path}"', st.session_state["pyscattviz_browser_cwd"]
+        f'cd "{path}"',
+        st.session_state["pyscattviz_browser_cwd"],
+        st.session_state["pyscattviz_path_mappings"],
     )
     st.session_state["pyscattviz_browser_result"] = result
     if not result["error"]:
@@ -52,7 +56,9 @@ with st.expander("📁 Browse folders or use pwd / ls / cd / du", expanded=True)
         ),
     )
     if st.button("Run command"):
-        result = run_browser_command(command, browser_cwd)
+        result = run_browser_command(
+            command, browser_cwd, st.session_state["pyscattviz_path_mappings"]
+        )
         st.session_state["pyscattviz_browser_result"] = result
         if not result["error"]:
             st.session_state["pyscattviz_browser_cwd"] = result["cwd"]
@@ -112,19 +118,37 @@ with st.expander("📁 Browse folders or use pwd / ls / cd / du", expanded=True)
 root_input = st.text_input(
     "Result folder",
     key="pyscattviz_file_root",
-    placeholder=".../Results/gisaxs or .../Results/giwaxs",
-    help="Paste a local path, mapped Windows drive, or mounted network path.",
+    placeholder="/nsls2/data/.../Results/giwaxs or Z:\\...\\Results\\giwaxs",
+    help=(
+        "Paste either the original /nsls2 path (after configuring a Remote mount "
+        "mapping) or a local/mapped-drive path."
+    ),
+)
+effective_root, active_mapping = translate_remote_path(
+    root_input, st.session_state["pyscattviz_path_mappings"]
 )
 if root_input:
     st.session_state["pyscattviz_active_root"] = str(
-        Path(root_input).expanduser().resolve(strict=False)
+        Path(effective_root).expanduser().resolve(strict=False)
+    )
+if active_mapping:
+    st.info(
+        f"Remote path mapped through `{active_mapping['remote_root']}` to "
+        f"`{effective_root}`."
     )
 
-if not root_input or not Path(root_input).expanduser().is_dir():
-    st.info("Select an available result folder to start.")
+if not root_input or not Path(effective_root).expanduser().is_dir():
+    if root_input.startswith("/nsls2/") and not active_mapping:
+        st.warning(
+            "This NSLS-II path is not mounted on this computer. Open Globus & Data "
+            "Sources → Remote mount (lazy access), mount the folder, and save its "
+            "remote-to-mounted path mapping."
+        )
+    else:
+        st.info("Select an available result folder to start.")
     st.stop()
 
-normalized_root, available, _focused = discover_scattering_products(root_input)
+normalized_root, available, _focused = discover_scattering_products(effective_root)
 if not available:
     st.error("No cir_avg, q_image, qphi, qc, or stitched product folders were found.")
     st.stop()
