@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from pyscattviz.globus import default_cache, globus_file_manager_url, proposal_path
+from pyscattviz.globus import (
+    default_cache,
+    globus_file_manager_url,
+    local_path_to_globus_path,
+    proposal_path,
+)
 
 
 def test_proposal_path_supports_cms_and_smi():
@@ -31,3 +36,9 @@ def test_globus_browser_url_carries_remote_path():
     url = globus_file_manager_url("/nsls2/data/smi/proposals/2026-2/pass-319371")
     assert url.startswith("https://app.globus.org/file-manager?")
     assert "origin_path=%2Fnsls2%2Fdata%2Fsmi" in url
+
+
+def test_windows_local_path_uses_globus_connect_personal_syntax():
+    assert local_path_to_globus_path(r"C:\Users\yuzhang\pyScattViz-data\giwaxs") == (
+        "/C/Users/yuzhang/pyScattViz-data/giwaxs"
+    )

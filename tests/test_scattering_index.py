@@ -3,6 +3,7 @@ from pathlib import Path
 from pyscattviz.app.components.scattering import (
     discover_scattering_products,
     index_frames,
+    index_remote_frames,
 )
 
 
@@ -64,3 +65,30 @@ def test_exact_filename_list_and_frame_cap(tmp_path):
     capped = index_frames(str(root), product_keys=("q_image",), max_frames=2)
     assert len(capped) == 2
     assert capped.attrs["truncated"]
+
+
+def test_remote_index_pairs_names_without_local_files():
+    root = "/nsls2/data/smi/proposals/pass-319371/Results/giwaxs"
+
+    def entry(folder, name):
+        return {
+            "name": name,
+            "path": f"{root}/{folder}/{name}",
+            "is_dir": False,
+        }
+
+    entries = {
+        "q_image": [
+            entry("q_image", "qimg_Kim_A_0.1000deg.tif.npz"),
+            entry("q_image", "qimg_AgBH_0.1000deg.tif.npz"),
+        ],
+        "cir_avg": [
+            entry("cir_avg", "Cir_Avg_Kim_A_0.1000deg.tif.csv"),
+        ],
+    }
+    table = index_remote_frames(entries, query="Kim NOT AgBH")
+
+    assert table["stem"].tolist() == ["Kim_A_0.1000deg"]
+    assert table.iloc[0]["qimg"].endswith("qimg_Kim_A_0.1000deg.tif.npz")
+    assert table.iloc[0]["has_cir"]
+    assert table.attrs["remote"]

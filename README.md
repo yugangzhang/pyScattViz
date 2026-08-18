@@ -366,6 +366,10 @@ On macOS or Linux, the equivalent command is:
 After the BNL browser login and Duo verification succeed, start pyScattViz and
 open **Globus & Data Sources → Globus CLI browser**. Select **Check Globus
 login**, paste the `/nsls2/data/...` path, and select **List remote folder**.
+Navigate to a result root such as
+`projects/microbeam_Kim/Results/giwaxs`, then select **Use current remote folder
+in File Selection**. A selected subfolder can also be sent directly with **Use
+selected folder in File Selection**.
 The first listing may require one additional collection-specific consent. If
 the GUI requests it, run:
 
@@ -381,8 +385,31 @@ and this consent is normally required only once. On macOS/Linux, substitute
 The collection UUID is editable in the GUI. Select **Refresh current NSLS2
 collection ID** if NSLS-II replaces the collection in the future; the browser
 will search for the current non-retired `NSLS2` collection.
-This remote browser does not download arrays. Viewer loading will use a
-selective local Globus cache rather than a mounted Windows drive.
+
+In **File Selection**, a pasted or handed-off `/nsls2/...` path now follows a
+remote workflow:
+
+1. Select **Find remote product folders**.
+2. Choose `q_image`, `qphi`, `cir_avg`, `qc`, or `stitched` and enter an
+   optional filename filter.
+3. Select **Scan remote filenames**. This lists names only; it does not open or
+   download arrays.
+4. Start Globus Connect Personal, then select **Find my Globus Connect Personal
+   collections**.
+5. Enter the destination twice: its path inside the personal Globus collection
+   and the same folder's Windows path. For example,
+   `/C/Users/yuzhang/pyScattViz-data/Kim-giwaxs` normally corresponds to
+   `C:\Users\yuzhang\pyScattViz-data\Kim-giwaxs`. Confirm this mapping in Globus
+   File Manager because personal-collection roots can differ.
+6. Select **Start selective Globus transfer**. One batch task transfers only
+   the matching frame products and preserves the product-folder layout.
+7. Select **Check transfer status**, then **Open transferred files in File
+   Selection** after it succeeds. The scattering viewers can then open the
+   selected local files.
+
+Globus does not mount the NSLS2 collection as a Windows drive. Remote browsing
+and filename filtering remain online; only the selected frame files enter the
+local cache.
 
 Official references:
 

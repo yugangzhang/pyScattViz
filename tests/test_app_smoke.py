@@ -38,3 +38,24 @@ def test_file_selection_accepts_original_nsls2_path_through_mount_mapping(tmp_pa
     assert not app.exception
     assert app.session_state["pyscattviz_active_root"] == str(result_root)
     assert app.multiselect[0].options == ["q-image"]
+
+
+def test_file_selection_accepts_unmounted_globus_path_for_remote_workflow():
+    page = (
+        Path(__file__).parents[1]
+        / "src"
+        / "pyscattviz"
+        / "app"
+        / "pages"
+        / "2_File_Selection.py"
+    )
+    app = AppTest.from_file(str(page), default_timeout=10)
+    app.session_state["pyscattviz_file_root"] = (
+        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
+        "projects/microbeam_Kim/Results/giwaxs"
+    )
+    app.session_state["pyscattviz_path_mappings"] = []
+    app.run()
+
+    assert not app.exception
+    assert any(button.label == "Find remote product folders" for button in app.button)

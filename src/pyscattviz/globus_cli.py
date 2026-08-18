@@ -1,10 +1,11 @@
-"""Read-only Globus CLI integration using the user's existing CLI login."""
+"""Globus CLI integration using the user's existing CLI login."""
 
 from __future__ import annotations
 
 import json
 import os
 import posixpath
+import shlex
 import shutil
 import subprocess
 import sys
@@ -44,7 +45,7 @@ def find_globus_cli() -> str | None:
     return shutil.which(executable_name)
 
 
-def _run_globus(arguments, executable=None, timeout=60) -> str:
+def _run_globus(arguments, executable=None, timeout=60, input_text=None) -> str:
     command = executable or find_globus_cli()
     if not command:
         raise GlobusCLIError(
@@ -58,6 +59,7 @@ def _run_globus(arguments, executable=None, timeout=60) -> str:
             text=True,
             encoding="utf-8",
             errors="replace",
+            input=input_text,
             timeout=timeout,
             check=False,
         )
@@ -193,3 +195,114 @@ def list_globus_directory(path: str, collection_id=NSLS2_COLLECTION_ID, executab
         )
     rows.sort(key=lambda row: (not row["is_dir"], row["name"].casefold()))
     return rows
+
+
+def find_personal_collections(executable=None):
+    """Return Globus Connect Personal collections owned by the logged-in user."""
+
+    output = _run_globus(
+        [
+            "endpoint",
+            "search",
+            "--filter-scope",
+            "my-gcp-endpoints",
+            "--limit",
+            "100",
+            "--format",
+            "json",
+        ],
+        executable=executable,
+    )
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise GlobusCLIError("Globus personal-collection search returned invalid JSON.") from exc
+    entries = payload.get("DATA", []) if isinstance(payload, dict) else []
+    collections = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            continue
+        collection_id = str(entry["id"])
+        display_name = str(
+            entry.get("display_name")
+            or entry.get("name")
+            or entry.get("canonical_name")
+            or collection_id
+        )
+        collections.append(
+            {
+                "id": collection_id,
+                "display_name": display_name,
+                "owner": str(entry.get("owner_string") or entry.get("owner_id") or ""),
+                "connected": entry.get("gcp_connected"),
+            }
+        )
+    collections.sort(key=lambda item: item["display_name"].casefold())
+    return collections
+
+
+def _batch_quote(path: str) -> str:
+    """Quote one Globus batch path, which uses shell-like parsing."""
+
+    return shlex.quote(path)
+
+
+def submit_file_transfer(
+    source_collection_id: str,
+    destination_collection_id: str,
+    path_pairs,
+    *,
+    executable=None,
+    label="pyScattViz selected frames",
+):
+    """Submit selected source/destination file pairs as one Globus task."""
+
+    pairs = list(path_pairs)
+    if not pairs:
+        raise GlobusCLIError("No files were selected for transfer.")
+    batch = "\n".join(
+        f"{_batch_quote(str(source))} {_batch_quote(str(destination))}"
+        for source, destination in pairs
+    )
+    output = _run_globus(
+        [
+            "transfer",
+            source_collection_id,
+            destination_collection_id,
+            "--batch",
+            "-",
+            "--label",
+            label,
+            "--sync-level",
+            "checksum",
+            "--format",
+            "json",
+        ],
+        executable=executable,
+        timeout=120,
+        input_text=batch + "\n",
+    )
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise GlobusCLIError("Globus transfer submission returned invalid JSON.") from exc
+    task_id = payload.get("task_id") if isinstance(payload, dict) else None
+    if not task_id:
+        raise GlobusCLIError("Globus did not return a transfer task ID.")
+    return str(task_id)
+
+
+def globus_task_status(task_id: str, executable=None):
+    """Return the status details for an existing Globus task."""
+
+    output = _run_globus(
+        ["task", "show", task_id, "--format", "json"],
+        executable=executable,
+    )
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise GlobusCLIError("Globus task status returned invalid JSON.") from exc
+    if not isinstance(payload, dict):
+        raise GlobusCLIError("Globus task status had an unexpected response.")
+    return payload

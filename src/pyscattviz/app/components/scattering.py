@@ -437,6 +437,93 @@ def index_frames(
     return df
 
 
+def index_remote_frames(
+    product_entries,
+    query: str = "",
+    filename_list=(),
+    max_frames: int = 5_000,
+) -> pd.DataFrame:
+    """Index remote Globus filenames without opening or downloading arrays.
+
+    ``product_entries`` maps public product keys such as ``q_image`` to the
+    dictionaries returned by :func:`pyscattviz.globus_cli.list_globus_directory`.
+    The returned table uses the same columns as :func:`index_frames`, but its
+    file-path cells contain remote collection paths.
+    """
+
+    if max_frames < 1:
+        raise ValueError("max_frames must be at least 1")
+    max_frames = min(int(max_frames), 50_000)
+    predicate = compile_filter(query)
+    exact_stems = {stem_of(item) for item in parse_filename_list(filename_list) if item}
+    column_for_product = {
+        "stitched": "raw",
+        "qc": "qc",
+        "q_image": "qimg",
+        "qphi": "qphi",
+        "cir_avg": "cir",
+    }
+    maps = {key: {} for key in ("raw", "qc", "qimg", "qphi", "cir")}
+    selected_stems: set[str] = set()
+    scanned_entries = 0
+    truncated = False
+
+    for product_key in ("q_image", "qphi", "cir_avg", "qc", "stitched"):
+        column = column_for_product[product_key]
+        patterns = SCATTERING_PRODUCTS[product_key]["patterns"]
+        for entry in product_entries.get(product_key, ()):
+            if entry.get("is_dir"):
+                continue
+            name = str(entry.get("name") or "")
+            if not name or not any(
+                fnmatch.fnmatch(name.lower(), pattern.lower()) for pattern in patterns
+            ):
+                continue
+            scanned_entries += 1
+            stem = stem_of(name)
+            already_selected = stem in selected_stems
+            exact_match = not exact_stems or stem in exact_stems
+            query_match = predicate(name) or predicate(stem)
+            can_add = len(selected_stems) < max_frames
+            if exact_match and query_match and (already_selected or can_add):
+                selected_stems.add(stem)
+                maps[column][stem] = str(entry["path"])
+            elif exact_match and query_match and not already_selected:
+                truncated = True
+
+    rows = []
+    for stem in sorted(selected_stems):
+        meta = parse_meta(stem)
+        rows.append(
+            dict(
+                stem=stem,
+                label=stem,
+                raw=maps["raw"].get(stem),
+                qimg=maps["qimg"].get(stem),
+                qc=maps["qc"].get(stem),
+                qphi=maps["qphi"].get(stem),
+                cir=maps["cir"].get(stem),
+                has_raw=stem in maps["raw"],
+                has_qimg=stem in maps["qimg"],
+                has_qc=stem in maps["qc"],
+                has_qphi=stem in maps["qphi"],
+                has_cir=stem in maps["cir"],
+                **meta,
+            )
+        )
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values(
+            by=[column for column in ("timestamp", "th", "stem") if column in df],
+            na_position="last",
+        ).reset_index(drop=True)
+    df.attrs["scanned_entries"] = scanned_entries
+    df.attrs["truncated"] = truncated
+    df.attrs["max_frames"] = max_frames
+    df.attrs["remote"] = True
+    return df
+
+
 # ---------------------------------------------------------------------------
 # Loaders
 # ---------------------------------------------------------------------------

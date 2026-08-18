@@ -276,11 +276,23 @@ login and Duo tokens remain in Globus CLI's own local credential store.
                     folders,
                     format_func=lambda row: row["name"],
                 )
-                st.button(
+                folder_left, folder_right = st.columns(2)
+                folder_left.button(
                     "Open selected remote subfolder",
                     on_click=_select_globus_path,
                     args=(selected_remote_folder["path"],),
+                    use_container_width=True,
                 )
+                if folder_right.button(
+                    "Use selected folder in File Selection",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.session_state["pyscattviz_file_root"] = selected_remote_folder[
+                        "path"
+                    ]
+                    st.session_state["pyscattviz_globus_collection_id"] = collection_id
+                    st.switch_page("pages/2_File_Selection.py")
 
     parent_path = str(PurePosixPath(remote_browser_path).parent)
     st.button(
@@ -289,9 +301,18 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         args=(parent_path,),
         disabled=remote_browser_path == "/",
     )
+    if st.button(
+        "Use current remote folder in File Selection",
+        type="primary",
+        disabled=not remote_browser_path.startswith("/nsls2/"),
+    ):
+        st.session_state["pyscattviz_file_root"] = remote_browser_path
+        st.session_state["pyscattviz_globus_collection_id"] = collection_id
+        st.switch_page("pages/2_File_Selection.py")
     st.info(
-        "This release browses remote names only. Loading a selected frame will require "
-        "a selective Globus transfer into the local cache; that is not a filesystem mount."
+        "Use either File Selection button after reaching a result folder. File Selection "
+        "indexes remote names, then transfers only the matching frame files into a local "
+        "cache; Globus is not a filesystem mount."
     )
 
 with local_tab:

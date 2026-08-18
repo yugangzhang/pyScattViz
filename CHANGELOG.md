@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+- Added direct handoff of the current or selected Globus folder to File
+  Selection.
+- Added remote filename indexing and the existing boolean/exact-name filters
+  without downloading scattering arrays.
+- Added Globus Connect Personal collection discovery and selective batch
+  transfer of only the matching frame products into a local cache.
+- Added transfer-task status checks and one-click activation of a completed
+  local cache for the scattering viewers.
+
 ## 0.3.1
 
 - Added in-place Globus consent retry without restarting the GUI.

@@ -82,9 +82,39 @@ CLI login and lists remote folders through the active NSLS2 collection:
 ```
 
 The retired `88c7648d-...` collection is not used. Online directory listing
-does not transfer the proposal. Array loading still requires selected files to
-be transferred into a local cache; Globus cannot expose the collection as a
-Windows drive.
+does not transfer the proposal. Navigate to the required result root and use
+**Use current remote folder in File Selection**, or select a visible subfolder
+and use **Use selected folder in File Selection**. The same `/nsls2/...` path
+can also be pasted into **File Selection → Result folder**.
+
+## Selective cache transfer for visualization
+
+When File Selection receives an `/nsls2/...` path, it can index product
+filenames directly through Globus. Choose **Find remote product folders**, set
+the filename filter, and choose **Scan remote filenames**. No NPZ, CSV, or
+image content is read during this step.
+
+To visualize the selection:
+
+1. Start Globus Connect Personal on the same computer as pyScattViz.
+2. Choose **Find my Globus Connect Personal collections** and select the
+   destination collection. Its UUID can also be pasted manually.
+3. Enter the destination folder as it appears inside that Globus collection.
+4. Enter the exact same destination as a local Windows/macOS/Linux path.
+5. Start the selective transfer. pyScattViz submits all matching product files
+   in one Globus batch task and preserves `q_image`, `qphi`, `cir_avg`, `qc`,
+   and `stitched` subfolders.
+6. Check the task status. After success, open the transferred files in File
+   Selection and continue to a scattering viewer.
+
+The Globus collection root and local filesystem root are not always named the
+same way. Confirm their correspondence in Globus File Manager. A common
+Windows example is Globus path
+`/C/Users/yuzhang/pyScattViz-data/Kim-giwaxs` corresponding to local path
+`C:\Users\yuzhang\pyScattViz-data\Kim-giwaxs`.
+
+Globus cannot expose the NSLS2 collection as a Windows drive. Only the selected
+frame files are transferred into the local cache; the proposal remains remote.
 
 If NSLS-II replaces the collection UUID, use **Refresh current NSLS2 collection
 ID**. The ID is also editable for recovery and is not assumed to remain fixed
