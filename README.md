@@ -11,72 +11,140 @@ publication-figure export, and a reusable Python plotting API. I consolidated
 my earlier `pyViz` plotting work into this repository so one installation now
 covers both GUI review and notebook/script plotting.
 
-## Quick start
+## Installation from zero
 
-Python 3.9–3.12 is supported. I recommend 64-bit Python 3.12 for a new
-installation. Follow the section for the operating system in use.
+These instructions assume no programming or terminal experience. A terminal is
+a text window used to give the computer commands. Copy one command at a time,
+paste it after the prompt, and press **Enter**. Do not copy the prompt itself
+(for example, do not type `PS C:\Users\name>`).
 
-### Windows 10 or 11 — PowerShell
+Installing Python or Git may require an administrator password or help from the
+computer's IT department. Python 3.9–3.12 is supported; I recommend 64-bit
+Python 3.12 for a new installation.
 
-Install Python once before creating the environment. The following command
-uses Windows Package Manager:
+### Windows 10 or 11
+
+#### 1. Open PowerShell or Windows Terminal
+
+1. Click the **Start** button or press the **Windows** key.
+2. Type `PowerShell`.
+3. Open **Windows PowerShell** or open **Windows Terminal** and select its
+   **PowerShell** tab. Either choice works.
+4. A blue or black window opens with a prompt similar to
+   `PS C:\Users\name>`. Paste commands with `Ctrl+V`.
+
+#### 2. Install Python and Git
+
+Paste these commands one at a time:
 
 ```powershell
 winget install --exact --id Python.Python.3.12
-```
-
-If Git is not already installed:
-
-```powershell
 winget install --exact --id Git.Git
 ```
 
-Close every PowerShell window after installation, open a new PowerShell window,
-and verify both programs:
+Accept any license or installation prompts. When both commands finish, close
+every PowerShell/Terminal window and open PowerShell again from the Start menu.
+This restart makes the new programs visible.
+
+If the computer reports that `winget` is not recognized:
+
+1. Open a web browser and visit
+   [Python for Windows](https://www.python.org/downloads/windows/).
+2. Download the latest **Python 3.12 64-bit installer** and open it.
+3. On the first installer screen, select **Add python.exe to PATH** and install
+   the **Python launcher (`py`)**.
+4. Download [Git for Windows](https://git-scm.com/download/win), open the
+   installer, and keep its default choices.
+5. Close and reopen PowerShell.
+
+#### 3. Check the installation
 
 ```powershell
 py -3.12 --version
 git --version
 ```
 
-If `winget` is unavailable, install the 64-bit release from
-[python.org/downloads/windows](https://www.python.org/downloads/windows/).
-Select **Add python.exe to PATH** and install the **Python launcher (`py`)**,
-then reopen PowerShell.
+The first command should print `Python 3.12...`; the second should print a Git
+version. If Windows instead displays “Python was not found; run without
+arguments to install from the Microsoft Store,” return to step 2 and install a
+real Python interpreter. Use `py -3.12`, not the `python` Store alias.
 
-Clone and install pyScattViz:
+#### 4. Download pyScattViz
 
 ```powershell
 cd $HOME
 git clone https://github.com/yugangzhang/pyScattViz.git
 cd .\pyScattViz
+```
+
+`git clone` downloads the package into the personal home folder. If it was
+already downloaded, skip the clone command and enter:
+
+```powershell
+cd $HOME\pyScattViz
+```
+
+#### 5. Create the private Python environment and install
+
+```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install .
+```
+
+The last command downloads the scientific Python dependencies and may take
+several minutes. Wait until the prompt returns without a red error message.
+The commands call the environment directly, so PowerShell activation and its
+script-execution policy are not involved.
+
+#### 6. Start pyScattViz
+
+```powershell
 .\.venv\Scripts\pyscattviz.exe
 ```
 
-For an existing clone, start at `cd $HOME\pyScattViz`. These commands call the
-environment executables directly, so PowerShell script-execution policy does
-not need to be changed and environment activation is optional.
+The browser should open at <http://127.0.0.1:8501>. Keep the PowerShell window
+open while using the application.
 
-If Windows displays “Python was not found; run without arguments to install
-from the Microsoft Store,” a real Python installation is missing or the Store
-alias is taking precedence. Install Python as shown above and use `py -3.12`
-instead of `python`.
+#### Start it again on another day
 
-### macOS — Terminal
+Open PowerShell from the Start menu and run:
 
-Confirm that Python 3.9 or newer and Git are available:
+```powershell
+cd $HOME\pyScattViz
+.\.venv\Scripts\pyscattviz.exe
+```
+
+### macOS
+
+#### 1. Install Python and Git
+
+1. Open a web browser and visit
+   [Python for macOS](https://www.python.org/downloads/macos/).
+2. Download and open the latest **Python 3.12 universal2 installer** (`.pkg`).
+3. Follow the installer using its default choices.
+4. Git is often already available. macOS can install it in step 3 below if it
+   is missing.
+
+#### 2. Open Terminal
+
+1. Press **Command+Space** to open Spotlight Search.
+2. Type `Terminal` and press **Return**. Terminal is also under
+   **Applications → Utilities → Terminal** in Finder.
+3. A window opens with a prompt ending in `%` or `$`. Paste with `Command+V`.
+
+#### 3. Check Python and Git
 
 ```bash
-python3 --version
+python3.12 --version
 git --version
 ```
 
-If Python is missing or too old, install Python 3.12 from
-[python.org/downloads/macos](https://www.python.org/downloads/macos/) or use
-Homebrew with `brew install python@3.12 git`. Then run:
+The Python command should print `Python 3.12...`. If the Git command opens a
+dialog asking to install Command Line Developer Tools, click **Install**, wait
+for it to finish, and run `git --version` again.
+
+#### 4. Download and install pyScattViz
 
 ```bash
 cd "$HOME"
@@ -85,19 +153,63 @@ cd pyScattViz
 python3.12 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip
 ./.venv/bin/python -m pip install .
+```
+
+If the repository was already downloaded, skip `git clone` and begin with
+`cd "$HOME/pyScattViz"`. Wait for installation to finish and the prompt to
+return.
+
+#### 5. Start pyScattViz
+
+```bash
 ./.venv/bin/pyscattviz
 ```
 
-### Linux — Terminal
+The browser should open at <http://127.0.0.1:8501>. Keep Terminal open. On
+another day, open Terminal and run:
 
-On Ubuntu or Debian, install the prerequisites once:
+```bash
+cd "$HOME/pyScattViz"
+./.venv/bin/pyscattviz
+```
+
+### Linux
+
+#### 1. Open a terminal
+
+On Ubuntu, Debian, Fedora, and many other Linux desktops, press
+**Ctrl+Alt+T**. Another option is to open the applications menu, search for
+`Terminal`, and select it. Paste commands with `Ctrl+Shift+V` on most Linux
+terminals.
+
+#### 2. Install Python and Git
+
+For Ubuntu, Debian, Linux Mint, or related systems:
 
 ```bash
 sudo apt update
 sudo apt install git python3 python3-venv python3-pip
 ```
 
-On Fedora, use `sudo dnf install git python3`. Then run:
+For Fedora:
+
+```bash
+sudo dnf install git python3
+```
+
+The terminal may request the login password. No characters appear while a
+Linux password is typed; this is normal. Press **Enter** after typing it.
+
+Check the installation:
+
+```bash
+python3 --version
+git --version
+```
+
+Python must be version 3.9 or newer.
+
+#### 3. Download and install pyScattViz
 
 ```bash
 cd "$HOME"
@@ -106,16 +218,31 @@ cd pyScattViz
 python3 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip
 ./.venv/bin/python -m pip install .
+```
+
+If the repository was already downloaded, skip `git clone` and begin with
+`cd "$HOME/pyScattViz"`.
+
+#### 4. Start pyScattViz
+
+```bash
 ./.venv/bin/pyscattviz
 ```
 
-### Opening and stopping the application
+The browser should open at <http://127.0.0.1:8501>. Keep the terminal open. On
+another day, open a terminal and run:
 
-Open <http://127.0.0.1:8501> if the browser does not open automatically. Stop
-the application with `Ctrl+C` in the terminal. The default server address is
-local-only so data are not exposed to the campus network.
+```bash
+cd "$HOME/pyScattViz"
+./.venv/bin/pyscattviz
+```
 
-For a later update on Windows:
+### Stop or update pyScattViz
+
+To stop the application on any platform, return to the terminal and press
+`Ctrl+C`.
+
+To install a later update on Windows:
 
 ```powershell
 cd $HOME\pyScattViz
@@ -124,7 +251,7 @@ git pull
 .\.venv\Scripts\pyscattviz.exe
 ```
 
-For a later update on macOS or Linux:
+To install a later update on macOS or Linux:
 
 ```bash
 cd "$HOME/pyScattViz"
@@ -132,6 +259,10 @@ git pull
 ./.venv/bin/python -m pip install --upgrade .
 ./.venv/bin/pyscattviz
 ```
+
+If port 8501 is already in use, start on another port by adding `--port 8502`
+to the final start command. The application listens only on the local computer
+by default.
 
 ## NSLS-II Globus workflow
 
