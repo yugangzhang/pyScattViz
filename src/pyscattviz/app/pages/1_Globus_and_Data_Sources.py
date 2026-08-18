@@ -291,7 +291,6 @@ login and Duo tokens remain in Globus CLI's own local credential store.
                     st.session_state["pyscattviz_file_root"] = selected_remote_folder[
                         "path"
                     ]
-                    st.session_state["pyscattviz_globus_collection_id"] = collection_id
                     st.switch_page("pages/2_File_Selection.py")
 
     parent_path = str(PurePosixPath(remote_browser_path).parent)
@@ -307,7 +306,6 @@ login and Duo tokens remain in Globus CLI's own local credential store.
         disabled=not remote_browser_path.startswith("/nsls2/"),
     ):
         st.session_state["pyscattviz_file_root"] = remote_browser_path
-        st.session_state["pyscattviz_globus_collection_id"] = collection_id
         st.switch_page("pages/2_File_Selection.py")
     st.info(
         "Use either File Selection button after reaching a result folder. File Selection "

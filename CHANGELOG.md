@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Fixed the Globus-to-File-Selection handoff so it no longer rewrites an
+  already-instantiated Streamlit collection-ID widget.
+
 ## 0.4.0
 
 - Added direct handoff of the current or selected Globus folder to File
