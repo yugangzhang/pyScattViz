@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- Added in-place Globus consent retry without restarting the GUI.
+- Preserved every required Globus scope and generated platform-specific consent
+  commands for Windows, macOS, and Linux.
+- Added refresh/edit controls so a future NSLS2 collection UUID replacement does
+  not break remote browsing.
+- Clarified Windows update/start commands in the README.
+
 ## 0.3.0
 
 - Added browse-only Globus proposal links without starting a transfer.
@@ -7,10 +16,6 @@
   `cd`, and bounded `du` commands on the File Selection page.
 - Added an authenticated Globus CLI browser using the active NSLS2 collection,
   with login detection and remote parent/subfolder navigation without transfer.
-- Added friendly detection and instructions for the NSLS2 collection's one-time
-  Globus data-access consent instead of displaying a raw JSON API error.
-- Added in-place consent retry, platform-specific Windows/macOS/Linux commands,
-  preservation of required scopes, and refresh/edit controls for the collection ID.
 - Retained path mappings only as an advanced option for genuine existing mounts;
   BNL Duo-authenticated proposal access now uses Globus rather than SSHFS-Win.
 - Added project issue-reporting and scientific-contact links to Home.
