@@ -56,6 +56,15 @@ client once using the same BNL browser login and Duo flow as File Manager:
 .\.venv\Scripts\globus.exe login
 ```
 
+The NSLS2 collection may request one additional data-access consent on the
+first directory listing. The GUI detects this response and shows the command:
+
+```powershell
+.\.venv\Scripts\globus.exe session consent "https://auth.globus.org/scopes/819379a8-47db-439d-a5ba-a2387b79add9/data_access"
+```
+
+Complete the browser approval/Duo flow once, then retry the remote listing.
+
 Then open **Globus & Data Sources → Globus CLI browser**. The page detects the
 CLI login and lists remote folders through the active NSLS2 collection:
 

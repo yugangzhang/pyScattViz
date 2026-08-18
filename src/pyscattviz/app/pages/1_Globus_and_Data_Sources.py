@@ -17,7 +17,9 @@ from pyscattviz.globus import (
 )
 from pyscattviz.globus_cli import (
     NSLS2_COLLECTION_ID,
+    NSLS2_DATA_ACCESS_SCOPE,
     GlobusCLIError,
+    GlobusConsentRequired,
     find_globus_cli,
     globus_identity,
     list_globus_directory,
@@ -121,7 +123,7 @@ login and Duo tokens remain in Globus CLI's own local credential store.
 
     cli_executable = find_globus_cli()
     if cli_executable:
-        st.success(f"Globus CLI found: {cli_executable}")
+        st.success(f"Globus CLI found: `{cli_executable}`")
     else:
         st.error(
             "Globus CLI was not found in this environment. Reinstall pyScattViz with "
@@ -173,22 +175,45 @@ login and Duo tokens remain in Globus CLI's own local credential store.
                 collection_id=NSLS2_COLLECTION_ID,
                 executable=cli_executable,
             )
+        except GlobusConsentRequired as exc:
+            st.session_state["pyscattviz_globus_listing"] = {
+                "path": remote_browser_path,
+                "rows": [],
+                "error": None,
+                "consent_required": str(exc),
+            }
         except GlobusCLIError as exc:
             st.session_state["pyscattviz_globus_listing"] = {
                 "path": remote_browser_path,
                 "rows": [],
                 "error": str(exc),
+                "consent_required": None,
             }
         else:
             st.session_state["pyscattviz_globus_listing"] = {
                 "path": remote_browser_path,
                 "rows": remote_rows,
                 "error": None,
+                "consent_required": None,
             }
 
     remote_listing = st.session_state.get("pyscattviz_globus_listing")
     if remote_listing:
-        if remote_listing["error"]:
+        if remote_listing.get("consent_required"):
+            st.warning(remote_listing["consent_required"])
+            st.markdown(
+                "Run this once in PowerShell. A browser will open for BNL approval/Duo:"
+            )
+            st.code(
+                ".\\.venv\\Scripts\\globus.exe session consent "
+                f'"{NSLS2_DATA_ACCESS_SCOPE}"',
+                language="powershell",
+            )
+            st.caption(
+                "After Globus reports that the CLI session was updated, return here and "
+                "select **List remote folder** again."
+            )
+        elif remote_listing["error"]:
             st.error(remote_listing["error"])
         else:
             st.success(

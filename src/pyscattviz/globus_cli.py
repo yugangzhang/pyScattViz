@@ -13,10 +13,17 @@ from pathlib import Path, PurePosixPath
 from pyscattviz.browser import human_size
 
 NSLS2_COLLECTION_ID = "819379a8-47db-439d-a5ba-a2387b79add9"
+NSLS2_DATA_ACCESS_SCOPE = (
+    f"https://auth.globus.org/scopes/{NSLS2_COLLECTION_ID}/data_access"
+)
 
 
 class GlobusCLIError(RuntimeError):
     """A user-facing Globus CLI failure."""
+
+
+class GlobusConsentRequired(GlobusCLIError):
+    """The user must grant the NSLS2 collection data-access consent."""
 
 
 def find_globus_cli() -> str | None:
@@ -50,6 +57,14 @@ def _run_globus(arguments, executable=None, timeout=60) -> str:
         raise GlobusCLIError(f"Could not run Globus CLI: {exc}") from exc
     if completed.returncode:
         detail = (completed.stderr or completed.stdout).strip()
+        try:
+            error_payload = json.loads(detail)
+        except json.JSONDecodeError:
+            error_payload = None
+        if isinstance(error_payload, dict) and error_payload.get("code") == "ConsentRequired":
+            raise GlobusConsentRequired(
+                "The NSLS2 collection requires one-time Globus data-access consent."
+            )
         raise GlobusCLIError(detail or f"Globus CLI exited with code {completed.returncode}.")
     return completed.stdout
 

@@ -5,6 +5,7 @@ import pytest
 
 from pyscattviz.globus_cli import (
     GlobusCLIError,
+    GlobusConsentRequired,
     _run_globus,
     globus_identity,
     list_globus_directory,
@@ -54,6 +55,19 @@ def test_globus_command_error_is_user_facing(monkeypatch):
     )
     with pytest.raises(GlobusCLIError, match="Login required"):
         _run_globus(["whoami"], executable="globus")
+
+
+def test_globus_consent_error_has_a_specific_exception(monkeypatch):
+    payload = {
+        "code": "ConsentRequired",
+        "message": "Missing required data_access consent",
+    }
+    monkeypatch.setattr(
+        "pyscattviz.globus_cli.subprocess.run",
+        lambda *args, **kwargs: _completed("", returncode=4, stderr=json.dumps(payload)),
+    )
+    with pytest.raises(GlobusConsentRequired, match="one-time"):
+        _run_globus(["ls", "collection:/path"], executable="globus")
 
 
 def test_normalize_globus_path():

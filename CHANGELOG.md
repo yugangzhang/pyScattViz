@@ -7,6 +7,8 @@
   `cd`, and bounded `du` commands on the File Selection page.
 - Added an authenticated Globus CLI browser using the active NSLS2 collection,
   with login detection and remote parent/subfolder navigation without transfer.
+- Added friendly detection and instructions for the NSLS2 collection's one-time
+  Globus data-access consent instead of displaying a raw JSON API error.
 - Retained path mappings only as an advanced option for genuine existing mounts;
   BNL Duo-authenticated proposal access now uses Globus rather than SSHFS-Win.
 - Added project issue-reporting and scientific-contact links to Home.
