@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 
 import pyscattviz.plotting as pv
+from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 from pyscattviz.app.components.scattering import load_qimg
 from pyscattviz.studio import (
     demo_curve_table,
@@ -22,6 +23,8 @@ from pyscattviz.studio import (
     read_numeric_table,
     two_dimensional_arrays,
 )
+
+TAB_NAME = "Plotting Studio"
 
 st.set_page_config(page_title="Plotting Studio", page_icon="🎨", layout="wide")
 st.title("🎨 Plotting Studio")
@@ -33,6 +36,15 @@ tools. The four workspaces share the supported `pyscattviz.plotting` API:
 Uploaded or selected data stay in this local Streamlit session.
 """
 )
+
+
+with st.sidebar:
+    st.header("💾 Saving")
+    render_output_settings(st)
+    st.caption(
+        "Every workspace below writes into the Plotting_Studio subfolder of this "
+        "output root."
+    )
 
 
 def _uploaded_table(widget_key: str, fallback: pd.DataFrame) -> pd.DataFrame:
@@ -134,6 +146,14 @@ with tab_1d:
             file_name="pyscattviz_1d.csv",
             mime="text/csv",
         )
+        render_save_panel(
+            TAB_NAME,
+            "studio_1d",
+            key="studio_1d_save",
+            figure=figure_1d,
+            figure_kind="plotly",
+            table=table_1d[[x_column, *y_columns]],
+        )
     else:
         st.info("Choose at least one y column.")
 
@@ -222,6 +242,14 @@ with tab_2d:
             file_name=f"{array_name}.npy",
             mime="application/octet-stream",
         )
+        render_save_panel(
+            TAB_NAME,
+            f"studio_2d_{array_name}",
+            key="studio_2d_save",
+            figure=figure_2d,
+            figure_kind="plotly",
+            arrays={array_name: image_2d},
+        )
     else:
         st.warning("No two-dimensional numeric array was found in this source.")
 
@@ -292,6 +320,14 @@ with tab_3d:
         figure_3d = pv.surface(x_3d, y_3d, z_3d, **common_3d)
     figure_3d.update_layout(template="plotly_white", height=650)
     st.plotly_chart(figure_3d, width="stretch", key="studio_3d_chart")
+    render_save_panel(
+        TAB_NAME,
+        f"studio_3d_{name_3d}",
+        key="studio_3d_save",
+        figure=figure_3d,
+        figure_kind="plotly",
+        arrays={"z": np.asarray(z_3d)},
+    )
 
 with tab_multi:
     st.subheader("Multi-axes figure builder")
@@ -402,6 +438,14 @@ with tab_multi:
             file_name=f"pyscattviz_multi_axes.{export_format}",
             mime=mime[export_format],
             type="primary",
+        )
+        render_save_panel(
+            TAB_NAME,
+            f"studio_multi_axes_{layout.replace(' ', '_').lower()}",
+            key="studio_multi_save",
+            figure=figure_multi,
+            figure_kind="matplotlib",
+            table=table_multi[[multi_x, *multi_y]],
         )
         plt.close(figure_multi)
     else:

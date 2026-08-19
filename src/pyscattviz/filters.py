@@ -94,12 +94,25 @@ def _to_rpn(tokens: list[str]) -> list[str]:
     return output
 
 
-def _term_matches(term: str, value: str) -> bool:
-    term_folded = term.casefold()
-    value_folded = value.casefold()
+def term_matches(term: str, value: str, case_sensitive: bool = False) -> bool:
+    """Return True when one search term matches a name.
+
+    A term containing a shell wildcard (``*``, ``?``, ``[``) is matched against
+    the whole name; any other term is a substring test. Matching ignores case
+    unless ``case_sensitive`` is requested.
+    """
+
+    if case_sensitive:
+        term_value, name_value = term, value
+    else:
+        term_value, name_value = term.casefold(), value.casefold()
     if any(char in term for char in "*?["):
-        return fnmatch.fnmatchcase(value_folded, term_folded)
-    return term_folded in value_folded
+        return fnmatch.fnmatchcase(name_value, term_value)
+    return term_value in name_value
+
+
+def _term_matches(term: str, value: str) -> bool:
+    return term_matches(term, value)
 
 
 def compile_filter(expression: str) -> Callable[[str], bool]:

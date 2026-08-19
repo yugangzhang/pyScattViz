@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
+from pyscattviz.dataio import integrate_curve
 from pyscattviz.plotting import plot1d_multi, theme_context
 
 
@@ -64,7 +65,7 @@ def prepare_curve(
             raise ValueError(f"{curve.name!r} cannot be normalized by a zero maximum")
         intensity = intensity / scale
     elif mode == "integral":
-        scale = float(abs(np.trapz(intensity, q)))
+        scale = abs(integrate_curve(intensity, q))
         if scale <= 0:
             raise ValueError(f"{curve.name!r} cannot be normalized by a zero integral")
         intensity = intensity / scale

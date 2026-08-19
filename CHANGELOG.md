@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.7.0
+
+- Added a **Data Selection** page: the GUI form of my `ls_dir` helper. Search one
+  or more roots for folders or files with *must contain* / *may contain* /
+  *must not contain* term lists, match on the folder name or the whole path,
+  bound the depth and the result count, and paste a list of full paths directly.
+- Added the **dataset basket** and named collections. A selection is an ordered
+  list of full paths that Quick Plot and the explorers read directly, saved as
+  plain JSON under `~/.pyscattviz/collections/` and holding nothing but paths.
+- Added a **Quick Plot** page that plots any list of paths without a reduction
+  layout: 1D overlays with normalization and offsets, a stacked intensity map or
+  waterfall built by interpolating every curve onto one grid, and 2D images.
+- Added `pyscattviz.dataio`, which reads the one-dimensional conventions that
+  actually arrive — comment blocks, missing headers, Fit2D `.chi` header blocks,
+  and comma/tab/semicolon/whitespace delimiters — and recognizes `q_ca`/`iq_ca`
+  and `q`/`I` automatically.
+- Added **save to disk** everywhere something is drawn. One output root, one
+  subfolder per page (`GIWAXS_Explorer/`, `Quick_Plot/`, `Publication_Plot/`, …),
+  an optional sample subfolder and date subfolder, and no silent overwriting.
+  Figures save as PNG/SVG/PDF/HTML/JSON, tables as CSV/TXT, arrays as NPZ/NPY.
+- Added an **Output Folder** page to set that root, create folders, and list what
+  has been written. Preferences persist in `~/.pyscattviz/settings.json`.
+- Added free access routes beyond RaiDrive, which is Windows-only: rclone with
+  the same commands on all three platforms, GNOME *Files → Connect to Server* on
+  Linux with nothing to install, and `sftp -r` / `rclone copy` / FileZilla /
+  Cyberduck for copying a subset to the local disk. Data already on a local disk
+  is now a first-class registered source.
+- Rewrote **Data Sources & Mounts** around a platform-plus-method chooser that
+  generates the exact command for the selected combination, and added guidance on
+  when to mount, when to copy, and what the application stores.
+- Added `pyscattviz.discovery`, `pyscattviz.datasets`, and `pyscattviz.exporting`
+  as Streamlit-free modules usable from notebooks and scripts.
+- Renumbered the pages with zero-padded prefixes so the sidebar order stays
+  correct past nine pages.
+- Kaleido is now installed with pyScattViz so static Plotly export works out of
+  the box; HTML export continues to need nothing.
+
 ## 0.6.0
 
 - Replaced the Windows mount recommendation with the free RaiDrive SFTP client,

@@ -39,6 +39,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from pyscattviz.app.components.saving import render_output_settings, render_save_panel
+
 # Shared scattering engine — indexing, loaders, array/plot helpers, styling.
 # Some are aliased to the underscore names this page's body already uses.
 from pyscattviz.app.components.scattering import (
@@ -210,6 +212,10 @@ with st.sidebar:
     kw = st.text_input(
         "Filter by keyword(s), comma-sep", value="", help="AND filter on the filename stem."
     )
+
+    st.divider()
+    st.subheader("💾 Saving")
+    render_output_settings(st)
 
 work = df.copy()
 if hide_cal:
@@ -503,6 +509,13 @@ st.divider()
 st.markdown(f"### 🖼️ {sel['stem']}")
 
 
+
+# Figures kept as they are drawn, so the save panel below can offer any of them.
+rendered_figures: dict[str, object] = {}
+rendered_tables: dict[str, pd.DataFrame] = {}
+rendered_arrays: dict[str, dict] = {}
+
+
 def _render_image(path, title, *, flip=False):
     if not path:
         st.info(f"No {title.lower()} for this frame.")
@@ -535,6 +548,8 @@ def _render_image(path, title, *, flip=False):
         aspect=_aspect_arg(),
     )
     st.plotly_chart(fig, width="stretch")
+    rendered_figures[title] = fig
+    rendered_arrays[title] = {"image": z}
 
 
 def _render_panel(panel):
@@ -569,6 +584,12 @@ def _render_panel(panel):
                 aspect=_aspect_arg(),
             )
             st.plotly_chart(fig, width="stretch")
+            rendered_figures["B · q-image"] = fig
+            rendered_arrays["B · q-image"] = {
+                "qimg": z,
+                b_mode: np.asarray(xx),
+                "qz": np.asarray(yy),
+            }
         else:
             st.info("No q-image for this frame.")
     elif panel == "qphi":
@@ -591,6 +612,12 @@ def _render_panel(panel):
                 y_range=c_phir,
             )
             st.plotly_chart(fig, width="stretch")
+            rendered_figures["C · q–φ map"] = fig
+            rendered_arrays["C · q–φ map"] = {
+                "qphi": z,
+                "q": np.asarray(q),
+                "phi": np.asarray(phi),
+            }
         else:
             st.info("No q–φ map for this frame.")
     elif panel == "cir_avg":
@@ -614,6 +641,8 @@ def _render_panel(panel):
                 margin=dict(l=60, r=15, t=40, b=45),
             )
             st.plotly_chart(fig, width="stretch")
+            rendered_figures["D · circular average"] = fig
+            rendered_tables["D · circular average"] = pd.DataFrame({"q": qq, "I": ii})
         else:
             st.info("No circular average for this frame.")
 
@@ -624,6 +653,27 @@ for start in range(0, len(panel_order), 2):
     for col, panel in zip(row, panel_order[start : start + 2]):
         with col:
             _render_panel(panel)
+
+if rendered_figures:
+    st.divider()
+    st.markdown("#### 💾 Save a panel to disk")
+    chosen_panel = st.selectbox(
+        "Panel", list(rendered_figures), key=f"{STATE_PREFIX}_save_panel"
+    )
+    render_save_panel(
+        f"{PROFILE['name']} Explorer",
+        f"{sel['stem']}_{chosen_panel.split('·')[-1].strip()}",
+        key=f"{STATE_PREFIX}_panel_save",
+        figure=rendered_figures[chosen_panel],
+        figure_kind="plotly",
+        table=rendered_tables.get(chosen_panel),
+        arrays=rendered_arrays.get(chosen_panel),
+        expanded=True,
+        caption=(
+            f"Written under the {PROFILE['name']}_Explorer subfolder of the output "
+            "root. HTML stays interactive; PNG/SVG/PDF need the free kaleido package."
+        ),
+    )
 
 # ===========================================================================
 # Line-cut result plot + export
@@ -697,6 +747,16 @@ if centers:
             buf.getvalue(),
             file_name=f"linecuts_{sel['stem']}.csv",
             mime="text/csv",
+        )
+        render_save_panel(
+            f"{PROFILE['name']} Explorer",
+            f"linecuts_{sel['stem']}",
+            key=f"{STATE_PREFIX}_linecut_save",
+            figure=fig,
+            figure_kind="plotly",
+            table=out,
+            subfolder="line_cuts",
+            caption="The cuts land in a line_cuts subfolder so they stay together.",
         )
 
 # --- Frame table ------------------------------------------------------------

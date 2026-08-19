@@ -4,17 +4,42 @@
 > [recorde.md](recorde.md) first. It records the current release, design
 > decisions, verified behavior, Windows test status, and next steps.
 
-We developed **pyScattViz** to help NSLS-II collaborators access and review
-GISAXS, GIWAXS, SAXS, and WAXS reduction products on their own computers. The
-application runs locally on Windows, macOS, and Linux. NSLS-II proposal storage
-is mounted over SFTP so directory entries and opened frames cross the network on
-demand; the complete proposal is not copied to the local computer.
+I wrote **pyScattViz** so collaborators can explore their scattering data on
+their own computer without asking me to run anything for them. It covers
+GISAXS, GIWAXS, transmission SAXS and WAXS reduction products from NSLS-II, and
+it also plots plain data files — a two-column `.dat`, an `.npz`, a detector
+`.tif` — that never came from a beamline reduction at all.
 
-The package focuses on data review. It includes lazy filename selection, QC
-images, q-space images, q–φ maps, circular averages, interactive line cuts,
-publication-figure export, and a reusable Python plotting API. I consolidated
-my earlier `pyViz` plotting work into this repository so one installation now
-covers both GUI review and notebook/script plotting.
+The data can reach the computer three ways, and all three are free:
+
+1. **Mount the NSLS-II proposal over SFTP.** RaiDrive on Windows, SSHFS on macOS
+   and Linux, rclone on all three. Only the bytes of an opened frame cross the
+   network; the proposal is never copied whole.
+2. **Copy a subset to the local disk.** `sftp -r`, `rclone copy`, FileZilla, or
+   Cyberduck. Best for one result folder, a slow link, or working offline.
+3. **Use data that is already local.** A disk, a USB drive, or a laboratory
+   network share needs no setup at all.
+
+The application runs locally on Windows, macOS, and Linux, listens on
+`127.0.0.1`, and never asks for or stores a BNL password or Duo response.
+
+## What is in it
+
+| Page | What it is for |
+|---|---|
+| **Data Sources & Mounts** | Every free way to make the data visible, with the exact command generated for your platform |
+| **Data Selection** | Find folders or files with *must contain* / *may contain* / *must not contain* term lists; keep them in a dataset basket and save it under a name |
+| **File Selection** | Filter thousands of reduced filenames without opening a single array |
+| **GISAXS · GIWAXS · Transmission SAXS · Transmission WAXS** | Four independent explorers with their own q defaults, panels, and line cuts |
+| **Quick Plot** | Hand it any list of full paths and get 1D overlays, a stacked intensity map, or 2D images |
+| **Publication Plot** | Export-ready I(q) overlays with publication themes |
+| **Plotting Studio** | 1D, 2D, 3D, and multi-axes workspaces on the `pyscattviz.plotting` API |
+| **Output Folder** | Where saved figures go, and what has been written there |
+
+Everything that draws something can write it **straight to a folder you name**,
+in a subfolder named after the page it came from — no hunting through the
+browser's download directory. See
+[Saving figures to your own folder](#saving-figures-to-your-own-folder).
 
 ## Installation from zero
 
@@ -275,9 +300,15 @@ To install a later update on Windows:
 ```powershell
 cd $HOME\pyScattViz
 git pull --ff-only
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 .\.venv\Scripts\python.exe -m pip install --upgrade .
 .\start_windows.bat
 ```
+
+> The `Remove-Item ... build` line matters when upgrading past version 0.7.0.
+> An earlier in-place install leaves a `build` folder holding the old page
+> files, and without deleting it the sidebar lists several pages twice.
+> pyScattViz prints a warning at startup if that has happened.
 
 > **Do not run `python3 -m venv .venv` on Windows after `git pull`.** The
 > `python3` command is normally for macOS/Linux, and pulling an update does not
@@ -302,6 +333,7 @@ To install a later update on macOS or Linux:
 ```bash
 cd "$HOME/pyScattViz"
 git pull
+rm -rf build
 ./.venv/bin/python -m pip install --upgrade .
 ./.venv/bin/python -m pyscattviz
 ```
@@ -335,26 +367,25 @@ If port 8501 is already in use, start on another port by adding `--port 8502`
 to the final start command. The application listens only on the local computer
 by default.
 
-## Mount NSLS-II proposal data
+## Getting the data onto the computer
 
 pyScattViz needs normal filesystem paths because NumPy, pandas, and image
-readers open the selected CSV, NPZ, and image files directly. An SFTP mount
-makes the remote proposal appear as a local folder. The bytes for an opened
-frame still cross the network, but the complete proposal is never copied.
+readers open the selected CSV, NPZ, and image files directly. Choose one of the
+three routes below, then register the folder on **Data Sources & Mounts**.
 
-Open **Data Sources & Mounts** in pyScattViz first. Enter the beamline, cycle,
-proposal, and BNL username. The page generates the exact commands, tests the
-mounted path, and saves its path mapping. Password and Duo prompts must run in
-a real terminal or desktop mount client; the web GUI intentionally never
-receives or stores credentials.
+Open that page first: it asks for the beamline, cycle, proposal, and BNL
+username, then generates the exact command for the platform and method you
+select, tests the resulting folder, and saves the path mapping. Password and
+Duo prompts run in a real terminal or desktop mount client; the web GUI
+intentionally never receives or stores credentials.
 
-The example used below is:
+The example used throughout is:
 
 ```text
 /nsls2/data/smi/proposals/2026-2/pass-319371
 ```
 
-The GUI supports several mount scopes:
+### Choose the mount scope
 
 | Scope | Remote root | Recommended use |
 |---|---|---|
@@ -367,11 +398,27 @@ A broader mount exposes more directory names and may be slower to browse. It
 does not grant new permissions: the SFTP server still enforces the BNL account's
 authorization.
 
-### Windows 10 or 11
+### Which method on which platform
 
-The verified native-Windows route is the free RaiDrive SFTP client. It has been
-tested with the NSLS-II server, BNL password, Duo Push, and a mounted `Z:` drive.
-pyScattViz needs read access only.
+| Platform | Method | Cost | Status |
+|---|---|---|---|
+| Windows | RaiDrive | free edition | **Verified** with BNL password and Duo Push |
+| Windows | rclone + WinFsp | free, open source | Works cross-platform; Duo behaviour not yet confirmed by me |
+| macOS | SSHFS + macFUSE | free | Standard route; macFUSE needs a security approval |
+| macOS | rclone + macFUSE | free, open source | Same commands as Windows and Linux |
+| Linux | SSHFS | free | Standard route, fastest of the three |
+| Linux | Files → Connect to Server | free, nothing to install | Convenient; slower for large image folders |
+| Any | `sftp -r`, FileZilla, Cyberduck | free | Copies a subset; no driver needed |
+| Any | Already-local folder | — | Nothing to configure |
+
+**RaiDrive is Windows-only.** macOS and Linux users should not look for it —
+SSHFS is the equivalent there, and rclone is the one client that behaves
+identically on all three platforms.
+
+### Windows: RaiDrive (verified)
+
+This is the route I tested against the NSLS-II server, with the BNL password,
+Duo Push, and a mounted `Z:` drive. pyScattViz needs read access only.
 
 1. Connect to the BNL VPN if the SFTP service is unavailable from the current
    network.
@@ -412,13 +459,12 @@ pyScattViz needs read access only.
    ```
 
 7. Connect, complete the BNL password and Duo Push prompts, and confirm that the
-   drive opens in File Explorer. A mounted filesystem reads remote file bytes
-   when an application opens them; it does not copy the complete proposal.
+   drive opens in File Explorer.
 8. In **Data Sources & Mounts**, enter the mounted location shown by File
-   Explorer, select **Test mounted path**, then **Register mount for File
-   Selection**.
-9. In File Selection, browse from the mounted proposal root to a result folder,
-   for example:
+   Explorer, select **Test this folder**, then **Register folder for the other
+   pages**.
+9. In Data Selection or File Selection, browse from the mounted proposal root to
+   a result folder, for example:
 
    ```text
    Z:\projects\microbeam_Kim\Results\giwaxs
@@ -436,7 +482,7 @@ SSHFS-Win is not used for password authentication because its Windows provider
 cannot complete the separate Duo prompt. WSL plus Linux SSHFS remains another
 free option for advanced users.
 
-### Linux
+### Linux: SSHFS
 
 Install SSHFS:
 
@@ -475,7 +521,28 @@ fusermount3 -u "$HOME/NSLS_II_Link/smi-pass-319371" || \
 The proposal SFTP server is direct; it does not require the two-hop beamline
 workstation jump used for some legacy data.
 
-### macOS
+### Linux: Files → Connect to Server (nothing to install)
+
+On a GNOME desktop such as Ubuntu or Fedora there is no installation step at
+all:
+
+1. Open **Files**.
+2. Select **Other Locations** at the bottom of the sidebar.
+3. In **Connect to Server**, enter `sftp://yuzhang@sftp.nsls2.bnl.gov/` and
+   select **Connect**.
+4. Enter the BNL password, choose the Duo option, and approve the push.
+
+The mount then appears as an ordinary folder:
+
+```bash
+/run/user/$(id -u)/gvfs/sftp:host=sftp.nsls2.bnl.gov,user=yuzhang
+```
+
+Paste that path into **Data Sources & Mounts** and register it. GVFS is slower
+than SSHFS for folders holding thousands of images, so prefer SSHFS when
+browsing a large reduction.
+
+### macOS: SSHFS + macFUSE
 
 Install Homebrew if needed, then install macFUSE and SSHFS:
 
@@ -503,6 +570,103 @@ select Duo option `1`, approve the push, and register the mounted folder under
 umount "$HOME/NSLS_II_Link/smi-pass-319371"
 ```
 
+### Any platform: rclone
+
+rclone is free and open source and uses the same commands on Windows, macOS, and
+Linux, so it is what I recommend when a whole group needs one set of
+instructions. It needs a FUSE driver: WinFsp on Windows, macFUSE on macOS.
+
+Install:
+
+```powershell
+# Windows
+winget install --exact --id WinFsp.WinFsp
+winget install --exact --id Rclone.Rclone
+```
+
+```bash
+# macOS
+brew install --cask macfuse
+brew install rclone
+
+# Ubuntu/Debian
+sudo apt update && sudo apt install rclone fuse3
+```
+
+Configure the connection once. `ask_password true` keeps the BNL password out
+of the rclone configuration file — rclone prompts for it, and for the Duo
+challenge, at mount time:
+
+```bash
+rclone config create nsls2 sftp host sftp.nsls2.bnl.gov user yuzhang port 22 ask_password true
+```
+
+Mount it. On Windows use a free drive letter; on macOS and Linux use an empty
+folder:
+
+```powershell
+# Windows
+rclone mount nsls2:/nsls2/data/smi/proposals/2026-2/pass-319371 Z: --read-only --vfs-cache-mode full --dir-cache-time 60s --attr-timeout 60s --network-mode
+```
+
+```bash
+# macOS and Linux
+mkdir -p "$HOME/NSLS_II_Link/smi-pass-319371"
+rclone mount nsls2:/nsls2/data/smi/proposals/2026-2/pass-319371 \
+  "$HOME/NSLS_II_Link/smi-pass-319371" \
+  --read-only --vfs-cache-mode full --dir-cache-time 60s --attr-timeout 60s --daemon
+```
+
+Release the mount with `Ctrl+C` in the rclone window on Windows, `umount` on
+macOS, or `fusermount3 -u` on Linux.
+
+I have not yet confirmed the BNL Duo prompt through rclone myself. If rclone
+stops without asking for the Duo option, fall back to RaiDrive on Windows or
+SSHFS on macOS/Linux, both of which are known to work.
+
+### Any platform: copy a subset to the local disk
+
+No mount, no driver, nothing to install — OpenSSH ships with Windows 10/11,
+macOS, and every Linux distribution. This is the right answer for a single
+result folder, a slow link, or working on a plane:
+
+```bash
+# macOS and Linux
+mkdir -p "$HOME/pyScattViz_Data/giwaxs"
+sftp -r yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs \
+  "$HOME/pyScattViz_Data/giwaxs"
+```
+
+```powershell
+# Windows
+New-Item -ItemType Directory -Force -Path "$HOME\pyScattViz_Data\giwaxs"
+sftp -r yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs "$HOME\pyScattViz_Data\giwaxs"
+```
+
+With rclone configured, a filtered copy is often better than a whole folder:
+
+```bash
+rclone copy nsls2:/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs \
+  "$HOME/pyScattViz_Data/giwaxs" --progress --include "*Kim*"
+```
+
+Graphical alternatives that also work on every platform:
+[FileZilla](https://filezilla-project.org/) and, on Windows and macOS,
+[Cyberduck](https://cyberduck.io/). Both connect to `sftp.nsls2.bnl.gov` with
+the BNL username, ask for the password and Duo, and let a folder be dragged to
+the local disk.
+
+Narrow the remote folder before copying. Copying a whole proposal is rarely what
+anyone wants.
+
+### Data already on this computer
+
+Nothing to configure. Open **Data Sources & Mounts**, choose **Data already on
+this computer**, enter the folder, and select **Register folder for the other
+pages**. A local disk, an external drive, and a laboratory network share are all
+treated identically to a mount, and every page — Data Selection, the four
+explorers, Quick Plot, Publication Plot — works exactly the same way.
+
 ### Mount troubleshooting
 
 - `Permission denied` usually means the BNL password/Duo authentication failed
@@ -511,8 +675,121 @@ umount "$HOME/NSLS_II_Link/smi-pass-319371"
 - A mount that worked earlier but is now empty may need to be unmounted and
   reconnected after a network interruption.
 - pyScattViz never writes credentials into its configuration. It saves only
-  remote-to-mounted path mappings in `~/.pyscattviz/path_mappings.json`.
+  remote-to-mounted path mappings in `~/.pyscattviz/path_mappings.json`, saved
+  dataset collections in `~/.pyscattviz/collections/`, and output preferences in
+  `~/.pyscattviz/settings.json`.
 - Never unmount while a frame is actively loading.
+
+## Selecting the data you care about
+
+The **Data Selection** page is the GUI form of the `ls_dir` helper I have used in
+pyScatt for years. Give it search roots and three term lists:
+
+| List | Meaning |
+|---|---|
+| **Must contain (AND)** | every term must appear |
+| **May contain (OR)** | at least one term must appear |
+| **Must not contain (EXCLUDE)** | no term may appear |
+
+A term is a plain substring unless it contains a shell wildcard (`*`, `?`, `[`),
+in which case it is matched against the whole name. Matching ignores case.
+Separate terms with commas, semicolons, or new lines.
+
+Search **Folders** (the usual choice) or **Files**, match on the folder *name* or
+on the whole *path* — `Results` AND `giwaxs` matched on the path is how you find
+every result folder in a proposal — and limit the depth so a broad search over a
+network mount cannot run forever.
+
+Whatever you tick goes into a **dataset basket**: an ordered list of full paths
+that Quick Plot and the explorers read directly. A basket can be saved under a
+name and reopened next week; the file is plain JSON under
+`~/.pyscattviz/collections/` and holds nothing but paths.
+
+If you already have the paths — from an email, a notebook, a previous session —
+use the **Paste full paths** tab instead. Folders and files may be mixed, and an
+original `/nsls2/...` path is translated through the registered mount mappings.
+
+The same logic is available from Python:
+
+```python
+from pyscattviz.discovery import find_folders, ls_dir
+
+ls_dir("/mnt/proposal/Results/giwaxs/cir_avg", and_list=["Kim"], no_list=["AgBH"])
+
+rows, truncated = find_folders(
+    ["/mnt/proposal"],
+    and_list=["Results"],
+    or_list=["giwaxs", "gisaxs"],
+    no_list=["test"],
+    match_on="path",
+    max_depth=5,
+)
+```
+
+## Plotting a list of files
+
+**Quick Plot** takes the dataset basket, one folder, or a pasted list of full
+paths and plots it. No reduction layout is required — it reads:
+
+| Kind | Extensions |
+|---|---|
+| Curves | `.csv`, `.txt`, `.dat`, `.chi`, `.xy` |
+| Arrays | `.npz`, `.npy` |
+| Images | `.tif`, `.tiff`, `.png`, `.jpg`, `.jpeg` |
+
+Comment blocks, missing headers, Fit2D `.chi` header blocks, and
+comma/tab/semicolon/whitespace delimiters are all handled. `q_ca`/`iq_ca` and
+`q`/`I` are recognized automatically; any other column can be chosen by name.
+
+The three plotting tabs are:
+
+- **1D curves** — overlay, normalize (maximum, integral, or at a chosen x),
+  offset additively or multiplicatively, log axes, x range, automatic legend
+  trimming of the boilerplate every beamline stem carries, and a matching
+  matplotlib publication figure with the science/notebook/presentation/poster
+  themes.
+- **Stacked map** — interpolate every curve onto one x grid and show the set as
+  an intensity map or a waterfall. This is how an in-situ or angle series is
+  read at a glance.
+- **2D images** — detector images and 2D arrays with robust percentile contrast,
+  log/linear colour, equal aspect, and vertical flip.
+
+## Saving figures to your own folder
+
+pyScattViz runs on your computer, so it writes where you tell it to. Every page
+that draws something has a **💾 Save to disk** panel:
+
+- one **output root**, which you set on the **Output Folder** page and which is
+  remembered between sessions in `~/.pyscattviz/settings.json`;
+- one **subfolder per page**, so a figure from the GIWAXS Explorer lands in
+  `<output root>/GIWAXS_Explorer/` and a Publication Plot lands in
+  `<output root>/Publication_Plot/`;
+- an optional extra subfolder for a sample or session name, and an optional date
+  subfolder;
+- no silent overwriting — a repeated name becomes `name_001`, `name_002`, …
+  unless **Overwrite** is turned on.
+
+Figures can be written as PNG, SVG, PDF, interactive HTML, or Plotly JSON;
+matplotlib figures also as EPS and TIFF. The plotted table can be written beside
+the figure as CSV, and the displayed array as NPZ or NPY, so a figure and the
+numbers behind it stay together.
+
+Static images of the interactive Plotly figures are produced by the free
+`kaleido` package, which is installed with pyScattViz. On a computer with no
+Chrome or Chromium, run `plotly_get_chrome` once in the same environment; HTML
+export works without it.
+
+The default output root is `~/pyScattViz_Output`. `PYSCATTVIZ_OUTPUT_DIR`
+overrides it for a new installation.
+
+The same helpers are available from Python:
+
+```python
+from pyscattviz.exporting import resolve_output_dir, save_matplotlib_figure
+
+folder = resolve_output_dir("~/pyScattViz_Output", "GIWAXS Explorer", create=True)
+save_matplotlib_figure(fig, folder, "sample_A_cir_avg", fmt="png", dpi=300)
+```
 
 ## File selection and lazy loading
 
@@ -550,11 +827,12 @@ set of scientific defaults.
 These are starting ranges, not hard limits. Every explorer exposes editable
 axis limits, intensity limits, detector/raw paths, line-cut centers and widths,
 filename filtering, and product selection. Large 2D products are downsampled
-for browser display; line cuts use the selected loaded array.
+for browser display; line cuts use the selected loaded array. Any panel, and any
+set of line cuts, can be written to disk from the explorer itself.
 
 ## Plotting Studio
 
-The **Plotting Studio** restores the principal plotting tools to the web GUI:
+The **Plotting Studio** exposes the principal plotting tools in the web GUI:
 
 - **1D:** multiple curves, normalization, log axes, markers, unified hover, and
   plotted-table CSV download;
@@ -574,11 +852,11 @@ disabled.
 The **Publication Plot** page reads only the explicitly selected circular-average
 CSVs. It supports science/notebook/presentation/poster themes, maximum or
 integral normalization, q-range selection, log axes, vertical offsets, legend
-control, and PNG/SVG/PDF downloads.
+control, and PNG/SVG/PDF output either as a download or straight to disk.
 
 ## Python plotting API
 
-The earlier `pyViz` functionality now lives under the supported pyScattViz
+The earlier `pyViz` functionality lives under the supported pyScattViz
 namespace:
 
 ```python
@@ -613,7 +891,8 @@ gisaxs/ or giwaxs/
 
 The same reduced-product names are supported for transmission SAXS/WAXS.
 The transmission page also accepts editable raw-image locations used by CMS
-and SMI.
+and SMI. Data that does not follow this layout is not a problem — use Data
+Selection and Quick Plot instead.
 
 ## Development
 

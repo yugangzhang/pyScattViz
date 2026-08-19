@@ -6,6 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.components.scattering import (
     SCATTERING_PRODUCTS,
     discover_scattering_products,
@@ -19,6 +20,8 @@ from pyscattviz.app.state import (
 from pyscattviz.browser import list_directory, run_browser_command
 from pyscattviz.data_sources import load_path_mappings, translate_remote_path
 from pyscattviz.filters import FilterSyntaxError, parse_filename_list
+
+TAB_NAME = "File Selection"
 
 st.set_page_config(page_title="File Selection", page_icon="🔎", layout="wide")
 st.title("🔎 File Selection")
@@ -271,4 +274,30 @@ if frame_table is not None and selected_root == normalized_root:
         file_name="pyscattviz_selected_frames.txt",
         mime="text/plain",
     )
-    st.info("The saved selection is now available in both scattering viewers.")
+    render_save_panel(
+        TAB_NAME,
+        f"selection_{Path(normalized_root).name}",
+        key="file_selection_save",
+        table=frame_table[display_columns],
+        text=text_export,
+        caption=(
+            "Keep the exact frame list that produced a figure — the table records "
+            "which products each frame has, the plain list feeds a later session."
+        ),
+    )
+    basket_columns = st.columns([1.4, 3])
+    if basket_columns[0].button("Add these files to the dataset basket"):
+        basket = list(st.session_state.get("pyscattviz_dataset_paths", []))
+        added = 0
+        for column in ("cir", "qimg", "qphi", "qc", "raw"):
+            if column not in frame_table:
+                continue
+            for value in frame_table[column].dropna().tolist():
+                if value not in basket:
+                    basket.append(str(value))
+                    added += 1
+        st.session_state["pyscattviz_dataset_paths"] = basket
+        st.success(f"Added {added} file path(s); Quick Plot reads the basket directly.")
+    basket_columns[1].caption(
+        "The saved selection is already available in every scattering viewer."
+    )

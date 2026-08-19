@@ -2,24 +2,84 @@
 
 ## Application flow
 
-The application has eight task pages in addition to Home.
+The application has eleven task pages in addition to Home.
 
 1. **Data Sources & Mounts** builds the NSLS-II SFTP path, generates
-   platform-specific mount instructions, validates mounts, and records paths.
-2. **File Selection** includes a folder navigator, scans filenames, applies
+   platform-specific commands for mounting, copying a subset, or registering a
+   local folder, validates the result, and records the mapping.
+2. **Data Selection** searches one or more roots for folders or files with
+   AND/OR/EXCLUDE term lists, accepts a pasted list of full paths, and keeps the
+   result in a dataset basket that can be saved under a name.
+3. **File Selection** includes a folder navigator, scans filenames, applies
    boolean or exact-list filters, and saves canonical frame names.
-3. **GISAXS Explorer** reviews low-q grazing-incidence results with GISAXS
+4. **GISAXS Explorer** reviews low-q grazing-incidence results with GISAXS
    ranges and qx/qz cut widths.
-4. **GIWAXS Explorer** reviews wide-q grazing-incidence results with GIWAXS
+5. **GIWAXS Explorer** reviews wide-q grazing-incidence results with GIWAXS
    ranges and orientation analysis.
-5. **Transmission SAXS** uses SAXS detector defaults, low-q ranges, and log-q
+6. **Transmission SAXS** uses SAXS detector defaults, low-q ranges, and log-q
    I(q) display.
-6. **Transmission WAXS** uses WAXS detector defaults, high-q ranges, and
+7. **Transmission WAXS** uses WAXS detector defaults, high-q ranges, and
    linear-q display.
-7. **Publication Plot** turns selected circular averages into static figures
+8. **Quick Plot** plots any list of full paths as 1D overlays, a stacked
+   intensity map, or 2D images — no reduction layout required.
+9. **Publication Plot** turns selected circular averages into static figures
    for papers, reports, and presentations.
-8. **Plotting Studio** provides interactive 1D, 2D, and 3D workspaces plus an
-   exportable multi-axes builder.
+10. **Plotting Studio** provides interactive 1D, 2D, and 3D workspaces plus an
+    exportable multi-axes builder.
+11. **Output Folder** sets where saved figures go and lists what has been
+    written there.
+
+## Choosing the data with term lists
+
+**Data Selection** is the GUI form of the `ls_dir` helper from pyScatt. Three
+lists drive every query:
+
+| List | Meaning |
+|---|---|
+| Must contain (AND) | every term must match |
+| May contain (OR) | at least one term must match |
+| Must not contain (EXCLUDE) | no term may match |
+
+An empty list imposes no condition. A term is a substring unless it contains a
+shell wildcard (`*`, `?`, `[`), in which case it matches the whole name.
+Matching ignores case. Separate terms with commas, semicolons, or new lines.
+
+Match on the folder **name** to find `giwaxs` folders anywhere; match on the
+whole **path** to express `Results AND giwaxs`, which is how a proposal tree is
+usually searched. Limit the depth: four levels covers most proposal layouts and
+keeps a broad search over a network mount from running away. A search that hits
+the result cap says so rather than silently truncating.
+
+Selected rows go into the **dataset basket**, an ordered list of full paths that
+Quick Plot reads directly and that any explorer can be pointed at. Save it under
+a name and it becomes a JSON file under `~/.pyscattviz/collections/` holding
+nothing but paths.
+
+The same functions are importable:
+
+```python
+from pyscattviz.discovery import filter_names, find_files, find_folders, ls_dir
+```
+
+## Plotting an arbitrary list of files
+
+**Quick Plot** takes the basket, one folder, or a pasted list. It reads curves
+(`.csv`, `.txt`, `.dat`, `.chi`, `.xy`), arrays (`.npz`, `.npy`), and images
+(`.tif`, `.tiff`, `.png`, `.jpg`, `.jpeg`). Comment blocks, missing headers,
+Fit2D `.chi` header blocks, and comma/tab/semicolon/whitespace delimiters are
+handled; `q_ca`/`iq_ca` and `q`/`I` are recognized automatically and any other
+column can be chosen by name.
+
+- **1D curves** overlays the selection with normalization (maximum, integral, or
+  at a chosen x), additive or multiplicative offsets, log axes, an x range, and
+  legend labels trimmed of the boilerplate every beamline stem carries. A
+  matching matplotlib publication figure is available in the same tab.
+- **Stacked map** interpolates every curve onto one x grid and shows the set as
+  an intensity map or a waterfall — the fastest way to read an in-situ or angle
+  series. Points outside a curve's own range stay blank rather than being
+  extrapolated.
+- **2D images** shows detector images and 2D arrays with robust percentile
+  contrast, log or linear colour, equal aspect, and vertical flip.
 
 ## Selecting folders
 
@@ -128,6 +188,41 @@ For notebook and Python-script use, import the same plotting layer with
 `import pyscattviz.plotting as pv`. The complete API is documented in
 [PLOTTING_API.md](PLOTTING_API.md).
 
+## Saving to your own folder
+
+Every page that draws something has a **💾 Save to disk** panel. They share one
+output root, set on the **Output Folder** page and remembered in
+`~/.pyscattviz/settings.json`, and each writes into a subfolder named after the
+page: `GIWAXS_Explorer/`, `Quick_Plot/`, `Publication_Plot/`, and so on. An
+optional extra subfolder holds a sample or session name, and an optional date
+subfolder separates repeated sessions.
+
+Names are sanitized for Windows without losing the decimal points that beamline
+stems are full of, so `Kim_th0.1000deg_qphi` stays intact. Nothing is
+overwritten silently: a repeated name becomes `name_001`, `name_002`, … unless
+**Overwrite** is turned on.
+
+| Payload | Formats |
+|---|---|
+| Interactive Plotly figure | png · svg · pdf · html · json |
+| matplotlib figure | png · svg · pdf · eps · tif |
+| Plotted data | csv · tab-separated txt |
+| Displayed array | npz · npy |
+| Path or filename list | txt |
+
+Static images of the interactive figures use the free `kaleido` package
+installed with pyScattViz. On a computer with no Chrome or Chromium, run
+`plotly_get_chrome` once in the same environment; HTML export never needs it.
+
+The same helpers work from a notebook:
+
+```python
+from pyscattviz.exporting import resolve_output_dir, save_matplotlib_figure
+
+folder = resolve_output_dir("~/pyScattViz_Output", "GIWAXS Explorer", create=True)
+save_matplotlib_figure(fig, folder, "sample_A_cir_avg", fmt="png", dpi=300)
+```
+
 ## Memory and performance
 
 Filename indexing uses an iterator and retains only matching canonical stems.
@@ -149,6 +244,7 @@ On Windows PowerShell:
 ```powershell
 cd $HOME\pyScattViz
 git pull
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 .\.venv\Scripts\python.exe -m pip install --upgrade .
 .\start_windows.bat
 ```
@@ -158,9 +254,15 @@ On macOS or Linux:
 ```bash
 cd "$HOME/pyScattViz"
 git pull
+rm -rf build
 ./.venv/bin/python -m pip install --upgrade .
 ./.venv/bin/python -m pyscattviz
 ```
+
+Deleting `build` matters when upgrading past 0.7.0: an earlier in-place install
+leaves the old page files there, and setuptools folds them back into the new
+wheel so the sidebar lists several pages twice. pyScattViz prints a warning at
+startup if that has happened.
 
 For normal daily startup, I included `start_windows.bat`,
 `start_macos.command`, and `start_linux.sh` in the repository root. On Windows,

@@ -34,6 +34,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from pyscattviz.app.components.saving import render_output_settings, render_save_panel
+
 # Shared scattering engine (aliased to the underscore names used below).
 from pyscattviz.app.components.scattering import (
     CMAPS,
@@ -222,6 +224,10 @@ with st.sidebar:
         "Filter by keyword(s), comma-sep", value="", help="AND filter on the filename stem."
     )
 
+    st.divider()
+    st.subheader("💾 Saving")
+    render_output_settings(st)
+
 work = df.copy()
 if hide_cal:
     work = work[~work["is_calibration"]]
@@ -409,6 +415,12 @@ if centers and "qphi" in active_products and sel["has_qphi"]:
 # ===========================================================================
 st.divider()
 st.markdown(f"### 🖼️ {sel['stem']}")
+
+# Figures kept as they are drawn, so the save panel below can offer any of them.
+rendered_figures: dict[str, object] = {}
+rendered_tables: dict[str, pd.DataFrame] = {}
+rendered_arrays: dict[str, dict] = {}
+
 rowA = st.columns(2)
 rowB = st.columns(2)
 
@@ -440,6 +452,8 @@ with rowA[0]:
             aspect=_aspect_arg(),
         )
         st.plotly_chart(fig, width="stretch")
+        rendered_figures["A · raw"] = fig
+        rendered_arrays["A · raw"] = {"image": z}
     elif "stitched" in active_products:
         st.info("No raw image for this frame.")
 
@@ -466,6 +480,12 @@ with rowA[1]:
             aspect=_aspect_arg(),
         )
         st.plotly_chart(fig, width="stretch")
+        rendered_figures["B · q-image"] = fig
+        rendered_arrays["B · q-image"] = {
+            "qimg": z,
+            "qx": np.asarray(xx),
+            "qz": np.asarray(yy),
+        }
     elif "q_image" in active_products:
         st.info(
             "🔧 **q-image** — no qx–qz remesh exists for this transmission "
@@ -496,6 +516,12 @@ with rowB[0]:
             y_range=c_phir,
         )
         st.plotly_chart(fig, width="stretch")
+        rendered_figures["C · q–φ map"] = fig
+        rendered_arrays["C · q–φ map"] = {
+            "qphi": z,
+            "q": np.asarray(q),
+            "phi": np.asarray(phi),
+        }
     elif "qphi" in active_products:
         st.info("No qphi map for this frame.")
 
@@ -521,8 +547,31 @@ with rowB[1]:
             margin=dict(l=60, r=15, t=40, b=45),
         )
         st.plotly_chart(fig, width="stretch")
+        rendered_figures["D · I(q)"] = fig
+        rendered_tables["D · I(q)"] = pd.DataFrame({"q": qq, "I": ii})
     elif "cir_avg" in active_products:
         st.info("No circular average for this frame.")
+
+if rendered_figures:
+    st.divider()
+    st.markdown("#### 💾 Save a panel to disk")
+    chosen_panel = st.selectbox(
+        "Panel", list(rendered_figures), key=f"{STATE_PREFIX}_save_panel"
+    )
+    render_save_panel(
+        f"{PROFILE['name']} Explorer",
+        f"{sel['stem']}_{chosen_panel.split('·')[-1].strip()}",
+        key=f"{STATE_PREFIX}_panel_save",
+        figure=rendered_figures[chosen_panel],
+        figure_kind="plotly",
+        table=rendered_tables.get(chosen_panel),
+        arrays=rendered_arrays.get(chosen_panel),
+        expanded=True,
+        caption=(
+            f"Written under the {PROFILE['name']}_Explorer subfolder of the output "
+            "root. HTML stays interactive; PNG/SVG/PDF need the free kaleido package."
+        ),
+    )
 
 if "qc" in active_products:
     st.subheader("QC image")
@@ -594,6 +643,16 @@ if centers:
             buf.getvalue(),
             file_name=f"linecuts_{sel['stem']}.csv",
             mime="text/csv",
+        )
+        render_save_panel(
+            f"{PROFILE['name']} Explorer",
+            f"linecuts_{sel['stem']}",
+            key=f"{STATE_PREFIX}_linecut_save",
+            figure=fig,
+            figure_kind="plotly",
+            table=out,
+            subfolder="line_cuts",
+            caption="The cuts land in a line_cuts subfolder so they stay together.",
         )
 
 # --- Frame table ------------------------------------------------------------

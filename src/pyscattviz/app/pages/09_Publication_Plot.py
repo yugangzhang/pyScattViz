@@ -5,8 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.components.scattering import (
     discover_scattering_products,
     index_frames,
@@ -15,6 +17,8 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.filters import FilterSyntaxError
 from pyscattviz.plotting import fig_to_bytes
 from pyscattviz.publication import Curve, build_curve_figure
+
+TAB_NAME = "Publication Plot"
 
 st.set_page_config(page_title="Publication Plot", page_icon="📈", layout="wide")
 st.title("📈 Publication Plot")
@@ -143,5 +147,26 @@ with e3:
         mime=mime[export_format],
         type="primary",
     )
+
+curve_frames = []
+for stem in selected:
+    q_values, intensity_values = load_cir(rows.loc[stem, "cir"])
+    curve_frames.append(pd.DataFrame({f"q[{stem}]": q_values, f"I[{stem}]": intensity_values}))
+curve_table = pd.concat(curve_frames, axis=1) if curve_frames else None
+
+render_save_panel(
+    TAB_NAME,
+    f"curves_{len(selected)}_{theme}",
+    key="publication_save",
+    figure=figure,
+    figure_kind="matplotlib",
+    table=curve_table,
+    text="\n".join(selected),
+    expanded=True,
+    caption=(
+        "Written under the Publication_Plot subfolder of the output root. Use the "
+        "optional subfolder box to keep one manuscript figure's versions together."
+    ),
+)
 
 plt.close(figure)
