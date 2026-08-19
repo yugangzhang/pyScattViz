@@ -252,6 +252,9 @@ _TH_RE = re.compile(r"_th(-?\d+\.\d+)_")
 _SCAN_RE = re.compile(r"_(\d{6,})_\d{6}_")
 _WELL_RE = re.compile(r"_([A-H]\d{1,2})_(?=\d{4}_\d{2}_\d{2})")
 
+# CMS QC layout tags that sit between the ``qc_`` prefix and the frame name.
+_QC_LAYOUT_RE = re.compile(r"^(?:\d+panel_)?(?:autoelevate_)?", re.IGNORECASE)
+
 
 # ---------------------------------------------------------------------------
 # Filename ↔ frame indexing
@@ -262,11 +265,18 @@ def stem_of(fname: str) -> str:
     Handles the mixed conventions used by the auto-reduction, e.g.
     ``stitched/<name>.tiff``, ``q_image/qimg_<name>.tiff.npz`` and
     ``cir_avg/Cir_Avg_<name>.tiff.csv`` all reduce to the same ``<name>``.
+
+    CMS writes several QC layouts for one frame — ``qc_<name>``,
+    ``qc_1panel_<name>`` … ``qc_4panel_autoelevate_<name>``. Those layout tags
+    are part of the QC filename, not of the frame, so they are stripped too;
+    otherwise each variant becomes its own frame with no other product attached.
     """
     s = Path(fname).name
     for pref in ("Cir_Avg_", "qphi_", "qimg_", "qc_"):
         if s.startswith(pref):
             s = s[len(pref) :]
+            if pref == "qc_":
+                s = _QC_LAYOUT_RE.sub("", s, count=1)
     # Peel trailing extensions repeatedly (e.g. ".tiff.npz" → ".tiff" → "").
     # ``tif`` covers SMI, whose products are named ``<name>.tif.{csv,npz}``.
     while True:
@@ -398,7 +408,12 @@ def index_frames(
             can_add = len(selected_stems) < max_frames
             if exact_match and query_match and (already_selected or can_add):
                 selected_stems.add(stem)
-                maps[key][stem] = path
+                existing = maps[key].get(stem)
+                # Several CMS QC layouts share one stem. Directory order is
+                # arbitrary, so pick deterministically: the shortest filename is
+                # the plain ``qc_<name>`` rather than ``qc_4panel_<name>``.
+                if existing is None or len(name) < len(Path(existing).name):
+                    maps[key][stem] = path
             elif exact_match and query_match and not already_selected:
                 truncated = True
 
@@ -792,6 +807,69 @@ def _flat_image(path, flip: bool):
     z[~np.isfinite(z)] = np.nan
     z[z <= 0] = np.nan
     return np.flipud(z) if flip else z
+
+
+def _span(values):
+    """Return the finite (min, max) of an axis, or None when there is none."""
+
+    if values is None:
+        return None
+    array = np.asarray(values, dtype=float).ravel()
+    array = array[np.isfinite(array)]
+    if not array.size:
+        return None
+    return float(array.min()), float(array.max())
+
+
+def frame_axis_ranges(row, b_mode: str = "qx") -> dict:
+    """Measure the axis ranges one frame's own products actually cover.
+
+    Returns any of ``qx``/``qr``, ``qz``, ``qphi_q``, ``phi``, ``cir_q`` that
+    could be read, each as a ``(min, max)`` pair.
+
+    The reduction's q coverage depends on the detector, its distance, and the
+    photon energy, so no fixed number is right for long. Measuring the frame is:
+    a CMS GISAXS q-image runs qz from about -0.25 to 0.14, an SMI GIWAXS q–φ map
+    runs q out to 7 Å⁻¹, and φ runs -179 to +179 rather than 0 to 180. Loaders
+    are cached, so this costs nothing beyond what the panels read anyway.
+    """
+
+    ranges: dict[str, tuple[float, float]] = {}
+
+    path = _product_path(row, "qimg")
+    if path:
+        try:
+            _z, x, y, _mask, _label = resolve_qimage(load_qimg(path), b_mode)
+        except DataReadError:
+            x = y = None
+        horizontal = _span(x)
+        vertical = _span(y)
+        if horizontal:
+            ranges["qr" if b_mode == "qr" else "qx"] = horizontal
+        if vertical:
+            ranges["qz"] = vertical
+
+    path = _product_path(row, "qphi")
+    if path:
+        try:
+            q_values, phi_values, _map, _mask = load_qphi(path)
+        except DataReadError:
+            q_values = phi_values = None
+        if _span(q_values):
+            ranges["qphi_q"] = _span(q_values)
+        if _span(phi_values):
+            ranges["phi"] = _span(phi_values)
+
+    path = _product_path(row, "cir")
+    if path:
+        try:
+            q_values, _intensity = load_cir(path)
+        except DataReadError:
+            q_values = None
+        if _span(q_values):
+            ranges["cir_q"] = _span(q_values)
+
+    return ranges
 
 
 def frame_panel_figure(

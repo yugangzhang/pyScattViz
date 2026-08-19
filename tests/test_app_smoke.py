@@ -122,14 +122,21 @@ def test_scattering_viewers_request_mount_for_nsls2_path():
         assert "pyscattviz_active_root" not in app.session_state.filtered_state
 
 
-def test_decoupled_explorers_use_mode_specific_q_defaults(tmp_path):
+def test_explorers_start_with_auto_axis_limits(tmp_path):
+    """A fixed q maximum clipped real data, so the boxes now start blank.
+
+    A CMS GIWAXS q–φ map reaches 3 A^-1 and an SMI one reaches 7; the old 3.0
+    default silently cut the second in half. Blank means the panel scales to the
+    frame it is showing.
+    """
+
     expectations = [
-        ("04_GISAXS_Explorer.py", "GISAXS Explorer", 0.5, True),
-        ("05_GIWAXS_Explorer.py", "GIWAXS Explorer", 3.0, False),
-        ("06_Transmission_SAXS.py", "Transmission SAXS Explorer", 0.5, True),
-        ("07_Transmission_WAXS.py", "Transmission WAXS Explorer", 3.5, False),
+        ("04_GISAXS_Explorer.py", "GISAXS Explorer", True),
+        ("05_GIWAXS_Explorer.py", "GIWAXS Explorer", False),
+        ("06_Transmission_SAXS.py", "Transmission SAXS Explorer", True),
+        ("07_Transmission_WAXS.py", "Transmission WAXS Explorer", False),
     ]
-    for index, (filename, title, q_max, log_q) in enumerate(expectations):
+    for index, (filename, title, log_q) in enumerate(expectations):
         root = tmp_path / f"result-{index}"
         cir = root / "cir_avg"
         cir.mkdir(parents=True)
@@ -142,9 +149,55 @@ def test_decoupled_explorers_use_mode_specific_q_defaults(tmp_path):
 
         assert not app.exception
         assert app.title[0].value.endswith(title)
-        assert q_max in [item.value for item in app.number_input if item.label == "q max"]
+        limits = [item.value for item in app.number_input if item.label in ("q min", "q max")]
+        assert limits and all(value is None for value in limits)
+        # The geometries stay decoupled in the things that are genuinely theirs.
         log_widget = next(item for item in app.checkbox if item.label == "log q (1D)")
         assert log_widget.value is log_q
+
+
+def test_the_geometry_preset_still_fills_mode_specific_limits(tmp_path):
+    for filename, state, q_max in (
+        ("04_GISAXS_Explorer.py", "gisaxs", 0.5),
+        ("05_GIWAXS_Explorer.py", "giwaxs", 3.0),
+        ("06_Transmission_SAXS.py", "tsaxs", 0.5),
+        ("07_Transmission_WAXS.py", "twaxs", 3.5),
+    ):
+        root = tmp_path / state
+        (root / "cir_avg").mkdir(parents=True)
+        (root / "cir_avg" / "Cir_Avg_sample.tif.csv").write_text(
+            "q_ca,iq_ca\n0.01,10\n0.1,2\n", encoding="utf-8"
+        )
+        app = AppTest.from_file(str(PAGES_DIR / filename), default_timeout=15)
+        app.session_state["pyscattviz_active_root"] = str(root)
+        app.run()
+
+        next(
+            item for item in app.button if item.key == f"pyscattviz_{state}_preset_ranges"
+        ).click().run()
+
+        assert not app.exception
+        assert app.session_state[f"pyscattviz_{state}_d_q_hi"] == q_max
+        # The preset also restores the historical 0 … 180 phi window.
+        assert app.session_state[f"pyscattviz_{state}_c_phi_hi"] == 180.0
+
+
+def test_clearing_the_limits_returns_every_box_to_auto(tmp_path):
+    root = tmp_path / "giwaxs"
+    (root / "cir_avg").mkdir(parents=True)
+    (root / "cir_avg" / "Cir_Avg_sample.tif.csv").write_text(
+        "q_ca,iq_ca\n0.01,10\n0.1,2\n", encoding="utf-8"
+    )
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=15)
+    app.session_state["pyscattviz_active_root"] = str(root)
+    app.run()
+    next(item for item in app.button if item.key == "pyscattviz_giwaxs_preset_ranges").click().run()
+    assert app.session_state["pyscattviz_giwaxs_d_q_hi"] == 3.0
+
+    next(item for item in app.button if item.key == "pyscattviz_giwaxs_clear_ranges").click().run()
+
+    assert not app.exception
+    assert app.session_state["pyscattviz_giwaxs_d_q_hi"] is None
 
 
 def test_mount_page_offers_free_alternatives_on_every_platform():

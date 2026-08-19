@@ -120,12 +120,20 @@ to the common frame stem before matching.
 The experiment geometries are deliberately separate because their useful q
 ranges, detector locations, line-cut widths, and analysis emphasis differ.
 
-| Geometry | Initial q range (Å⁻¹) | q-axis default | Emphasis |
-|---|---:|---|---|
-| GISAXS | 0.001–0.5 | log for I(q) | low-q qx/qz morphology |
-| GIWAXS | 0–3.0 | linear | wide-q texture and orientation |
-| Transmission SAXS | 0.001–0.5 | log | low-q size/structure and anisotropy |
-| Transmission WAXS | 0–3.5 | linear | high-q peaks and orientation |
+| Geometry | q-axis default | Geometry preset (Å⁻¹) | Emphasis |
+|---|---|---:|---|
+| GISAXS | log for I(q) | 0.001–0.5 | low-q qx/qz morphology |
+| GIWAXS | linear | 0–3.0 | wide-q texture and orientation |
+| Transmission SAXS | log | 0.001–0.5 | low-q size/structure and anisotropy |
+| Transmission WAXS | linear | 0–3.5 | high-q peaks and orientation |
+
+Axis limits start blank, so each panel scales to the frame it is showing. The
+preset column is what the **geometry preset** button fills in; it is no longer
+the default, because measuring real CMS and SMI output showed those numbers
+clipped most of it — an SMI GIWAXS q–φ map reaches 7 Å⁻¹, transmission WAXS
+reaches 9, q-images carry negative qz, and φ runs −179 … +179 rather than
+0 … 180. **Fit to this frame** fills the boxes from the frame's own arrays and
+**Clear back to auto** empties them.
 
 Every value remains editable in the page. The four pages retain independent
 widget state and raw-detector choices while sharing the same tested lazy file

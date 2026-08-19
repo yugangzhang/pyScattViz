@@ -46,6 +46,7 @@ from pyscattviz.app.components.saving import render_output_settings, render_save
 # Some are aliased to the underscore names this page's body already uses.
 from pyscattviz.app.components.scattering import (
     CMAPS,
+    frame_axis_ranges,
     heatmap_fig,
     index_frames,
     load_cir,
@@ -248,7 +249,23 @@ if kw.strip():
         work = work[work["stem"].str.contains(re.escape(tok))]
 work = work.reset_index(drop=True)
 if work.empty:
-    st.warning("Nothing matches the filter.")
+    # Say which filter emptied the list. A calibration-only folder is common —
+    # a beamtime's AgBH scans live in their own directory — and "Nothing matches
+    # the filter" on its own sends people looking for a fault that is not there.
+    hidden_calibration = int(df["is_calibration"].sum()) if hide_cal else 0
+    if hidden_calibration and hidden_calibration == len(df):
+        st.warning(
+            f"All {hidden_calibration} frame(s) here are calibration scans "
+            "(AgBH, direct beam, glassy carbon). Clear **Hide calibration** in "
+            "the sidebar to look at them."
+        )
+    elif hidden_calibration:
+        st.warning(
+            f"Nothing matches the keyword filter. {hidden_calibration} "
+            "calibration frame(s) are also hidden."
+        )
+    else:
+        st.warning("Nothing matches the filter.")
     st.stop()
 
 # --- Frame picker -----------------------------------------------------------
@@ -319,11 +336,60 @@ def _rng(col, label, key, lo_val=None, hi_val=None, fmt="%.4g"):
     return lo, hi
 
 
+# Axis limits start blank, which lets each panel autoscale to the frame it is
+# actually showing. Fixed defaults were wrong more often than right: the q a
+# reduction covers depends on the detector, its distance, and the energy, so a
+# GIWAXS q–φ map that reaches 7 Å⁻¹ was being cut off at 3, and φ runs -179 to
+# +179 rather than 0 to 180. The two buttons below fill the boxes explicitly.
+_RANGE_KEYS = ("b_qx", "b_qz", "c_q", "c_phi", "d_q")
+
+
+def _fill_ranges(values: dict) -> None:
+    """Write measured or preset limits into the range boxes."""
+
+    for key, span in values.items():
+        if span is None:
+            st.session_state.pop(f"{STATE_PREFIX}_{key}_lo", None)
+            st.session_state.pop(f"{STATE_PREFIX}_{key}_hi", None)
+        else:
+            st.session_state[f"{STATE_PREFIX}_{key}_lo"] = float(span[0])
+            st.session_state[f"{STATE_PREFIX}_{key}_hi"] = float(span[1])
+
+
 with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=False):
     st.caption(
-        "Colour limits are in **intensity** units (pre-log). "
-        "Auto colour uses robust percentiles of each panel."
+        "Blank means the panel scales to the data it is showing. Colour limits "
+        "are in **intensity** units (pre-log); auto colour uses robust "
+        "percentiles of each panel."
     )
+    fill_left, fill_middle, fill_right = st.columns([1.2, 1.4, 2.4])
+    if fill_left.button("Fit to this frame", key=f"{STATE_PREFIX}_fit_ranges"):
+        measured = frame_axis_ranges(sel, b_mode)
+        _fill_ranges(
+            {
+                "b_qx": measured.get("qr" if b_mode == "qr" else "qx"),
+                "b_qz": measured.get("qz"),
+                "c_q": measured.get("qphi_q"),
+                "c_phi": measured.get("phi"),
+                "d_q": measured.get("cir_q"),
+            }
+        )
+        st.rerun()
+    if fill_middle.button(f"{PROFILE['name']} preset", key=f"{STATE_PREFIX}_preset_ranges"):
+        _fill_ranges(
+            {
+                "b_qx": PROFILE["qx_range"],
+                "b_qz": PROFILE["qz_range"],
+                "c_q": PROFILE["q_range"],
+                "c_phi": (0.0, 180.0),
+                "d_q": PROFILE["q_range"],
+            }
+        )
+        st.rerun()
+    if fill_right.button("Clear back to auto", key=f"{STATE_PREFIX}_clear_ranges"):
+        _fill_ranges({key: None for key in _RANGE_KEYS})
+        st.rerun()
+
     ap, bp, cp = st.columns(3)
     ap.markdown("**A · raw**")
     a_vmin, a_vmax = _rng(ap, "I", "a_v")
@@ -332,39 +398,16 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     bp.markdown("**B · q-image**")
     b_vmin, b_vmax = _rng(bp, "I", "b_v")
     _bx_lab = "qr" if b_mode == "qr" else "qx"
-    b_qxr = _rng(
-        bp,
-        _bx_lab,
-        "b_qx",
-        lo_val=PROFILE["qx_range"][0],
-        hi_val=PROFILE["qx_range"][1],
-    )
-    b_qzr = _rng(
-        bp,
-        "qz",
-        "b_qz",
-        lo_val=PROFILE["qz_range"][0],
-        hi_val=PROFILE["qz_range"][1],
-    )
+    b_qxr = _rng(bp, _bx_lab, "b_qx")
+    b_qzr = _rng(bp, "qz", "b_qz")
     cp.markdown("**C · q–φ**")
     c_vmin, c_vmax = _rng(cp, "I", "c_v")
-    c_qr = _rng(
-        cp,
-        "q",
-        "c_q",
-        lo_val=PROFILE["q_range"][0],
-        hi_val=PROFILE["q_range"][1],
-    )
-    c_phir = _rng(cp, "φ", "c_phi", lo_val=0.0, hi_val=180.0)  # default φ [0,180] (item 4)
+    c_qr = _rng(cp, "q", "c_q")
+    # φ runs -179 … +179 in the real reduction, so a 0 … 180 default hid half of it.
+    c_phir = _rng(cp, "φ", "c_phi")
     st.markdown("**D · circular average**")
     dp1, dp2 = st.columns(2)
-    d_qr = _rng(
-        dp1,
-        "q",
-        "d_q",
-        lo_val=PROFILE["q_range"][0],
-        hi_val=PROFILE["q_range"][1],
-    )
+    d_qr = _rng(dp1, "q", "d_q")
     d_ir = _rng(dp2, "I", "d_i")
     st.caption("D curve style")
     d_style = _curve_style_controls(
@@ -578,7 +621,7 @@ def _render_image(path, title, *, flip=False):
         y_range=a_yr,
         aspect=_aspect_arg(),
     )
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
     rendered_figures[title] = fig
     rendered_arrays[title] = {"image": z}
 
@@ -616,7 +659,7 @@ def _render_panel(panel):
                 y_range=b_qzr,
                 aspect=_aspect_arg(),
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
             rendered_figures["B · q-image"] = fig
             rendered_arrays["B · q-image"] = {
                 "qimg": z,
@@ -648,7 +691,7 @@ def _render_panel(panel):
                 x_range=c_qr,
                 y_range=c_phir,
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
             rendered_figures["C · q–φ map"] = fig
             rendered_arrays["C · q–φ map"] = {
                 "qphi": z,
@@ -681,7 +724,7 @@ def _render_panel(panel):
                 template="plotly_white",
                 margin=dict(l=60, r=15, t=40, b=45),
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
             rendered_figures["D · circular average"] = fig
             rendered_tables["D · circular average"] = pd.DataFrame({"q": qq, "I": ii})
         else:
@@ -747,18 +790,11 @@ if centers:
             xlab = "φ (deg)" if _is_qcut else "q (Å⁻¹)"
         xlog = logq and along_is_q
 
-        # Styling + axis limits for the line-cut profiles (items 4-6).
-        # When the profile runs along φ (q-cut on q–φ), default x to [0,180].
-        _x_is_phi = xlab.startswith("φ")
+        # Styling + axis limits for the line-cut profiles. Blank limits let the
+        # profile show its whole range; a φ profile really does run -179 … +179.
         with st.expander("🎛️ Line-cut plot: limits & style", expanded=True):
             lp1, lp2 = st.columns(2)
-            lc_xr = _rng(
-                lp1,
-                xlab,
-                "lc_x",
-                lo_val=0.0 if _x_is_phi else None,
-                hi_val=180.0 if _x_is_phi else None,
-            )
+            lc_xr = _rng(lp1, xlab, "lc_x")
             lc_yr = _rng(lp2, "I", "lc_i")
             st.caption("Profile curve style (applied to all cuts)")
             lc_style = _curve_style_controls(f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0})
@@ -782,7 +818,7 @@ if centers:
             margin=dict(l=60, r=15, t=25, b=50),
             legend=dict(orientation="h", y=1.05),
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
         # CSV export: outer-join all profiles on their common x-axis.
         buf = io.StringIO()

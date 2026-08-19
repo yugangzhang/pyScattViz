@@ -324,7 +324,7 @@ with tab_1d:
                     legend=dict(orientation="v", x=1.01, y=1),
                     margin=dict(l=70, r=20, t=50, b=55),
                 )
-                st.plotly_chart(figure, width="stretch", key="quickplot_1d_chart")
+                st.plotly_chart(figure, use_container_width=True, key="quickplot_1d_chart")
 
                 plotted = [curve for curve in curves if "plot_x" in curve]
                 export_table = pd.concat(export_frames, axis=1) if export_frames else None
@@ -533,7 +533,9 @@ with tab_stack:
                             template="plotly_white",
                             margin=dict(l=70, r=20, t=40, b=55),
                         )
-                    st.plotly_chart(stack_figure, width="stretch", key="quickplot_stack_chart")
+                    st.plotly_chart(
+                        stack_figure, use_container_width=True, key="quickplot_stack_chart"
+                    )
 
                     stack_table = pd.DataFrame(matrix.T, columns=names)
                     stack_table.insert(0, stacked[0]["x_name"], grid)
@@ -634,7 +636,7 @@ with tab_2d:
                 plot_bgcolor="#101010",
                 margin=dict(l=60, r=20, t=50, b=50),
             )
-            st.plotly_chart(figure_2d, width="stretch", key="quickplot_2d_chart")
+            st.plotly_chart(figure_2d, use_container_width=True, key="quickplot_2d_chart")
             st.caption(
                 f"Shape {image.shape[0]} × {image.shape[1]}; displayed at "
                 f"{shown.shape[0]} × {shown.shape[1]} after decimation."

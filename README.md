@@ -821,16 +821,27 @@ The four experiment geometries have independent pages and independent widget
 state. They share tested file loaders and plotting primitives, but not a single
 set of scientific defaults.
 
-| Explorer | Default q window (Å⁻¹) | Default q axis | Primary review tools |
-|---|---:|---|---|
-| GISAXS | 0.001–0.5 | logarithmic I(q) | low-q qx/qz maps and band cuts |
-| GIWAXS | 0–3.0 | linear q | wide-q orientation maps and q–φ cuts |
-| Transmission SAXS | 0.001–0.5 | logarithmic I(q) | SAXS detector path, anisotropy, low-q I(q) |
-| Transmission WAXS | 0–3.5 | linear q | WAXS detector path, orientation, high-q I(q) |
+| Explorer | Default q axis | Geometry preset (Å⁻¹) | Primary review tools |
+|---|---|---:|---|
+| GISAXS | logarithmic I(q) | 0.001–0.5 | low-q qx/qz maps and band cuts |
+| GIWAXS | linear q | 0–3.0 | wide-q orientation maps and q–φ cuts |
+| Transmission SAXS | logarithmic I(q) | 0.001–0.5 | SAXS detector path, anisotropy, low-q I(q) |
+| Transmission WAXS | linear q | 0–3.5 | WAXS detector path, orientation, high-q I(q) |
 
-These are starting ranges, not hard limits. Every explorer exposes editable
-axis limits, intensity limits, detector/raw paths, line-cut centers and widths,
-filename filtering, and product selection. Large 2D products are downsampled
+**Axis limits start blank, which means each panel scales to the frame it is
+showing.** I checked the old fixed defaults against real CMS and SMI output and
+they clipped most of it: a CMS GIWAXS q–φ map reaches 3 Å⁻¹ and an SMI one
+reaches 7, transmission WAXS reaches 9, every q-image carries negative qz that a
+0-based minimum hid, and φ runs −179 … +179 rather than 0 … 180. The q a
+reduction covers depends on the detector, its distance, and the photon energy,
+so no fixed number stays right for long.
+
+Three buttons sit above the limit boxes: **Fit to this frame** fills them from
+the frame's own arrays, the **geometry preset** restores the values in the table
+above, and **Clear back to auto** empties them again.
+
+Every explorer also exposes editable intensity limits, detector/raw paths,
+line-cut centers and widths, filename filtering, and product selection. Large 2D products are downsampled
 for browser display; line cuts use the selected loaded array.
 
 Any panel, and any set of line cuts, can be written to disk from the explorer

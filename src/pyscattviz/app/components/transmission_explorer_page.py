@@ -40,6 +40,7 @@ from pyscattviz.app.components.saving import render_output_settings, render_save
 # Shared scattering engine (aliased to the underscore names used below).
 from pyscattviz.app.components.scattering import (
     CMAPS,
+    frame_axis_ranges,
     heatmap_fig,
     index_frames,
     load_cir,
@@ -259,7 +260,23 @@ if kw.strip():
         work = work[work["stem"].str.contains(re.escape(tok))]
 work = work.reset_index(drop=True)
 if work.empty:
-    st.warning("Nothing matches the filter.")
+    # Say which filter emptied the list. A calibration-only folder is common —
+    # a beamtime's AgBH scans live in their own directory — and "Nothing matches
+    # the filter" on its own sends people looking for a fault that is not there.
+    hidden_calibration = int(df["is_calibration"].sum()) if hide_cal else 0
+    if hidden_calibration and hidden_calibration == len(df):
+        st.warning(
+            f"All {hidden_calibration} frame(s) here are calibration scans "
+            "(AgBH, direct beam, glassy carbon). Clear **Hide calibration** in "
+            "the sidebar to look at them."
+        )
+    elif hidden_calibration:
+        st.warning(
+            f"Nothing matches the keyword filter. {hidden_calibration} "
+            "calibration frame(s) are also hidden."
+        )
+    else:
+        st.warning("Nothing matches the filter.")
     st.stop()
 
 # --- Frame picker -----------------------------------------------------------
@@ -318,7 +335,50 @@ def _aspect_arg():
     return None
 
 
+# Axis limits start blank so each panel scales to the frame it is showing. Fixed
+# defaults were wrong more often than right: an SMI transmission WAXS q–φ map
+# reaches 9 Å⁻¹ and was being cut off at 3.5, and φ runs -179 … +179 rather than
+# 0 … 180. The buttons below fill the boxes explicitly.
+_RANGE_KEYS = ("c_q", "c_phi", "d_q")
+
+
+def _fill_ranges(values: dict) -> None:
+    """Write measured or preset limits into the range boxes."""
+
+    for key, span in values.items():
+        if span is None:
+            st.session_state.pop(f"{STATE_PREFIX}_{key}_lo", None)
+            st.session_state.pop(f"{STATE_PREFIX}_{key}_hi", None)
+        else:
+            st.session_state[f"{STATE_PREFIX}_{key}_lo"] = float(span[0])
+            st.session_state[f"{STATE_PREFIX}_{key}_hi"] = float(span[1])
+
+
 with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=False):
+    fill_left, fill_middle, fill_right = st.columns([1.2, 1.4, 2.4])
+    if fill_left.button("Fit to this frame", key=f"{STATE_PREFIX}_fit_ranges"):
+        measured = frame_axis_ranges(sel)
+        _fill_ranges(
+            {
+                "c_q": measured.get("qphi_q"),
+                "c_phi": measured.get("phi"),
+                "d_q": measured.get("cir_q"),
+            }
+        )
+        st.rerun()
+    if fill_middle.button(f"{PROFILE['short']} preset", key=f"{STATE_PREFIX}_preset_ranges"):
+        _fill_ranges(
+            {
+                "c_q": PROFILE["q_range"],
+                "c_phi": (0.0, 180.0),
+                "d_q": PROFILE["q_range"],
+            }
+        )
+        st.rerun()
+    if fill_right.button("Clear back to auto", key=f"{STATE_PREFIX}_clear_ranges"):
+        _fill_ranges({key: None for key in _RANGE_KEYS})
+        st.rerun()
+
     st.caption(
         "Colour limits are in **intensity** units (pre-log). "
         "Auto colour uses robust percentiles of each panel."
@@ -330,22 +390,11 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     a_yr = _rng(ap, "y (px)", "a_y")
     cp.markdown("**C · q–φ**")
     c_vmin, c_vmax = _rng(cp, "I", "c_v")
-    c_qr = _rng(
-        cp,
-        "q",
-        "c_q",
-        lo_val=PROFILE["q_range"][0],
-        hi_val=PROFILE["q_range"][1],
-    )
-    c_phir = _rng(cp, "φ", "c_phi", lo_val=0.0, hi_val=180.0)  # default φ [0,180]
+    c_qr = _rng(cp, "q", "c_q")
+    # φ runs -179 … +179 in the real reduction, so a 0 … 180 default hid half of it.
+    c_phir = _rng(cp, "φ", "c_phi")
     dp.markdown("**D · I(q)**")
-    d_qr = _rng(
-        dp,
-        "q",
-        "d_q",
-        lo_val=PROFILE["q_range"][0],
-        hi_val=PROFILE["q_range"][1],
-    )
+    d_qr = _rng(dp, "q", "d_q")
     d_ir = _rng(dp, "I", "d_i")
     st.caption("D curve style")
     d_style = _curve_style_controls(
@@ -475,7 +524,7 @@ with rowA[0]:
             y_range=a_yr,
             aspect=_aspect_arg(),
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
         rendered_figures["A · raw"] = fig
         rendered_arrays["A · raw"] = {"image": z}
     elif "stitched" in active_products and not sel["has_raw"]:
@@ -506,7 +555,7 @@ with rowA[1]:
             vmax_I=None,
             aspect=_aspect_arg(),
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
         rendered_figures["B · q-image"] = fig
         rendered_arrays["B · q-image"] = {
             "qimg": z,
@@ -545,7 +594,7 @@ with rowB[0]:
             x_range=c_qr,
             y_range=c_phir,
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
         rendered_figures["C · q–φ map"] = fig
         rendered_arrays["C · q–φ map"] = {
             "qphi": z,
@@ -579,7 +628,7 @@ with rowB[1]:
             template="plotly_white",
             margin=dict(l=60, r=15, t=40, b=45),
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
         rendered_figures["D · I(q)"] = fig
         rendered_tables["D · I(q)"] = pd.DataFrame({"q": qq, "I": ii})
     elif "cir_avg" in active_products and not sel["has_cir"]:
@@ -628,7 +677,12 @@ if "qc" in active_products:
     qc_cols = st.columns(2)
     with qc_cols[0]:
         if sel["has_qc"]:
-            st.image(sel["qc"], caption="QC image", width="stretch")
+            # st.image decodes the file itself, so a truncated or zero-byte PNG
+            # raises straight out of PIL. Report it like any other bad product.
+            try:
+                st.image(sel["qc"], caption="QC image", width="stretch")
+            except Exception as exc:  # noqa: BLE001 - PIL raises several types
+                st.error(f"{Path(sel['qc']).name} could not be read: {exc}")
         else:
             st.info("No QC image for this frame.")
 
@@ -643,17 +697,10 @@ if centers:
     else:
         xlab = "φ (deg)" if _is_qcut else "q (Å⁻¹)"
         xlog = logq and not _is_qcut
-        _x_is_phi = xlab.startswith("φ")
 
         with st.expander("🎛️ Line-cut plot: limits & style", expanded=True):
             lp1, lp2 = st.columns(2)
-            lc_xr = _rng(
-                lp1,
-                xlab,
-                "tsaxs_lc_x",
-                lo_val=0.0 if _x_is_phi else None,
-                hi_val=180.0 if _x_is_phi else None,
-            )
+            lc_xr = _rng(lp1, xlab, "tsaxs_lc_x")
             lc_yr = _rng(lp2, "I", "tsaxs_lc_i")
             st.caption("Profile curve style (applied to all cuts)")
             lc_style = _curve_style_controls(f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0})
@@ -676,7 +723,7 @@ if centers:
             margin=dict(l=60, r=15, t=25, b=50),
             legend=dict(orientation="h", y=1.05),
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
         # CSV export: outer-join all profiles on their common x-axis.
         buf = io.StringIO()

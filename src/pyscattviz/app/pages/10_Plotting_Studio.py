@@ -134,7 +134,7 @@ with tab_1d:
         )
         figure_1d.update_xaxes(showgrid=True, minor=dict(showgrid=True))
         figure_1d.update_yaxes(showgrid=True, minor=dict(showgrid=True))
-        st.plotly_chart(figure_1d, width="stretch", key="studio_1d_chart")
+        st.plotly_chart(figure_1d, use_container_width=True, key="studio_1d_chart")
         export_1d = table_1d[[x_column, *y_columns]].to_csv(index=False)
         st.download_button(
             "Download plotted table",
@@ -232,7 +232,7 @@ with tab_2d:
             title=array_name,
         )
         figure_2d.update_layout(template="plotly_white", height=620)
-        st.plotly_chart(figure_2d, width="stretch", key="studio_2d_chart")
+        st.plotly_chart(figure_2d, use_container_width=True, key="studio_2d_chart")
         array_buffer = io.BytesIO()
         np.save(array_buffer, image_2d, allow_pickle=False)
         st.download_button(
@@ -318,7 +318,7 @@ with tab_3d:
     else:
         figure_3d = pv.surface(x_3d, y_3d, z_3d, **common_3d)
     figure_3d.update_layout(template="plotly_white", height=650)
-    st.plotly_chart(figure_3d, width="stretch", key="studio_3d_chart")
+    st.plotly_chart(figure_3d, use_container_width=True, key="studio_3d_chart")
     render_save_panel(
         TAB_NAME,
         f"studio_3d_{name_3d}",

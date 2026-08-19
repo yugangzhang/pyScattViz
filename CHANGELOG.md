@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.1
+
+Everything here came from pointing the application at the real CMS and SMI
+reduction output on my own machine rather than at the layout I had assumed.
+
+- Axis limits now start blank so each panel scales to the frame it is showing.
+  The fixed defaults were clipping real data badly: a CMS GIWAXS q–φ map reaches
+  3 Å⁻¹ and an SMI one reaches 7, against a 3.0 default; SMI transmission WAXS
+  reaches 9 Å⁻¹ against a 3.5 default; every q-image carries negative qz that a
+  0-based minimum hid; and φ runs −179 … +179, so the 0 … 180 default was hiding
+  half of every q–φ map.
+- Added **Fit to this frame**, which fills the limit boxes from the frame's own
+  arrays, alongside the geometry preset (the previous fixed values) and a
+  **Clear back to auto** button.
+- Fixed CMS QC images never joining their frame. CMS writes several QC layouts
+  per frame — `qc_`, `qc_1panel_` … `qc_4panel_autoelevate_` — and each layout
+  tag was becoming a frame of its own with no other product attached. On one
+  real CMS SAXS folder this turned 5 frames into 10, half of them showing
+  "No circular average for this frame". The plain `qc_<name>` image is now the
+  one kept, deterministically.
+- Fixed `st.plotly_chart(..., width="stretch")`. That parameter does not exist
+  in Streamlit 1.50: it fell through to a deprecated Plotly-config path, warned
+  on every chart, and never expressed the intended width. Replaced with the
+  supported `use_container_width=True`.
+- An unreadable QC image no longer raises out of `st.image` on the transmission
+  pages; it reports the file like every other product.
+- A folder holding only calibration scans now says so, instead of the bare
+  "Nothing matches the filter" that sends people looking for a fault that is not
+  there.
+
 ## 0.7.0
 
 - Added a **Data Selection** page: the GUI form of my `ls_dir` helper. Search one

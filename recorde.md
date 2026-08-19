@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.7.0`
+- Current package version: `0.7.1`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -48,6 +48,16 @@ folder. pyScattViz should nevertheless recommend read-only mounting for review.
 **Not yet verified by anyone:** rclone against the BNL Duo prompt, and SSHFS on
 macOS. Both are documented as free alternatives with that status stated openly
 in the GUI and the README. Do not upgrade the wording without a real test.
+Both need a Windows or macOS machine and the BNL credentials, so they cannot be
+closed from here.
+
+**Real reduction output is on this machine** at
+`~/Repos/pySAXSAI/results/{cms,smi}/<geometry>/<dataset>/` with `cir_avg`,
+`q_image`, `qphi`, and `qc`, covering CMS gisaxs/giwaxs/maxs/gimaxs/saxs/waxs
+and SMI gisaxs/giwaxs/tsaxs/twaxs. Real beamtime trees are under
+`/mnt/data32/NSLSII_Data/{CMS,SMI}/<cycle>/`. Test against these before assuming
+a layout — every 0.7.1 fix came from doing so. Note that several of those result
+folders hold only AgBH calibration frames, which the default filter hides.
 
 ## Current design decisions
 
@@ -81,6 +91,12 @@ in the GUI and the README. Do not upgrade the wording without a real test.
 12. Every loader raises one catchable `DataReadError`. A corrupt file must
     report itself and leave the rest of the page working; it must never raise
     a bare `EOFError`, `BadZipFile`, or `EmptyDataError` into Streamlit.
+13. Axis limits are measured, not guessed. Blank means "scale to this frame";
+    `frame_axis_ranges` fills the boxes from the frame's own arrays; the
+    per-geometry constants survive only as a preset button. Fixed q windows were
+    clipping real CMS and SMI output by more than half.
+14. `st.plotly_chart` has no `width` parameter in Streamlit 1.50 — use
+    `use_container_width=True`. `st.dataframe` and `st.pyplot` do take `width`.
 
 ## Application workflow
 
@@ -180,13 +196,18 @@ Tests:
   fill and save the basket, plot it, and write a figure. This is the journey a
   collaborator actually takes; the per-page tests do not check that the state
   they hand each other lines up.
+- `tests/test_axis_ranges.py`: the measured limits, plus a check against the
+  real CMS/SMI products when they are present (skipped when they are not).
+- `tests/test_real_layouts.py`: the CMS QC layout tags, the deterministic QC
+  choice, the calibration-only message, and the absence of the Streamlit
+  deprecation warning.
 
 ## Last verification
 
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           311 passed
+python -m pytest -q           329 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps
@@ -198,17 +219,26 @@ through kaleido and HTML produced without it.
 
 ## Next work
 
-1. Have the user pull and install `0.7.0` and register the verified RaiDrive
-   `Z:` mapping at the chosen remote scope.
-2. Run a Data Selection search over the real proposal tree and check that the
-   depth and result caps are sensible over SFTP, not just locally.
-3. Try rclone against BNL Duo on Windows and record the result here; if it
+Only these two are still open, and both need a machine and credentials that are
+not available from here:
+
+1. Pull and install `0.7.1` on Windows and register the verified RaiDrive `Z:`
+   mapping at the chosen remote scope.
+2. Try rclone against BNL Duo on Windows and record the result here. If it
    works, the GUI note in `01_Data_Sources_and_Mounts.py` and the README table
-   should be upgraded from "not yet confirmed".
-4. Exercise Quick Plot with the users' own non-beamline files — that is where
-   the delimiter/header sniffer in `dataio.py` will meet cases I have not seen.
-5. Verify the separate GISAXS, GIWAXS, TSAXS, and TWAXS q defaults against real
-   beamline outputs and adjust only with scientific evidence.
+   should be upgraded from "not yet confirmed". Do not soften that wording
+   without the test.
+
+Closed in `0.7.1`, with evidence:
+
+- Data Selection was run over the real SMI beamtime tree at
+  `/mnt/data32/NSLSII_Data/SMI/2026_Cycle1`: 235 folders at depth 6 in about one
+  second, caps reported rather than silently applied. The depth and result caps
+  behave.
+- Quick Plot was run over real CMS and SMI products, including an overlay mixing
+  the two beamlines, and wrote a PNG from CMS GISAXS circular averages.
+- The q defaults were measured against real output and replaced with
+  scale-to-frame limits plus a preset button; see decision 13.
 
 ## Suggested prompt for a new chat
 
