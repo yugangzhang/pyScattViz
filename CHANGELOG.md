@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.0
+
+- Added a **Terminal** page. `ls`, `cd`, `cat`, `head`, `tail`, `find`, `wc` and
+  `du` over any mounted or local folder, all parsed here and implemented with
+  `pathlib` — nothing is handed to a system shell, so there is no way to spell
+  `rm`. `select *UV_20* *UV_30*` builds a list, `unselect *AgBH*` trims it, and
+  `save <name>` keeps it. That list *is* the dataset basket, so it appears
+  straight away in Quick Plot, Publication Plot, and the explorers.
+- Fixed choosing a data folder in the explorers. One mounted drive normally
+  holds many proposals, beamlines, and projects; the old single box cleared
+  whatever was typed as soon as the path was not yet available, so a typo could
+  not be corrected, and it never translated an original `/nsls2/...` path
+  through the registered mounts. Every explorer and Publication Plot now share
+  one picker: a menu of the folders the session knows, a box that keeps what you
+  type, and mount translation.
+- Replaced the AND-only keyword box with **must contain / may contain / must not
+  contain**, on all four explorers and on Publication Plot. Asking for two
+  samples at once — `UV_20, UV_30` in the *may contain* box — had no answer
+  before.
+- The **QC image** panel now starts unchecked. It is the reduction's own
+  diagnostic picture rather than the data under review, and drawing it slowed
+  every frame change on a mounted folder.
+- GIWAXS opens on the window actually reviewed: q-image qx and qz over 0–5 Å⁻¹,
+  I(q) over 0–5 Å⁻¹, and φ over 0–180°. **Fit to this frame** still opens the
+  limits to whatever the frame really covers, and **Clear back to auto** now
+  genuinely blanks them.
+
 ## 0.7.2
 
 - Fixed the startup crash after upgrading in place. Renaming the pages in 0.7.0

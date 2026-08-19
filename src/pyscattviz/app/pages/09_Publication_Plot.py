@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.components.datasource import (
+    apply_term_filters,
+    render_folder_picker,
+    render_term_filters,
+)
 from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.components.scattering import (
     discover_scattering_products,
@@ -25,14 +28,13 @@ st.set_page_config(page_title="Publication Plot", page_icon="📈", layout="wide
 st.title("📈 Publication Plot")
 st.caption("Overlay selected circular averages and export PNG, SVG, or PDF.")
 
-default_root = st.session_state.get("pyscattviz_active_root", "")
-path_input = st.text_input(
+path_input = render_folder_picker(
+    "pyscattviz_publication",
     "Result folder",
-    value=default_root,
-    placeholder=".../Results/gisaxs or .../Results/giwaxs",
+    help_text="A folder holding cir_avg, for example .../Results/giwaxs.",
 )
-if not path_input or not Path(path_input).expanduser().is_dir():
-    st.info("Select an available scattering result folder to start.")
+if not path_input:
+    st.info("Choose or paste a scattering result folder to start.")
     st.stop()
 
 analysis_root, products, _focused = discover_scattering_products(path_input)
@@ -58,6 +60,14 @@ query = c1.text_input(
 )
 max_frames = c3.number_input("Maximum names", 1, 5_000, 500, 100, disabled=use_saved)
 
+st.caption("Narrow the curve list")
+kw_and, kw_or, kw_not = render_term_filters(
+    "pyscattviz_publication",
+    help_and="Every term must appear in the curve name.",
+    help_or="At least one term must appear — this is how you overlay two samples.",
+    help_not="Drop matching curves, for example the calibration scans.",
+)
+
 try:
     table = index_frames(
         analysis_root,
@@ -70,7 +80,7 @@ except FilterSyntaxError as exc:
     st.error(f"Filter error: {exc}")
     st.stop()
 
-available = table[table["has_cir"]]
+available = apply_term_filters(table[table["has_cir"]], kw_and, kw_or, kw_not)
 if available.empty:
     st.warning("No circular-average files match this selection.")
     st.stop()

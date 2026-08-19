@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.7.2`
+- Current package version: `0.8.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -91,17 +91,21 @@ folders hold only AgBH calibration frames, which the default filter hides.
 12. Every loader raises one catchable `DataReadError`. A corrupt file must
     report itself and leave the rest of the page working; it must never raise
     a bare `EOFError`, `BadZipFile`, or `EmptyDataError` into Streamlit.
-13. Axis limits are measured, not guessed. Blank means "scale to this frame";
-    `frame_axis_ranges` fills the boxes from the frame's own arrays; the
-    per-geometry constants survive only as a preset button. Fixed q windows were
-    clipping real CMS and SMI output by more than half.
+13. Axis limits open on the per-geometry review window Yugang asked for (GIWAXS:
+    q 0–5, φ 0–180). `frame_axis_ranges` backs "Fit to this frame" for when a
+    map looks cut off — real SMI GIWAXS reaches 7 A^-1 where CMS reaches 3 — and
+    "Clear back to auto" blanks the boxes. Do not silently widen the defaults
+    again; offer the button instead.
 14. `st.plotly_chart` has no `width` parameter in Streamlit 1.50 — use
     `use_container_width=True`. `st.dataframe` and `st.pyplot` do take `width`.
 15. Documentation and GUI placeholders never name a real experiment. Use `xxx`
     for the beamline, `xxxxxx` for the proposal, `myproject` for the project
     folder, and `username` for the BNL account. Only `yuzhang@bnl.gov` as the
     public contact address stays.
-16. Renaming a shipped file needs the `setup.py` shim to keep working: pip
+16. Filtering is always must-contain / may-contain / must-not-contain, in that
+    order, on every page. An AND-only box cannot express "UV_20 or UV_30", which
+    is the commonest request.
+17. Renaming a shipped file needs the `setup.py` shim to keep working: pip
     builds a local directory in place and setuptools never removes files from
     `build/lib`, so a rename otherwise ships both names. For pages that is fatal
     — Streamlit rejects two pages with the same inferred URL. `cli.py` also
@@ -167,6 +171,9 @@ Core logic, all Streamlit-free:
 - `src/pyscattviz/mounts.py`: proposal validation plus SSHFS, rclone, GVFS, and
   `sftp -r` command generation and the per-platform method registry.
 - `src/pyscattviz/filters.py`: the boolean filename expression language.
+- `src/pyscattviz/shell.py`: the read-only terminal. Every verb is parsed and
+  carried out with `pathlib`; nothing reaches a system shell. `select`/`save`
+  build the same named collections Data Selection reads.
 - `src/pyscattviz/data_sources.py`: persistent remote-to-mounted path mapping.
 
 Streamlit layer:
@@ -180,6 +187,11 @@ Streamlit layer:
 - `src/pyscattviz/app/pages/08_Quick_Plot.py`: 1D, stacked map, 2D for any path
   list.
 - `src/pyscattviz/app/pages/11_Output_Folder.py`: output root and saved files.
+- `src/pyscattviz/app/components/datasource.py`: the folder picker and the
+  AND/OR/EXCLUDE boxes shared by the four explorers and Publication Plot. The
+  picker keeps what was typed even when the path is unavailable — the old box
+  cleared it, so a typo could not be corrected.
+- `src/pyscattviz/app/pages/12_Terminal.py`: the terminal, wired to the basket.
 - `src/pyscattviz/app/components/saving.py`: the shared save panel every page
   uses. Note the `_root_input` re-seeding trick — several output-root boxes are
   on screen at once and must not fight over the value.
@@ -219,7 +231,7 @@ Tests:
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           333 passed
+python -m pytest -q           371 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps

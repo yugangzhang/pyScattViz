@@ -28,6 +28,51 @@ The application has eleven task pages in addition to Home.
     exportable multi-axes builder.
 11. **Output Folder** sets where saved figures go and lists what has been
     written there.
+12. **Terminal** gives `ls`, `cd`, `cat`, `find` and friends over a mounted or
+    local folder, and builds the named file lists the plotting pages read.
+
+## Choosing the folder, and narrowing the frames
+
+One mounted drive normally holds many proposals, several beamlines, and dozens
+of projects, so every explorer and Publication Plot share one folder picker: a
+menu of the folders the session already knows (recent, registered mounts, the
+dataset basket) plus a box to paste into. A pasted `/nsls2/...` path is
+translated through the registered mounts. A path that is not available yet stays
+in the box, with a note saying why, so a typo can be corrected instead of
+disappearing.
+
+The frame list is narrowed by the same three boxes used everywhere else:
+
+| Box | Meaning |
+|---|---|
+| Must contain (AND) | every term must appear |
+| May contain (OR) | at least one term must appear |
+| Must not contain (EXCLUDE) | no term may appear |
+
+Two samples at once is the *may contain* box: `UV_20, UV_30`.
+
+## The terminal
+
+The **Terminal** page runs read-only commands over any mounted or local folder:
+`pwd`, `ls [pattern]`, `cd`, `find`, `du`, `cat`, `head`, `tail`, `wc`. Patterns
+are shell globs. Every command is parsed by pyScattViz and carried out with
+`pathlib` — nothing reaches a system shell, and there is no verb that can change
+data.
+
+It also builds the list the plotting pages read:
+
+| Command | What it does |
+|---|---|
+| `select <pattern> ...` | add matching files; several patterns are OR-ed |
+| `unselect <pattern> ...` | remove matching files |
+| `list` / `clear` | show or empty the list |
+| `save <name>` / `load <name>` | keep the list, or bring one back |
+| `lists` | show what is saved |
+
+The list is the dataset basket, so it appears immediately in Quick Plot,
+Publication Plot, and the explorers. Saved lists live in
+`~/.pyscattviz/collections/` and are the same named collections Data Selection
+reads.
 
 ## Choosing the data with term lists
 
@@ -127,13 +172,16 @@ ranges, detector locations, line-cut widths, and analysis emphasis differ.
 | Transmission SAXS | log | 0.001–0.5 | low-q size/structure and anisotropy |
 | Transmission WAXS | linear | 0–3.5 | high-q peaks and orientation |
 
-Axis limits start blank, so each panel scales to the frame it is showing. The
-preset column is what the **geometry preset** button fills in; it is no longer
-the default, because measuring real CMS and SMI output showed those numbers
-clipped most of it — an SMI GIWAXS q–φ map reaches 7 Å⁻¹, transmission WAXS
-reaches 9, q-images carry negative qz, and φ runs −179 … +179 rather than
-0 … 180. **Fit to this frame** fills the boxes from the frame's own arrays and
-**Clear back to auto** empties them.
+Each geometry opens on the window it is normally reviewed in; GIWAXS uses
+0–5 Å⁻¹ for the q-image axes and I(q), and 0–180° for φ, since the two halves of
+a q–φ map mirror each other. **Fit to this frame** fills the boxes from the
+frame's own arrays — reach for it when a map looks cut off, because the q a
+reduction covers depends on the detector, its distance, and the energy, and real
+SMI GIWAXS reaches 7 Å⁻¹ where CMS reaches 3. **Clear back to auto** blanks the
+boxes so each panel scales to its own data.
+
+The QC panel starts unchecked: it is the reduction's diagnostic picture, not the
+data under review, and drawing it slows every frame change on a mounted folder.
 
 Every value remains editable in the page. The four pages retain independent
 widget state and raw-detector choices while sharing the same tested lazy file

@@ -26,7 +26,6 @@ Runs as a page of the pyScattViz local application.
 from __future__ import annotations
 
 import io
-import re
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +34,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from pyscattviz.app.components.batch import render_batch_export
+from pyscattviz.app.components.datasource import (
+    apply_term_filters,
+    render_folder_picker,
+    render_term_filters,
+)
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 
 # Shared scattering engine (aliased to the underscore names used below).
@@ -89,6 +93,7 @@ _PROFILES = {
         ),
         "logq": True,
         "q_range": (0.001, 0.5),
+        "phi_range": (0.0, 180.0),
         "q_cut_center": "0.1",
         "q_cut_width": 0.005,
         "raw_choices": [
@@ -110,6 +115,7 @@ _PROFILES = {
         ),
         "logq": False,
         "q_range": (0.0, 3.5),
+        "phi_range": (0.0, 180.0),
         "q_cut_center": "1.0",
         "q_cut_width": 0.05,
         "raw_choices": [
@@ -139,49 +145,19 @@ st.caption(PROFILE["description"])
 with st.sidebar:
     st.header(f"📁 {PROFILE['short']} analysis folder")
 
-    # Folders collected on Data Selection are the fastest way to move between
-    # samples without retyping a long mounted path.
-    basket_folders = [
-        item
-        for item in st.session_state.get("pyscattviz_dataset_paths", [])
-        if Path(item).expanduser().is_dir()
-    ]
-    if basket_folders:
-        picked = st.selectbox(
-            f"Folder from the dataset basket ({len(basket_folders)})",
-            ["— type a path below —", *basket_folders],
-            format_func=lambda item: (
-                "/".join(Path(item).parts[-2:]) if item in basket_folders else item
-            ),
-            key=f"{STATE_PREFIX}_basket_pick",
-        )
-        if picked in basket_folders and picked != st.session_state.get("pyscattviz_active_root"):
-            st.session_state["pyscattviz_active_root"] = picked
-            st.rerun()
-
-    analysis = st.text_input(
+    # One mounted drive usually holds many proposals, beamlines, and projects,
+    # so the picker offers every folder the session knows and keeps whatever is
+    # typed even when it is not available yet.
+    analysis = render_folder_picker(
+        STATE_PREFIX,
         f"Data path ({PROFILE['folder']}/analysis or one product folder)",
-        value=st.session_state.get("pyscattviz_active_root", ""),
+        help_text=(
+            "A result folder, or one product folder inside it. An original "
+            "/nsls2/... path works once its mount is registered."
+        ),
     )
-    analysis_available = bool(analysis and Path(analysis).expanduser().is_dir())
-    if analysis_available:
-        st.session_state["pyscattviz_active_root"] = analysis
-    elif analysis:
-        st.session_state.pop("pyscattviz_active_root", None)
-
-    pending_remote = str(st.session_state.get("pyscattviz_file_root", ""))
-    if not analysis_available:
-        if pending_remote.startswith("/nsls2/"):
-            st.warning(
-                "The selected `/nsls2` folder is not mounted. Open Data Sources & "
-                "Mounts, complete the SFTP mount, and register its local path before "
-                "opening this viewer."
-            )
-        elif analysis:
-            st.warning(
-                "This data path is not available on this computer. Choose an existing "
-                "local or mounted folder."
-            )
+    if not analysis:
+        st.info("Choose or paste a data folder to start.")
         st.stop()
 
     analysis_root, products, selected_products = scattering_product_selector(
@@ -244,9 +220,8 @@ with st.sidebar:
     )
 
     hide_cal = st.checkbox("Hide calibration", value=True)
-    kw = st.text_input(
-        "Filter by keyword(s), comma-sep", value="", help="AND filter on the filename stem."
-    )
+    st.caption("Narrow the frame list")
+    kw_and, kw_or, kw_not = render_term_filters(STATE_PREFIX)
 
     st.divider()
     st.subheader("💾 Saving")
@@ -255,9 +230,7 @@ with st.sidebar:
 work = df.copy()
 if hide_cal:
     work = work[~work["is_calibration"]]
-if kw.strip():
-    for tok in [k.strip() for k in kw.split(",") if k.strip()]:
-        work = work[work["stem"].str.contains(re.escape(tok))]
+work = apply_term_filters(work, kw_and, kw_or, kw_not)
 work = work.reset_index(drop=True)
 if work.empty:
     # Say which filter emptied the list. A calibration-only folder is common —
@@ -346,12 +319,13 @@ def _fill_ranges(values: dict) -> None:
     """Write measured or preset limits into the range boxes."""
 
     for key, span in values.items():
-        if span is None:
-            st.session_state.pop(f"{STATE_PREFIX}_{key}_lo", None)
-            st.session_state.pop(f"{STATE_PREFIX}_{key}_hi", None)
-        else:
-            st.session_state[f"{STATE_PREFIX}_{key}_lo"] = float(span[0])
-            st.session_state[f"{STATE_PREFIX}_{key}_hi"] = float(span[1])
+        # Assign rather than delete: the boxes declare a geometry default, so a
+        # deleted key would simply come back as that default on the next render
+        # and "Clear back to auto" would do nothing.
+        low = None if span is None else float(span[0])
+        high = None if span is None else float(span[1])
+        st.session_state[f"{STATE_PREFIX}_{key}_lo"] = low
+        st.session_state[f"{STATE_PREFIX}_{key}_hi"] = high
 
 
 with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=False):
@@ -370,7 +344,7 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
         _fill_ranges(
             {
                 "c_q": PROFILE["q_range"],
-                "c_phi": (0.0, 180.0),
+                "c_phi": PROFILE["phi_range"],
                 "d_q": PROFILE["q_range"],
             }
         )
@@ -390,11 +364,12 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     a_yr = _rng(ap, "y (px)", "a_y")
     cp.markdown("**C · q–φ**")
     c_vmin, c_vmax = _rng(cp, "I", "c_v")
-    c_qr = _rng(cp, "q", "c_q")
-    # φ runs -179 … +179 in the real reduction, so a 0 … 180 default hid half of it.
-    c_phir = _rng(cp, "φ", "c_phi")
+    c_qr = _rng(cp, "q", "c_q", *PROFILE["q_range"])
+    # The reduction writes φ over -179 … +179; the halves mirror each other, so
+    # the review default is the upper half.
+    c_phir = _rng(cp, "φ", "c_phi", *PROFILE["phi_range"])
     dp.markdown("**D · I(q)**")
-    d_qr = _rng(dp, "q", "d_q")
+    d_qr = _rng(dp, "q", "d_q", *PROFILE["q_range"])
     d_ir = _rng(dp, "I", "d_i")
     st.caption("D curve style")
     d_style = _curve_style_controls(

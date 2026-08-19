@@ -201,14 +201,20 @@ def discover_scattering_products(path: str):
     return str(root), products, focused
 
 
+# Products that start unchecked. The QC image is the reduction's own diagnostic
+# picture; it is worth a look when something is wrong, but it is not what anyone
+# is reviewing, and rendering it slows every frame change on a mounted folder.
+UNCHECKED_BY_DEFAULT = ("qc",)
+
+
 def scattering_product_selector(key: str, path: str):
     """Render the shared scattering-product chooser in a sidebar.
 
-    The returned product keys are the panels the caller should render. All
-    discovered products start selected; users can uncheck any panel before
-    the frame is loaded. A path ending in a known product folder focuses the
-    chooser on that product, which makes pasting ``.../q_image`` useful for a
-    quick count/inspection.
+    The returned product keys are the panels the caller should render. Every
+    product starts selected except those in :data:`UNCHECKED_BY_DEFAULT`; users
+    can tick or untick any panel before the frame is loaded. A path ending in a
+    known product folder focuses the chooser on that product, which makes
+    pasting ``.../q_image`` useful for a quick count/inspection.
     """
     root, products, focused = discover_scattering_products(path)
     if not path or not Path(path).expanduser().is_dir():
@@ -237,7 +243,7 @@ def scattering_product_selector(key: str, path: str):
         with columns[i % len(columns)]:
             checked = st.checkbox(
                 f"{product['label']} ({product['count']:,})",
-                value=True,
+                value=product["key"] not in UNCHECKED_BY_DEFAULT,
                 key=f"{key}_{product['key']}",
                 help=product["folder"],
             )

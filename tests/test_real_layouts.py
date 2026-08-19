@@ -145,5 +145,9 @@ def test_an_unreadable_qc_image_is_reported_rather_than_raised(cms_saxs):
     app.session_state["pyscattviz_active_root"] = str(cms_saxs)
     app.run()
 
+    # The QC panel starts unchecked, so ask for it explicitly.
+    next(item for item in app.checkbox if item.label.startswith("QC image")).set_value(True)
+    app.run()
+
     assert not app.exception
     assert any("could not be read" in item.value for item in app.error)

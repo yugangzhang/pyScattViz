@@ -35,6 +35,7 @@ The application runs locally on Windows, macOS, and Linux, listens on
 | **Publication Plot** | Export-ready I(q) overlays with publication themes |
 | **Plotting Studio** | 1D, 2D, 3D, and multi-axes workspaces on the `pyscattviz.plotting` API |
 | **Output Folder** | Where saved figures go, and what has been written there |
+| **Terminal** | `ls`, `cd`, `cat`, `find` over a mounted folder, and `select` to build a named list every plotting tab reads |
 
 Each explorer can also export one panel for *every* frame that passes its
 filters, which turns an angle series or an in-situ run into a folder of figures
@@ -771,6 +772,32 @@ The three plotting tabs are:
 - **2D images** — detector images and 2D arrays with robust percentile contrast,
   log/linear colour, equal aspect, and vertical flip.
 
+## The terminal
+
+Clicking through a mounted proposal is slower than typing, and everyone here
+already knows `ls`. The **Terminal** page gives the familiar verbs over any
+mounted or local folder — `ls`, `cd`, `cat`, `head`, `tail`, `find`, `wc`, `du`
+— with globs, so `ls *UV_2*` does what you expect.
+
+Nothing is handed to a system shell. Every command is parsed by pyScattViz and
+carried out with Python's `pathlib`, so there is no command that can rename,
+move, or delete anything; `rm` is simply not a word it knows.
+
+The second half is building a list:
+
+```text
+cd Z:/projects/myproject/Results/giwaxs/cir_avg
+ls *UV_2*
+select *UV_20* *UV_30*      # several patterns are OR-ed
+unselect *AgBH*
+save uv_series
+```
+
+That list *is* the dataset basket, so it shows up immediately in Quick Plot, in
+Publication Plot, and in the explorers. `save <name>` keeps it as a named
+collection under `~/.pyscattviz/collections/`, and `load <name>` brings it back
+next week. Type `help` in the page to see every command.
+
 ## Saving figures to your own folder
 
 pyScattViz runs on your computer, so it writes where you tell it to. Every page
@@ -841,20 +868,34 @@ set of scientific defaults.
 | Transmission SAXS | logarithmic I(q) | 0.001–0.5 | SAXS detector path, anisotropy, low-q I(q) |
 | Transmission WAXS | linear q | 0–3.5 | WAXS detector path, orientation, high-q I(q) |
 
-**Axis limits start blank, which means each panel scales to the frame it is
-showing.** I checked the old fixed defaults against real CMS and SMI output and
-they clipped most of it: a CMS GIWAXS q–φ map reaches 3 Å⁻¹ and an SMI one
-reaches 7, transmission WAXS reaches 9, every q-image carries negative qz that a
-0-based minimum hid, and φ runs −179 … +179 rather than 0 … 180. The q a
-reduction covers depends on the detector, its distance, and the photon energy,
-so no fixed number stays right for long.
+Each explorer opens on the window that geometry is normally reviewed in — GIWAXS
+on qx and qz over 0–5 Å⁻¹ and φ over 0–180°, since the two halves of the q–φ map
+mirror each other. Those are starting points, not limits.
 
-Three buttons sit above the limit boxes: **Fit to this frame** fills them from
-the frame's own arrays, the **geometry preset** restores the values in the table
-above, and **Clear back to auto** empties them again.
+Three buttons sit above the limit boxes. **Fit to this frame** fills them from
+the frame's own arrays, which is what to reach for when a map looks cut off: the
+q a reduction covers depends on the detector, its distance, and the photon
+energy, and real SMI GIWAXS reaches 7 Å⁻¹ while CMS reaches 3. The **geometry
+preset** restores the values in the table above, and **Clear back to auto**
+empties the boxes so each panel scales to its own data.
+
+The **QC image** panel starts unchecked — it is the reduction's own diagnostic
+picture rather than the data under review, and drawing it slows every frame
+change on a mounted folder. Tick it when something looks wrong.
 
 Every explorer also exposes editable intensity limits, detector/raw paths,
-line-cut centers and widths, filename filtering, and product selection. Large 2D products are downsampled
+line-cut centers and widths, and product selection.
+
+**Choosing the folder.** One mounted drive usually holds many proposals, several
+beamlines, and dozens of projects. Every explorer offers a menu of the folders
+the session already knows — recent ones, registered mounts, the dataset basket —
+plus a box you can paste into. A pasted `/nsls2/...` path is translated through
+the registered mounts, and a path that is not available yet stays in the box so
+it can be corrected rather than vanishing.
+
+**Narrowing the frames.** Three boxes, the same everywhere: *must contain*,
+*may contain*, *must not contain*. Two samples at once is the *may contain* box:
+`UV_20, UV_30`. Large 2D products are downsampled
 for browser display; line cuts use the selected loaded array.
 
 Any panel, and any set of line cuts, can be written to disk from the explorer

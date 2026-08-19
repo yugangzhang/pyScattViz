@@ -190,5 +190,8 @@ def test_the_dataset_basket_offers_folders_in_the_explorer_sidebar(giwaxs):
     app.run()
 
     assert not app.exception
-    picker = next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_basket_pick")
-    assert picker.options == ["— type a path below —", "Results/giwaxs", "Results/gisaxs"]
+    picker = next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_folder_pick")
+    # The menu gathers recent folders, registered mounts, and the basket. It
+    # shows the tail of each path, since a mounted drive makes them all alike.
+    assert any(option.endswith("Results/giwaxs") for option in picker.options)
+    assert any(option.endswith("Results/gisaxs") for option in picker.options)
