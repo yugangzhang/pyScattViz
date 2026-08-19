@@ -1,5 +1,9 @@
 # pyScattViz
 
+> Continuing this work in a new chat or development session? Read
+> [recorde.md](recorde.md) first. It records the current release, design
+> decisions, verified behavior, Windows test status, and next steps.
+
 We developed **pyScattViz** to help NSLS-II collaborators access and review
 GISAXS, GIWAXS, SAXS, and WAXS reduction products on their own computers. The
 application runs locally on Windows, macOS, and Linux. NSLS-II proposal storage
@@ -568,6 +572,8 @@ ruff check .
 More detail is available in [the user guide](docs/USER_GUIDE.md),
 [the mount guide](docs/MOUNTS.md), and
 [the plotting API guide](docs/PLOTTING_API.md).
+
+The development/session handoff is maintained in [recorde.md](recorde.md).
 
 ## Contact and license
 
