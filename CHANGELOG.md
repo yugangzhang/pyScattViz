@@ -31,6 +31,9 @@
 - Added a *Report products* toggle to the folder search. The report costs one
   extra directory listing per match, which is free locally and noticeable over
   SFTP.
+- A folder search matched on the path now lists the result folder rather than
+  the result folder plus each of its own product subfolders. Searching for
+  `cir_avg` on its own still returns the product folders.
 - Added free access routes beyond RaiDrive, which is Windows-only: rclone with
   the same commands on all three platforms, GNOME *Files → Connect to Server* on
   Linux with nothing to install, and `sftp -r` / `rclone copy` / FileZilla /

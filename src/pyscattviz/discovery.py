@@ -296,6 +296,7 @@ def find_folders(
     max_visited: int = 200_000,
     products_only: bool = False,
     describe_products: bool = True,
+    collapse_product_folders: bool = True,
     case_sensitive: bool = False,
     skip_hidden: bool = True,
     follow_symlinks: bool = False,
@@ -327,6 +328,11 @@ def find_folders(
         costs one extra directory listing per match, which is free locally and
         noticeable over SFTP; turn it off for a fast first pass. It is forced on
         when ``products_only`` is requested, since that filter needs it.
+    collapse_product_folders
+        Drop a ``cir_avg``/``q_image``/``qphi``/``qc``/``stitched`` hit whose
+        parent is also a hit. Matching on the path means ``Results AND giwaxs``
+        catches ``.../giwaxs`` *and* every product folder under it; the parent
+        is what the user meant. Turn it off to see both.
 
     Returns
     -------
@@ -378,6 +384,13 @@ def find_folders(
             )
         if truncated:
             break
+    if collapse_product_folders:
+        matched = {row["path"] for row in rows}
+        rows = [
+            row
+            for row in rows
+            if not (Path(row["path"]).name in PRODUCT_FOLDERS and row["parent"] in matched)
+        ]
     rows.sort(key=lambda row: row["path"].casefold())
     return rows, truncated
 

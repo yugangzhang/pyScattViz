@@ -148,7 +148,9 @@ with search_tab:
     )
     st.caption(
         "A term is a plain substring unless it contains a wildcard: `Kim_*_WAXS` "
-        "matches the whole name. Matching ignores case."
+        "matches the whole name. Matching ignores case. When a folder and its own "
+        "`cir_avg`/`q_image`/`qphi`/`qc`/`stitched` subfolder both match, only the "
+        "parent is listed."
     )
 
     option_columns = st.columns(4)

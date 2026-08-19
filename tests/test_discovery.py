@@ -112,11 +112,37 @@ def test_find_folders_matches_on_the_whole_path(proposal):
         max_depth=6,
     )
     assert not truncated
-    # Path matching deliberately keeps the product folders below a hit, because
-    # ``.../Results/giwaxs/cir_avg`` also contains both terms.
+    # ``.../Results/giwaxs/cir_avg`` also contains both terms, but the parent is
+    # what the user meant, so the product folders collapse into it.
     names = sorted(row["name"] for row in rows)
-    assert names == ["cir_avg", "cir_avg", "gisaxs", "giwaxs", "q_image"]
+    assert names == ["gisaxs", "giwaxs"]
     assert all("microbeam_Kim" in row["path"] for row in rows)
+
+
+def test_product_folders_can_be_kept_alongside_their_parent(proposal):
+    rows, _truncated = find_folders(
+        proposal,
+        and_list=["Results"],
+        or_list=["giwaxs", "gisaxs"],
+        no_list=["other"],
+        match_on="path",
+        max_depth=6,
+        collapse_product_folders=False,
+    )
+    assert sorted(row["name"] for row in rows) == [
+        "cir_avg",
+        "cir_avg",
+        "gisaxs",
+        "giwaxs",
+        "q_image",
+    ]
+
+
+def test_a_product_folder_survives_when_its_parent_did_not_match(proposal):
+    """Searching for cir_avg alone must still return the product folders."""
+
+    rows, _truncated = find_folders(proposal, and_list=["cir_avg"], match_on="name", max_depth=6)
+    assert sorted(row["name"] for row in rows) == ["cir_avg", "cir_avg"]
 
 
 def test_find_folders_matching_on_name_returns_only_the_result_folders(proposal):
@@ -224,10 +250,4 @@ def test_products_only_still_works_without_the_report(proposal):
         products_only=True,
         describe_products=False,
     )
-    assert sorted(row["name"] for row in rows) == [
-        "cir_avg",
-        "cir_avg",
-        "gisaxs",
-        "giwaxs",
-        "q_image",
-    ]
+    assert sorted(row["name"] for row in rows) == ["gisaxs", "giwaxs"]

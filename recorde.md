@@ -176,13 +176,17 @@ Tests:
   truncated npz, and a PNG that is not an image. Every page must survive it.
   This is not hypothetical — an interrupted reduction or a dropped mount
   produces exactly these files.
+- `tests/test_end_to_end.py`: register a folder, search it with term lists,
+  fill and save the basket, plot it, and write a figure. This is the journey a
+  collaborator actually takes; the per-page tests do not check that the state
+  they hand each other lines up.
 
 ## Last verification
 
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           307 passed
+python -m pytest -q           311 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps
