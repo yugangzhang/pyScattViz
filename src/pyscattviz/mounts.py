@@ -268,7 +268,7 @@ def rclone_copy_command(
 ) -> str:
     """Return an rclone command that copies a subset onto the local disk.
 
-    ``include`` is an optional filename pattern such as ``*Kim*`` so a user can
+    ``include`` is an optional filename pattern such as ``*sampleA*`` so a user can
     take one sample's products instead of a whole result folder.
     """
 

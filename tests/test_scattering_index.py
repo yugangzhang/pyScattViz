@@ -34,17 +34,17 @@ def test_discovery_counts_direct_products(tmp_path):
 
 def test_index_filters_names_pairs_products_and_never_opens_arrays(tmp_path):
     root = tmp_path / "giwaxs"
-    stems = ["Kim_A_0.1000deg", "Kim_B_0.1500deg", "AgBH_0.1000deg"]
+    stems = ["sampleA_0.1000deg", "sampleA_0.1500deg", "AgBH_0.1000deg"]
     _make_products(root, stems)
 
     table = index_frames(
         str(root),
         product_keys=("q_image", "qphi", "cir_avg", "qc"),
-        query="Kim AND (0.1000deg OR 0.1500deg) NOT AgBH",
+        query="sampleA AND (0.1000deg OR 0.1500deg) NOT AgBH",
         max_frames=100,
     )
 
-    assert table["stem"].tolist() == ["Kim_A_0.1000deg", "Kim_B_0.1500deg"]
+    assert table["stem"].tolist() == ["sampleA_0.1000deg", "sampleA_0.1500deg"]
     assert table[["has_qimg", "has_qphi", "has_cir", "has_qc"]].all().all()
     assert table.attrs["scanned_entries"] > 0
     assert not table.attrs["truncated"]

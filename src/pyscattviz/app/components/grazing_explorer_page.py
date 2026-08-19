@@ -198,7 +198,7 @@ with st.sidebar:
     query = st.text_input(
         "Boolean filename filter",
         value="",
-        placeholder="Kim AND 0.1000deg NOT AgBH",
+        placeholder="sampleA AND 0.1000deg NOT AgBH",
         disabled=use_saved,
     )
     max_frames = st.number_input("Maximum frames", 1, 50_000, 5_000, 500, disabled=use_saved)

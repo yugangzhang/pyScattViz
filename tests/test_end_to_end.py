@@ -34,7 +34,7 @@ def output_root(tmp_path_factory, monkeypatch):
 def proposal(tmp_path):
     """A local folder shaped like a mounted proposal: two projects, two geometries."""
 
-    for project in ("microbeam_Kim", "thinfilm_Lee"):
+    for project in ("myproject", "thinfilm_Lee"):
         for geometry in ("giwaxs", "gisaxs"):
             folder = tmp_path / "projects" / project / "Results" / geometry
             (folder / "cir_avg").mkdir(parents=True)
@@ -73,7 +73,7 @@ def test_register_then_select_then_plot_then_save(proposal, output_root):
     selection.session_state["pyscattviz_search_roots_text"] = str(proposal)
     selection.run()
     next(item for item in selection.text_input if item.label.startswith("Must contain")).set_value(
-        "Results, microbeam_Kim"
+        "Results, myproject"
     )
     next(item for item in selection.text_input if item.label.startswith("May contain")).set_value(
         "giwaxs"
@@ -84,7 +84,7 @@ def test_register_then_select_then_plot_then_save(proposal, output_root):
 
     rows = selection.session_state["pyscattviz_search_rows"]
     assert [Path(row["path"]).name for row in rows] == ["giwaxs"]
-    assert "microbeam_Kim" in rows[0]["path"]
+    assert "myproject" in rows[0]["path"]
 
     # 3. Put every result into the basket and save it under a name.
     next(
@@ -125,7 +125,7 @@ def test_register_then_select_then_plot_then_save(proposal, output_root):
 
 
 def test_the_basket_folder_opens_directly_in_an_explorer(proposal, output_root):
-    giwaxs = proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs"
+    giwaxs = proposal / "projects" / "myproject" / "Results" / "giwaxs"
 
     explorer = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
     explorer.session_state["pyscattviz_dataset_paths"] = [str(giwaxs)]

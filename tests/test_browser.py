@@ -37,7 +37,7 @@ def test_windows_command_split_preserves_backslashes_and_removes_quotes():
 
 
 def test_cd_translates_a_remote_path_mapping(tmp_path):
-    mounted = tmp_path / "2026-2" / "pass-319371"
+    mounted = tmp_path / "2026-2" / "pass-123456"
     mounted.mkdir(parents=True)
     mappings = [
         {
@@ -46,7 +46,7 @@ def test_cd_translates_a_remote_path_mapping(tmp_path):
         }
     ]
     result = run_browser_command(
-        "cd /nsls2/data/smi/proposals/2026-2/pass-319371",
+        "cd /nsls2/data/smi/proposals/2026-2/pass-123456",
         tmp_path,
         mappings,
     )

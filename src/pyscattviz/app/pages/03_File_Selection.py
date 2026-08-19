@@ -186,7 +186,7 @@ left, right = st.columns(2)
 with left:
     query = st.text_input(
         "Boolean filename filter",
-        placeholder="Kim AND (0.1000deg OR 0.1500deg) NOT AgBH",
+        placeholder="sampleA AND (0.1000deg OR 0.1500deg) NOT AgBH",
         help=(
             "AND, OR, NOT, parentheses, quoted phrases, and wildcards are supported. "
             "Adjacent terms imply AND."

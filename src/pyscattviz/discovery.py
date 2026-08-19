@@ -3,7 +3,7 @@
 This module reproduces the selection logic I have used for years in my
 ``pyScatt`` ``ls_dir`` helper and extends it to whole directory trees, so a
 collaborator can point pyScattViz at a proposal root and ask for something like
-"every folder whose path contains ``microbeam`` and either ``giwaxs`` or
+"every folder whose path contains ``myproject`` and either ``giwaxs`` or
 ``gisaxs``, but never ``AgBH``".
 
 Three term lists drive every query:
@@ -24,7 +24,7 @@ be used from notebooks and scripts::
 
     from pyscattviz.discovery import find_folders, ls_dir
 
-    ls_dir("/nsls2/data/smi/.../giwaxs/cir_avg", and_list=["Kim"], no_list=["AgBH"])
+    ls_dir("/mnt/proposal/Results/giwaxs/cir_avg", and_list=["sampleA"], no_list=["AgBH"])
     find_folders(["/mnt/proposal"], and_list=["Results"], or_list=["giwaxs", "gisaxs"])
 """
 

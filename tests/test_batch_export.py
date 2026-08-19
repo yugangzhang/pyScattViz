@@ -35,11 +35,11 @@ def giwaxs(tmp_path):
     (root / "qphi").mkdir()
     (root / "stitched").mkdir()
     for index, angle in enumerate(("0.1000", "0.1500", "0.2000")):
-        stem = f"Kim_sampleA_th{angle}deg_2026_08_01_12_00_0{index}"
+        stem = f"sampleA_runA_th{angle}deg_2026_08_01_12_00_0{index}"
         pd.DataFrame({"q_ca": Q, "iq_ca": (index + 1) * Q**-2}).to_csv(
             root / "cir_avg" / f"Cir_Avg_{stem}.tif.csv", index=False
         )
-    first = "Kim_sampleA_th0.1000deg_2026_08_01_12_00_00"
+    first = "sampleA_runA_th0.1000deg_2026_08_01_12_00_00"
     rng = np.random.default_rng(0)
     np.savez(
         root / "q_image" / f"qimg_{first}.tif.npz",
@@ -67,7 +67,7 @@ def _frame(giwaxs, stem):
     return table.set_index("stem").loc[stem]
 
 
-FIRST = "Kim_sampleA_th0.1000deg_2026_08_01_12_00_00"
+FIRST = "sampleA_runA_th0.1000deg_2026_08_01_12_00_00"
 
 
 def test_frame_panel_figure_builds_every_product(giwaxs):
@@ -88,7 +88,7 @@ def test_frame_panel_figure_builds_every_product(giwaxs):
 
 
 def test_frame_panel_figure_returns_none_for_a_missing_product(giwaxs):
-    row = _frame(giwaxs, "Kim_sampleA_th0.1500deg_2026_08_01_12_00_01")
+    row = _frame(giwaxs, "sampleA_runA_th0.1500deg_2026_08_01_12_00_01")
     assert frame_panel_figure(row, "q_image") is None
     assert frame_panel_figure(row, "qphi") is None
     assert frame_panel_figure(row, "cir_avg") is not None

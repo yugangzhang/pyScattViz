@@ -113,7 +113,7 @@ custom_columns = st.columns([3, 1])
 custom_name = custom_columns[0].text_input(
     "Subfolder name",
     value="",
-    placeholder="microbeam_Kim_2026_08",
+    placeholder="myproject_2026_08",
     help="Created below the output root. Use it to keep one sample's figures together.",
 )
 with custom_columns[1]:

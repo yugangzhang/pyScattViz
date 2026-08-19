@@ -147,7 +147,7 @@ with search_tab:
         help="A folder or file matching any of these is dropped.",
     )
     st.caption(
-        "A term is a plain substring unless it contains a wildcard: `Kim_*_WAXS` "
+        "A term is a plain substring unless it contains a wildcard: `sampleA_*_WAXS` "
         "matches the whole name. Matching ignores case. When a folder and its own "
         "`cir_avg`/`q_image`/`qphi`/`qc`/`stitched` subfolder both match, only the "
         "parent is listed."
@@ -329,8 +329,8 @@ with paste_tab:
         height=200,
         key="pyscattviz_paste_paths",
         placeholder=(
-            "/nsls2/data/smi/proposals/2026-2/pass-319371/.../Results/giwaxs\n"
-            "Z:\\projects\\microbeam_Kim\\Results\\giwaxs\\cir_avg\\Cir_Avg_sample.tif.csv"
+            "/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/.../Results/giwaxs\n"
+            "Z:\\projects\\myproject\\Results\\giwaxs\\cir_avg\\Cir_Avg_sample.tif.csv"
         ),
     )
     upload = st.file_uploader("…or load a .txt/.csv list", type=["txt", "csv"])
@@ -420,7 +420,7 @@ with basket_tab:
 
         save_columns = st.columns([2, 3, 1.2])
         collection_name = save_columns[0].text_input(
-            "Collection name", value="", placeholder="microbeam_Kim_giwaxs"
+            "Collection name", value="", placeholder="myproject_giwaxs"
         )
         collection_note = save_columns[1].text_input(
             "Note (optional)", value="", placeholder="0.10 and 0.15 deg, no calibration"

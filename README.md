@@ -309,10 +309,12 @@ Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 .\start_windows.bat
 ```
 
-> The `Remove-Item ... build` line matters when upgrading past version 0.7.0.
-> An earlier in-place install leaves a `build` folder holding the old page
-> files, and without deleting it the sidebar lists several pages twice.
-> pyScattViz prints a warning at startup if that has happened.
+> From 0.7.2 the `Remove-Item ... build` line is belt and braces — packaging
+> clears that folder itself. It mattered when upgrading from 0.7.0 or 0.7.1,
+> where a leftover `build` folder put the old page files back into the new
+> install and Streamlit refused to start with *Multiple Pages specified with URL
+> pathname*. If you hit that, just start pyScattViz again: it removes the stale
+> files itself and reports what it removed.
 
 > **Do not run `python3 -m venv .venv` on Windows after `git pull`.** The
 > `python3` command is normally for macOS/Linux, and pulling an update does not
@@ -383,18 +385,29 @@ select, tests the resulting folder, and saves the path mapping. Password and
 Duo prompts run in a real terminal or desktop mount client; the web GUI
 intentionally never receives or stores credentials.
 
-The example used throughout is:
+Every example below uses placeholders rather than a real experiment. Substitute
+your own:
+
+| Placeholder | Replace with |
+|---|---|
+| `xxx` | your beamline's three-letter code |
+| `xxxxxx` | your six-digit proposal number |
+| `username` | your BNL username |
+| `myproject` | the project folder inside your proposal |
+
+So the remote root the page builds looks like this, with your own values in
+place of the placeholders:
 
 ```text
-/nsls2/data/smi/proposals/2026-2/pass-319371
+/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx
 ```
 
 ### Choose the mount scope
 
 | Scope | Remote root | Recommended use |
 |---|---|---|
-| Proposal | `/nsls2/data/smi/proposals/2026-2/pass-319371` | Safest default for collaborators |
-| Beamline proposals | `/nsls2/data/smi/proposals` | Several authorized SMI proposals |
+| Proposal | `/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx` | Safest default for collaborators |
+| Beamline proposals | `/nsls2/data/xxx/proposals` | Several authorized proposals at one beamline |
 | NSLS-II data | `/nsls2/data` | Staff working across beamlines |
 | Custom | Any validated path below `/nsls2/data` | A specific project or results tree |
 
@@ -429,13 +442,13 @@ Duo Push, and a mounted `Z:` drive. pyScattViz needs read access only.
 2. Test SFTP in PowerShell:
 
    ```powershell
-   sftp yuzhang@sftp.nsls2.bnl.gov
+   sftp username@sftp.nsls2.bnl.gov
    ```
 
 3. Enter the BNL password, enter `1` for Duo Push, approve it, and run:
 
    ```text
-   ls /nsls2/data/smi/proposals/2026-2/pass-319371
+   ls /nsls2/data/xxx/proposals/2026-2/pass-xxxxxx
    exit
    ```
 
@@ -451,7 +464,7 @@ Duo Push, and a mounted `Z:` drive. pyScattViz needs read access only.
    Address:      sftp.nsls2.bnl.gov
    Port:         22
    Username:     your BNL username
-   Path:         /nsls2/data/smi/proposals/2026-2/pass-319371
+   Path:         /nsls2/data/xxx/proposals/2026-2/pass-xxxxxx
    Drive letter: Z: (or another available letter)
    Access:       Read-only, when available
    ```
@@ -471,7 +484,7 @@ Duo Push, and a mounted `Z:` drive. pyScattViz needs read access only.
    a result folder, for example:
 
    ```text
-   Z:\projects\microbeam_Kim\Results\giwaxs
+   Z:\projects\myproject\Results\giwaxs
    ```
 
    Use the actual drive or mounted location shown on the computer; it may not
@@ -501,10 +514,10 @@ sudo dnf install fuse-sshfs
 Create a proposal-specific mount point and mount it:
 
 ```bash
-mkdir -p "$HOME/NSLS_II_Link/smi-pass-319371"
+mkdir -p "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
 sshfs -o follow_symlinks,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 \
-  yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/ \
-  "$HOME/NSLS_II_Link/smi-pass-319371"
+  username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/ \
+  "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
 ```
 
 On the first connection, accept the host only if its ED25519 fingerprint is
@@ -512,14 +525,14 @@ On the first connection, accept the host only if its ED25519 fingerprint is
 select Duo option `1`, and approve the push. Test it:
 
 ```bash
-ls "$HOME/NSLS_II_Link/smi-pass-319371"
+ls "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
 ```
 
 Register that folder under **Data Sources & Mounts**. Unmount later with:
 
 ```bash
-fusermount3 -u "$HOME/NSLS_II_Link/smi-pass-319371" || \
-  fusermount -u "$HOME/NSLS_II_Link/smi-pass-319371"
+fusermount3 -u "$HOME/NSLS_II_Link/xxx-pass-xxxxxx" || \
+  fusermount -u "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
 ```
 
 The proposal SFTP server is direct; it does not require the two-hop beamline
@@ -532,14 +545,14 @@ all:
 
 1. Open **Files**.
 2. Select **Other Locations** at the bottom of the sidebar.
-3. In **Connect to Server**, enter `sftp://yuzhang@sftp.nsls2.bnl.gov/` and
+3. In **Connect to Server**, enter `sftp://username@sftp.nsls2.bnl.gov/` and
    select **Connect**.
 4. Enter the BNL password, choose the Duo option, and approve the push.
 
 The mount then appears as an ordinary folder:
 
 ```bash
-/run/user/$(id -u)/gvfs/sftp:host=sftp.nsls2.bnl.gov,user=yuzhang
+/run/user/$(id -u)/gvfs/sftp:host=sftp.nsls2.bnl.gov,user=username
 ```
 
 Paste that path into **Data Sources & Mounts** and register it. GVFS is slower
@@ -559,10 +572,10 @@ macOS may require approval of the macFUSE system extension under **System
 Settings → Privacy & Security** and may request a restart. Then mount:
 
 ```bash
-mkdir -p "$HOME/NSLS_II_Link/smi-pass-319371"
+mkdir -p "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
 sshfs -o follow_symlinks,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 \
-  yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/ \
-  "$HOME/NSLS_II_Link/smi-pass-319371"
+  username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/ \
+  "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
 ```
 
 On the first connection, accept the host only if its ED25519 fingerprint is
@@ -571,7 +584,7 @@ select Duo option `1`, approve the push, and register the mounted folder under
 **Data Sources & Mounts**. Unmount with:
 
 ```bash
-umount "$HOME/NSLS_II_Link/smi-pass-319371"
+umount "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
 ```
 
 ### Any platform: rclone
@@ -602,7 +615,7 @@ of the rclone configuration file — rclone prompts for it, and for the Duo
 challenge, at mount time:
 
 ```bash
-rclone config create nsls2 sftp host sftp.nsls2.bnl.gov user yuzhang port 22 ask_password true
+rclone config create nsls2 sftp host sftp.nsls2.bnl.gov user username port 22 ask_password true
 ```
 
 Mount it. On Windows use a free drive letter; on macOS and Linux use an empty
@@ -610,14 +623,14 @@ folder:
 
 ```powershell
 # Windows
-rclone mount nsls2:/nsls2/data/smi/proposals/2026-2/pass-319371 Z: --read-only --vfs-cache-mode full --dir-cache-time 60s --attr-timeout 60s --network-mode
+rclone mount nsls2:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx Z: --read-only --vfs-cache-mode full --dir-cache-time 60s --attr-timeout 60s --network-mode
 ```
 
 ```bash
 # macOS and Linux
-mkdir -p "$HOME/NSLS_II_Link/smi-pass-319371"
-rclone mount nsls2:/nsls2/data/smi/proposals/2026-2/pass-319371 \
-  "$HOME/NSLS_II_Link/smi-pass-319371" \
+mkdir -p "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+rclone mount nsls2:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx \
+  "$HOME/NSLS_II_Link/xxx-pass-xxxxxx" \
   --read-only --vfs-cache-mode full --dir-cache-time 60s --attr-timeout 60s --daemon
 ```
 
@@ -637,21 +650,21 @@ result folder, a slow link, or working on a plane:
 ```bash
 # macOS and Linux
 mkdir -p "$HOME/pyScattViz_Data/giwaxs"
-sftp -r yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs \
+sftp -r username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/projects/myproject/Results/giwaxs \
   "$HOME/pyScattViz_Data/giwaxs"
 ```
 
 ```powershell
 # Windows
 New-Item -ItemType Directory -Force -Path "$HOME\pyScattViz_Data\giwaxs"
-sftp -r yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs "$HOME\pyScattViz_Data\giwaxs"
+sftp -r username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/projects/myproject/Results/giwaxs "$HOME\pyScattViz_Data\giwaxs"
 ```
 
 With rclone configured, a filtered copy is often better than a whole folder:
 
 ```bash
-rclone copy nsls2:/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs \
-  "$HOME/pyScattViz_Data/giwaxs" --progress --include "*Kim*"
+rclone copy nsls2:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/projects/myproject/Results/giwaxs \
+  "$HOME/pyScattViz_Data/giwaxs" --progress --include "*sampleA*"
 ```
 
 Graphical alternatives that also work on every platform:
@@ -718,7 +731,7 @@ The same logic is available from Python:
 ```python
 from pyscattviz.discovery import find_folders, ls_dir
 
-ls_dir("/mnt/proposal/Results/giwaxs/cir_avg", and_list=["Kim"], no_list=["AgBH"])
+ls_dir("/mnt/proposal/Results/giwaxs/cir_avg", and_list=["sampleA"], no_list=["AgBH"])
 
 rows, truncated = find_folders(
     ["/mnt/proposal"],
@@ -805,9 +818,9 @@ Boolean expressions support `AND`, `OR`, `NOT`, parentheses, quoted phrases,
 and wildcards:
 
 ```text
-Kim AND (0.1000deg OR 0.1500deg) NOT AgBH
+sampleA AND (0.1000deg OR 0.1500deg) NOT AgBH
 "sample one" OR sample_two
-Kim_*_WAXS
+sampleA_*_WAXS
 ```
 
 Adjacent terms imply `AND`. A pasted or uploaded filename list provides exact

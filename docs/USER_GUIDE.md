@@ -277,10 +277,12 @@ rm -rf build
 ./.venv/bin/python -m pyscattviz
 ```
 
-Deleting `build` matters when upgrading past 0.7.0: an earlier in-place install
-leaves the old page files there, and setuptools folds them back into the new
-wheel so the sidebar lists several pages twice. pyScattViz prints a warning at
-startup if that has happened.
+Deleting `build` is belt and braces from 0.7.2, since packaging clears that
+folder itself. It mattered when upgrading from 0.7.0 or 0.7.1: a leftover
+`build` folder put the old page files back into the new install, and Streamlit
+refused to start with *Multiple Pages specified with URL pathname
+Data_Sources_and_Mounts*. If that happens, start pyScattViz again — it removes
+the stale files itself and says which ones.
 
 For normal daily startup, I included `start_windows.bat`,
 `start_macos.command`, and `start_linux.sh` in the repository root. On Windows,

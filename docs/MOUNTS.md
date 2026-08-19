@@ -115,7 +115,7 @@ macOS/Linux.
 
 ```bash
 sftp -r <user>@sftp.nsls2.bnl.gov:<remote result folder> <local folder>
-rclone copy nsls2:<remote result folder> <local folder> --progress --include "*Kim*"
+rclone copy nsls2:<remote result folder> <local folder> --progress --include "*sampleA*"
 ```
 
 FileZilla (all platforms) and Cyberduck (Windows, macOS) do the same thing with

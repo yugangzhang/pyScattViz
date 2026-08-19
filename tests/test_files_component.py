@@ -8,11 +8,11 @@ from pyscattviz.app.components.files import collect_files, file_signature
 def tree(tmp_path):
     cir = tmp_path / "giwaxs" / "cir_avg"
     cir.mkdir(parents=True)
-    for name in ("Cir_Avg_Kim_A.tif.csv", "Cir_Avg_Kim_B.tif.csv", "Cir_Avg_AgBH.tif.csv"):
+    for name in ("Cir_Avg_sampleA.tif.csv", "Cir_Avg_sampleB.tif.csv", "Cir_Avg_AgBH.tif.csv"):
         (cir / name).write_text("q,I\n1,2\n")
     arrays = tmp_path / "giwaxs" / "q_image"
     arrays.mkdir()
-    np.savez(arrays / "qimg_Kim_A.tif.npz", qimg=np.ones((2, 2)))
+    np.savez(arrays / "qimg_sampleA.tif.npz", qimg=np.ones((2, 2)))
     (tmp_path / "giwaxs" / "notes.md").write_text("not data")
     return tmp_path
 
@@ -25,9 +25,9 @@ def test_collect_files_expands_a_folder_and_ignores_unreadable_types(tree):
 
 
 def test_collect_files_applies_the_term_lists(tree):
-    files, _truncated = collect_files([tree], and_list=["Kim"], no_list=["AgBH"])
+    files, _truncated = collect_files([tree], and_list=["sample"], no_list=["AgBH"])
     assert len(files) == 3
-    files, _truncated = collect_files([tree], or_list=["_A."])
+    files, _truncated = collect_files([tree], or_list=["sampleA"])
     assert len(files) == 2
 
 
@@ -39,7 +39,7 @@ def test_collect_files_respects_an_extension_allow_list(tree):
 
 
 def test_collect_files_keeps_explicit_files_and_drops_duplicates(tree):
-    one = str(tree / "giwaxs" / "cir_avg" / "Cir_Avg_Kim_A.tif.csv")
+    one = str(tree / "giwaxs" / "cir_avg" / "Cir_Avg_sampleA.tif.csv")
     files, _truncated = collect_files([one, one, tree / "giwaxs" / "cir_avg"])
     assert files[0] == one
     assert len(files) == 3

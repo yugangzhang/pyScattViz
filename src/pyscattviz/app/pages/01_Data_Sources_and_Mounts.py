@@ -97,7 +97,7 @@ proposal = top3.text_input(
     key=proposal_key,
     on_change=store_persistent_widget,
     args=(st.session_state, "pyscattviz_mount_proposal"),
-    placeholder="319371",
+    placeholder="six digits",
 )
 username_key = prepare_persistent_widget(st.session_state, "pyscattviz_mount_username", "")
 username = top4.text_input(
@@ -105,7 +105,7 @@ username = top4.text_input(
     key=username_key,
     on_change=store_persistent_widget,
     args=(st.session_state, "pyscattviz_mount_username"),
-    placeholder="yuzhang",
+    placeholder="your BNL username",
 )
 
 custom_path = ""
@@ -409,7 +409,7 @@ which is exactly what pyScattViz needs. Copy that path into the box below.
                 "Only files matching (optional)",
                 value="",
                 key="pyscattviz_rclone_include",
-                placeholder="*Kim*",
+                placeholder="*sampleA*",
             )
             st.code(
                 rclone_copy_command(remote_name, remote_root, local_mount, platform_name, include),

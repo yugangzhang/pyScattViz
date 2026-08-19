@@ -13,16 +13,16 @@ REMOTE_ROOT = "/nsls2/data/smi/proposals"
 def test_remote_path_maps_to_windows_drive():
     mappings = add_path_mapping([], REMOTE_ROOT, "Z:\\")
     translated, mapping = translate_remote_path(
-        REMOTE_ROOT + "/2026-2/pass-319371/projects/microbeam_Kim", mappings
+        REMOTE_ROOT + "/2026-2/pass-123456/projects/myproject", mappings
     )
-    assert translated == r"Z:\2026-2\pass-319371\projects\microbeam_Kim"
+    assert translated == r"Z:\2026-2\pass-123456\projects\myproject"
     assert mapping["remote_root"] == REMOTE_ROOT
 
 
 def test_remote_path_maps_to_posix_mount(tmp_path):
     mappings = add_path_mapping([], REMOTE_ROOT, str(tmp_path))
-    translated, _mapping = translate_remote_path(REMOTE_ROOT + "/2026-2/pass-319371", mappings)
-    assert translated == str(tmp_path / "2026-2" / "pass-319371")
+    translated, _mapping = translate_remote_path(REMOTE_ROOT + "/2026-2/pass-123456", mappings)
+    assert translated == str(tmp_path / "2026-2" / "pass-123456")
 
 
 def test_longest_mapping_wins():

@@ -25,7 +25,7 @@ def giwaxs(tmp_path):
     folder = tmp_path / "Results" / "giwaxs" / "cir_avg"
     folder.mkdir(parents=True)
     pd.DataFrame({"q_ca": [0.01, 0.05, 0.1], "iq_ca": [100.0, 20.0, 5.0]}).to_csv(
-        folder / "Cir_Avg_Kim_th0.1000deg.tif.csv", index=False
+        folder / "Cir_Avg_sampleA_th0.1000deg.tif.csv", index=False
     )
     return tmp_path / "Results" / "giwaxs"
 
@@ -49,11 +49,11 @@ def test_output_folder_page_creates_the_root_and_a_custom_subfolder(output_root)
     assert target.is_dir()
 
     next(item for item in app.text_input if item.label == "Subfolder name").set_value(
-        "microbeam Kim/2026"
+        "my project/2026"
     )
     app.run()
     next(item for item in app.button if item.label == "Create subfolder").click().run()
-    assert (target / "microbeam_Kim_2026").is_dir()
+    assert (target / "my_project_2026").is_dir()
 
 
 def test_the_output_root_is_remembered_across_pages(output_root):

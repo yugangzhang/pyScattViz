@@ -13,8 +13,8 @@ from pyscattviz.discovery import (
 
 
 def test_parse_terms_splits_commas_semicolons_and_lines():
-    assert parse_terms("Kim, 0.10deg;  giwaxs\nAgBH") == (
-        "Kim",
+    assert parse_terms("sampleA, 0.10deg;  giwaxs\nAgBH") == (
+        "sampleA",
         "0.10deg",
         "giwaxs",
         "AgBH",
@@ -34,11 +34,11 @@ def test_parse_terms_accepts_none_and_iterables():
 
 
 def test_matches_terms_applies_and_or_exclude():
-    assert matches_terms("Kim_giwaxs_0.10deg", and_list=["kim", "giwaxs"])
-    assert not matches_terms("Kim_gisaxs", and_list=["kim", "giwaxs"])
-    assert matches_terms("Kim_gisaxs", or_list=["giwaxs", "gisaxs"])
-    assert not matches_terms("Kim_maxs", or_list=["giwaxs", "gisaxs"])
-    assert not matches_terms("Kim_AgBH", no_list=["agbh"])
+    assert matches_terms("sampleA_giwaxs_0.10deg", and_list=["samplea", "giwaxs"])
+    assert not matches_terms("sampleA_gisaxs", and_list=["samplea", "giwaxs"])
+    assert matches_terms("sampleA_gisaxs", or_list=["giwaxs", "gisaxs"])
+    assert not matches_terms("sampleA_maxs", or_list=["giwaxs", "gisaxs"])
+    assert not matches_terms("sampleAgBH", no_list=["agbh"])
 
 
 def test_matches_terms_with_no_conditions_is_true():
@@ -46,35 +46,35 @@ def test_matches_terms_with_no_conditions_is_true():
 
 
 def test_matches_terms_supports_wildcards_and_case_sensitivity():
-    assert matches_terms("Kim_sample_WAXS", and_list=["Kim_*_WAXS"])
-    assert not matches_terms("Kim_sample_SAXS", and_list=["Kim_*_WAXS"])
-    assert not matches_terms("kim_sample", and_list=["Kim"], case_sensitive=True)
+    assert matches_terms("sampleA_run_WAXS", and_list=["sampleA_*_WAXS"])
+    assert not matches_terms("sampleA_run_SAXS", and_list=["sampleA_*_WAXS"])
+    assert not matches_terms("kim_sample", and_list=["sampleA"], case_sensitive=True)
 
 
 def test_filter_names_matches_the_pyscatt_ls_dir_semantics():
-    names = ["a_Kim_giwaxs", "b_Kim_gisaxs", "c_Lee_giwaxs", "d_Kim_AgBH"]
-    assert filter_names(names, and_list=["Kim"], no_list=["AgBH"]) == [
-        "a_Kim_giwaxs",
-        "b_Kim_gisaxs",
+    names = ["a_sampleA_giwaxs", "b_sampleA_gisaxs", "c_Lee_giwaxs", "d_sampleAgBH"]
+    assert filter_names(names, and_list=["sampleA"], no_list=["AgBH"]) == [
+        "a_sampleA_giwaxs",
+        "b_sampleA_gisaxs",
     ]
     assert filter_names(names, or_list=["gisaxs", "AgBH"]) == [
-        "b_Kim_gisaxs",
-        "d_Kim_AgBH",
+        "b_sampleA_gisaxs",
+        "d_sampleAgBH",
     ]
 
 
 @pytest.fixture
 def proposal(tmp_path):
-    giwaxs = tmp_path / "projects" / "microbeam_Kim" / "Results" / "giwaxs"
+    giwaxs = tmp_path / "projects" / "myproject" / "Results" / "giwaxs"
     (giwaxs / "cir_avg").mkdir(parents=True)
     (giwaxs / "q_image").mkdir()
-    (giwaxs / "cir_avg" / "Cir_Avg_Kim_th0.1000deg.tif.csv").write_text("q,I\n1,2\n")
+    (giwaxs / "cir_avg" / "Cir_Avg_sampleA_th0.1000deg.tif.csv").write_text("q,I\n1,2\n")
     (giwaxs / "cir_avg" / "Cir_Avg_AgBH.tif.csv").write_text("q,I\n1,2\n")
-    (giwaxs / "q_image" / "qimg_Kim_th0.1000deg.tif.npz").touch()
+    (giwaxs / "q_image" / "qimg_sampleA_th0.1000deg.tif.npz").touch()
 
-    gisaxs = tmp_path / "projects" / "microbeam_Kim" / "Results" / "gisaxs"
+    gisaxs = tmp_path / "projects" / "myproject" / "Results" / "gisaxs"
     (gisaxs / "cir_avg").mkdir(parents=True)
-    (gisaxs / "cir_avg" / "Cir_Avg_Kim_B.tif.csv").write_text("q,I\n1,2\n")
+    (gisaxs / "cir_avg" / "Cir_Avg_sampleB.tif.csv").write_text("q,I\n1,2\n")
 
     other = tmp_path / "projects" / "other_Lee" / "Results" / "giwaxs"
     other.mkdir(parents=True)
@@ -83,14 +83,14 @@ def proposal(tmp_path):
 
 
 def test_ls_dir_filters_direct_entries(proposal):
-    folder = proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs" / "cir_avg"
-    assert ls_dir(folder, and_list=["Kim"]) == ["Cir_Avg_Kim_th0.1000deg.tif.csv"]
-    assert ls_dir(folder, no_list=["AgBH"]) == ["Cir_Avg_Kim_th0.1000deg.tif.csv"]
+    folder = proposal / "projects" / "myproject" / "Results" / "giwaxs" / "cir_avg"
+    assert ls_dir(folder, and_list=["sampleA"]) == ["Cir_Avg_sampleA_th0.1000deg.tif.csv"]
+    assert ls_dir(folder, no_list=["AgBH"]) == ["Cir_Avg_sampleA_th0.1000deg.tif.csv"]
     assert len(ls_dir(folder)) == 2
 
 
 def test_ls_dir_can_restrict_to_folders_and_return_full_paths(proposal):
-    root = proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs"
+    root = proposal / "projects" / "myproject" / "Results" / "giwaxs"
     names = ls_dir(root, kind="folder")
     assert names == ["cir_avg", "q_image"]
     full = ls_dir(root, kind="folder", full_path=True)
@@ -116,7 +116,7 @@ def test_find_folders_matches_on_the_whole_path(proposal):
     # what the user meant, so the product folders collapse into it.
     names = sorted(row["name"] for row in rows)
     assert names == ["gisaxs", "giwaxs"]
-    assert all("microbeam_Kim" in row["path"] for row in rows)
+    assert all("myproject" in row["path"] for row in rows)
 
 
 def test_product_folders_can_be_kept_alongside_their_parent(proposal):
@@ -154,7 +154,7 @@ def test_find_folders_matching_on_name_returns_only_the_result_folders(proposal)
 
 def test_find_folders_reports_products_and_can_require_them(proposal):
     rows, _truncated = find_folders(proposal, and_list=["giwaxs"], match_on="name", max_depth=6)
-    giwaxs = next(row for row in rows if "microbeam" in row["path"])
+    giwaxs = next(row for row in rows if "myproject" in row["path"])
     assert giwaxs["products"] == "cir_avg, q_image"
 
     only_products, _ = find_folders(
@@ -183,12 +183,12 @@ def test_find_folders_validates_its_arguments(proposal):
 
 def test_find_files_filters_by_extension_and_terms(proposal):
     rows, truncated = find_files(
-        proposal, and_list=["Kim"], no_list=["AgBH"], extensions=[".csv"], max_depth=8
+        proposal, and_list=["sample"], no_list=["AgBH"], extensions=[".csv"], max_depth=8
     )
     assert not truncated
     assert sorted(row["name"] for row in rows) == [
-        "Cir_Avg_Kim_B.tif.csv",
-        "Cir_Avg_Kim_th0.1000deg.tif.csv",
+        "Cir_Avg_sampleA_th0.1000deg.tif.csv",
+        "Cir_Avg_sampleB.tif.csv",
     ]
 
 
@@ -203,7 +203,7 @@ def test_find_files_default_extensions_cover_every_readable_kind(proposal):
 
 
 def test_classify_folder_describes_products_and_availability(proposal):
-    giwaxs = proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs"
+    giwaxs = proposal / "projects" / "myproject" / "Results" / "giwaxs"
     summary = classify_folder(giwaxs)
     assert summary["products"] == ("cir_avg", "q_image")
     assert summary["is_product_folder"] is False
@@ -218,7 +218,7 @@ def test_classify_folder_describes_products_and_availability(proposal):
 
 
 def test_describe_paths_reports_kind_for_each_entry(proposal):
-    giwaxs = proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs"
+    giwaxs = proposal / "projects" / "myproject" / "Results" / "giwaxs"
     described = describe_paths(
         [str(giwaxs), str(giwaxs / "cir_avg" / "Cir_Avg_AgBH.tif.csv"), "/no/such/path", ""]
     )

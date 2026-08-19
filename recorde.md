@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.7.1`
+- Current package version: `0.7.2`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -22,13 +22,13 @@ local disk — without copying a complete proposal to the local computer.
 The user verified this direct connection from Windows PowerShell:
 
 ```powershell
-sftp yuzhang@sftp.nsls2.bnl.gov
+sftp username@sftp.nsls2.bnl.gov
 ```
 
 BNL password plus Duo Push succeeded, and this remote result folder was listed:
 
 ```text
-/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs
+/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/projects/myproject/Results/giwaxs
 ```
 
 It contains `cir_avg`, `q_image`, `qc`, and `qphi`. No jump host was needed for
@@ -97,6 +97,18 @@ folders hold only AgBH calibration frames, which the default filter hides.
     clipping real CMS and SMI output by more than half.
 14. `st.plotly_chart` has no `width` parameter in Streamlit 1.50 — use
     `use_container_width=True`. `st.dataframe` and `st.pyplot` do take `width`.
+15. Documentation and GUI placeholders never name a real experiment. Use `xxx`
+    for the beamline, `xxxxxx` for the proposal, `myproject` for the project
+    folder, and `username` for the BNL account. Only `yuzhang@bnl.gov` as the
+    public contact address stays.
+16. Renaming a shipped file needs the `setup.py` shim to keep working: pip
+    builds a local directory in place and setuptools never removes files from
+    `build/lib`, so a rename otherwise ships both names. For pages that is fatal
+    — Streamlit rejects two pages with the same inferred URL. `cli.py` also
+    repairs an installation that already has both.
+
+Commit messages are written in my own voice and carry no assistant
+co-author trailer.
 
 ## Application workflow
 
@@ -207,7 +219,7 @@ Tests:
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           329 passed
+python -m pytest -q           333 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps

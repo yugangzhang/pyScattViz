@@ -18,9 +18,9 @@ def isolated_config(tmp_path_factory, monkeypatch):
 @pytest.fixture
 def proposal(tmp_path):
     for geometry in ("giwaxs", "gisaxs"):
-        folder = tmp_path / "projects" / "microbeam_Kim" / "Results" / geometry
+        folder = tmp_path / "projects" / "myproject" / "Results" / geometry
         (folder / "cir_avg").mkdir(parents=True)
-        (folder / "cir_avg" / f"Cir_Avg_Kim_{geometry}.tif.csv").write_text("q,I\n1,2\n")
+        (folder / "cir_avg" / f"Cir_Avg_sampleA_{geometry}.tif.csv").write_text("q,I\n1,2\n")
     other = tmp_path / "projects" / "other_Lee" / "Results" / "giwaxs" / "cir_avg"
     other.mkdir(parents=True)
     (other / "Cir_Avg_Lee.tif.csv").write_text("q,I\n1,2\n")
@@ -72,7 +72,7 @@ def test_search_reports_an_unavailable_root(tmp_path):
 
 
 def test_pasted_paths_are_described_and_can_fill_the_basket(proposal):
-    giwaxs = proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs"
+    giwaxs = proposal / "projects" / "myproject" / "Results" / "giwaxs"
     app = AppTest.from_file(str(PAGE), default_timeout=60)
     app.session_state["pyscattviz_paste_paths"] = f"{giwaxs}\n/nowhere/at/all\n"
     app.run()
@@ -85,13 +85,11 @@ def test_pasted_paths_are_described_and_can_fill_the_basket(proposal):
 
 
 def test_basket_can_be_saved_and_reloaded_as_a_collection(proposal):
-    giwaxs = str(proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs")
+    giwaxs = str(proposal / "projects" / "myproject" / "Results" / "giwaxs")
     app = AppTest.from_file(str(PAGE), default_timeout=60)
     app.session_state["pyscattviz_dataset_paths"] = [giwaxs]
     app.run()
-    next(item for item in app.text_input if item.label == "Collection name").set_value(
-        "microbeam Kim"
-    )
+    next(item for item in app.text_input if item.label == "Collection name").set_value("my project")
     app.run()
     next(item for item in app.button if item.label == "Save collection").click().run()
     assert any("Saved" in item.value for item in app.success)
@@ -102,7 +100,7 @@ def test_basket_can_be_saved_and_reloaded_as_a_collection(proposal):
 
 
 def test_sending_a_folder_to_the_explorers_sets_the_active_root(proposal):
-    giwaxs = str(proposal / "projects" / "microbeam_Kim" / "Results" / "giwaxs")
+    giwaxs = str(proposal / "projects" / "myproject" / "Results" / "giwaxs")
     app = AppTest.from_file(str(PAGE), default_timeout=60)
     app.session_state["pyscattviz_dataset_paths"] = [giwaxs]
     app.run()

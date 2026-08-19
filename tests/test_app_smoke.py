@@ -18,7 +18,7 @@ def test_mount_page_generates_proposal_specific_sshfs_command():
     app = AppTest.from_file(
         str(PAGES_DIR / "01_Data_Sources_and_Mounts.py"), default_timeout=10
     ).run()
-    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("319371")
+    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("123456")
     next(item for item in app.text_input if item.label == "BNL username").set_value("yuzhang")
     app.run()
 
@@ -26,9 +26,9 @@ def test_mount_page_generates_proposal_specific_sshfs_command():
     mounted_path = next(
         item for item in app.text_input if item.label == "Mounted path on this computer"
     )
-    assert mounted_path.value.endswith("smi-pass-319371")
+    assert mounted_path.value.endswith("smi-pass-123456")
     assert any(
-        "yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/" in code.value
+        "yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-123456/" in code.value
         for code in app.code
     )
 
@@ -51,11 +51,11 @@ def test_mount_page_supports_broad_nsls2_scope_and_raidrive():
 
 def test_file_selection_accepts_original_nsls2_path_through_mount_mapping(tmp_path):
     mounted_root = tmp_path / "mounted"
-    result_root = mounted_root / "2026-2" / "pass-319371" / "Results" / "giwaxs"
+    result_root = mounted_root / "2026-2" / "pass-123456" / "Results" / "giwaxs"
     (result_root / "q_image").mkdir(parents=True)
     (result_root / "q_image" / "qimg_frame.tif.npz").touch()
     remote_root = "/nsls2/data/smi/proposals"
-    remote_result = remote_root + "/2026-2/pass-319371/Results/giwaxs"
+    remote_result = remote_root + "/2026-2/pass-123456/Results/giwaxs"
 
     app = AppTest.from_file(str(PAGES_DIR / "03_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_path_mappings"] = [
@@ -70,9 +70,7 @@ def test_file_selection_accepts_original_nsls2_path_through_mount_mapping(tmp_pa
 
 
 def test_file_selection_requires_mount_for_original_nsls2_path():
-    remote_root = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs"
-    )
+    remote_root = "/nsls2/data/smi/proposals/2026-2/pass-123456/projects/myproject/Results/giwaxs"
     app = AppTest.from_file(str(PAGES_DIR / "03_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_file_root"] = remote_root
     app.session_state["pyscattviz_path_mappings"] = []
@@ -84,14 +82,12 @@ def test_file_selection_requires_mount_for_original_nsls2_path():
 
 
 def test_file_selection_ignores_unavailable_saved_drive_mapping():
-    remote_root = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs"
-    )
+    remote_root = "/nsls2/data/smi/proposals/2026-2/pass-123456/projects/myproject/Results/giwaxs"
     app = AppTest.from_file(str(PAGES_DIR / "03_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_file_root"] = remote_root
     app.session_state["pyscattviz_path_mappings"] = [
         {
-            "remote_root": "/nsls2/data/smi/proposals/2026-2/pass-319371",
+            "remote_root": "/nsls2/data/smi/proposals/2026-2/pass-123456",
             "local_root": "Z:\\",
         }
     ]
@@ -103,9 +99,7 @@ def test_file_selection_ignores_unavailable_saved_drive_mapping():
 
 
 def test_scattering_viewers_request_mount_for_nsls2_path():
-    remote_root = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs"
-    )
+    remote_root = "/nsls2/data/smi/proposals/2026-2/pass-123456/projects/myproject/Results/giwaxs"
     for filename in (
         "04_GISAXS_Explorer.py",
         "05_GIWAXS_Explorer.py",
@@ -224,7 +218,7 @@ def test_mount_page_generates_the_rclone_commands():
     app = AppTest.from_file(
         str(PAGES_DIR / "01_Data_Sources_and_Mounts.py"), default_timeout=15
     ).run()
-    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("319371")
+    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("123456")
     next(item for item in app.text_input if item.label == "BNL username").set_value("yuzhang")
     app.run()
     next(item for item in app.selectbox if item.label == "Access method").set_value(
@@ -243,7 +237,7 @@ def test_mount_page_generates_a_subset_download_command():
     app = AppTest.from_file(
         str(PAGES_DIR / "01_Data_Sources_and_Mounts.py"), default_timeout=15
     ).run()
-    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("319371")
+    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("123456")
     next(item for item in app.text_input if item.label == "BNL username").set_value("yuzhang")
     app.run()
     next(item for item in app.selectbox if item.label == "Access method").set_value(
@@ -253,7 +247,7 @@ def test_mount_page_generates_a_subset_download_command():
 
     assert not app.exception
     assert any(
-        "sftp -r yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371"
+        "sftp -r yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-123456"
         in item.value
         for item in app.code
     )

@@ -29,7 +29,7 @@ def curves(tmp_path):
     folder.mkdir(parents=True)
     for index, angle in enumerate(("0.1000", "0.1500", "0.2000")):
         pd.DataFrame({"q_ca": Q, "iq_ca": (index + 1) * Q**-2}).to_csv(
-            folder / f"Cir_Avg_Kim_th{angle}deg.tif.csv", index=False
+            folder / f"Cir_Avg_sampleA_th{angle}deg.tif.csv", index=False
         )
     pd.DataFrame({"q_ca": Q, "iq_ca": Q**-3}).to_csv(
         folder / "Cir_Avg_AgBH_calibration.tif.csv", index=False
@@ -70,7 +70,7 @@ def test_exclude_term_drops_the_calibration_file(curves):
 
 
 def test_quick_plot_accepts_a_pasted_list_of_full_paths(curves):
-    files = sorted(str(path) for path in (curves / "cir_avg").glob("*Kim*.csv"))
+    files = sorted(str(path) for path in (curves / "cir_avg").glob("*sampleA*.csv"))
     app = AppTest.from_file(str(PAGE), default_timeout=120)
     app.session_state["quickplot_source"] = "Paste full paths"
     app.session_state["quickplot_pasted"] = "\n".join(files)

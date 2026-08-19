@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.2
+
+- Fixed the startup crash after upgrading in place. Renaming the pages in 0.7.0
+  left the old names in the repository's `build/lib` folder, setuptools folded
+  them back into the new wheel, and Streamlit then refused to start at all:
+  *Multiple Pages specified with URL pathname Data_Sources_and_Mounts*. That
+  happens inside Streamlit before any of our code runs, so the 0.7.1 warning was
+  no help. The launcher now removes the stale files itself, by exact name, and
+  a `setup.py` shim clears `build/lib` before packaging so it cannot recur.
+- Replaced the real beamline, proposal number, project name, and BNL username in
+  every example with placeholders — `xxx`, `xxxxxx`, `myproject`, `username` —
+  and added a table explaining them. The documentation named one real
+  experiment throughout, which it had no need to do.
+
 ## 0.7.1
 
 Everything here came from pointing the application at the real CMS and SMI

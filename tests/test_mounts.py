@@ -30,8 +30,8 @@ from pyscattviz.mounts import (
         (
             "SMI",
             "2026-2",
-            "319371",
-            "/nsls2/data/smi/proposals/2026-2/pass-319371",
+            "123456",
+            "/nsls2/data/smi/proposals/2026-2/pass-123456",
         ),
         (
             "cms",
@@ -48,8 +48,8 @@ def test_proposal_path(beamline, cycle, proposal, expected):
 @pytest.mark.parametrize(
     ("beamline", "cycle", "proposal"),
     [
-        ("other", "2026-2", "319371"),
-        ("SMI", "2026-4", "319371"),
+        ("other", "2026-2", "123456"),
+        ("SMI", "2026-4", "123456"),
         ("SMI", "2026-2", "31937"),
     ],
 )
@@ -61,7 +61,7 @@ def test_proposal_path_rejects_invalid_values(beamline, cycle, proposal):
 @pytest.mark.parametrize(
     ("scope", "expected"),
     [
-        ("Proposal", "/nsls2/data/smi/proposals/2026-2/pass-319371"),
+        ("Proposal", "/nsls2/data/smi/proposals/2026-2/pass-123456"),
         ("Beamline proposals", "/nsls2/data/smi/proposals"),
         ("NSLS-II data", "/nsls2/data"),
         ("Custom", "/nsls2/data/smi/proposals"),
@@ -73,7 +73,7 @@ def test_mount_remote_path_scopes(scope, expected):
             scope,
             "SMI",
             "2026-2",
-            "319371",
+            "123456",
             "/nsls2/data/smi/proposals/",
         )
         == expected
@@ -88,20 +88,20 @@ def test_custom_mount_path_stays_inside_nsls2_data():
 
 
 def test_suggested_mount_folder_matches_scope():
-    assert suggested_mount_folder("SMI", "319371").name == "smi-pass-319371"
+    assert suggested_mount_folder("SMI", "123456").name == "smi-pass-123456"
     assert suggested_mount_folder("CMS", "", "Beamline proposals").name == "cms-proposals"
     assert suggested_mount_folder("SMI", "", "NSLS-II data").name == "nsls2-data"
 
 
 def test_sftp_and_sshfs_commands_are_copy_pasteable_and_quote_spaces():
-    remote = "/nsls2/data/smi/proposals/2026-2/pass-319371"
-    local = "/home/a user/NSLS II/pass-319371"
+    remote = "/nsls2/data/smi/proposals/2026-2/pass-123456"
+    local = "/home/a user/NSLS II/pass-123456"
 
     assert sftp_test_command("yuzhang") == f"sftp yuzhang@{SFTP_HOST}"
-    assert make_mount_folder_command(local) == "mkdir -p '/home/a user/NSLS II/pass-319371'"
+    assert make_mount_folder_command(local) == "mkdir -p '/home/a user/NSLS II/pass-123456'"
     command = sshfs_mount_command("yuzhang", remote, local)
     assert f"yuzhang@{SFTP_HOST}:{remote}/" in command
-    assert command.endswith("'/home/a user/NSLS II/pass-319371'")
+    assert command.endswith("'/home/a user/NSLS II/pass-123456'")
     assert "reconnect" in command
 
 
@@ -166,7 +166,7 @@ def test_rclone_config_command_keeps_the_password_out_of_the_config_file():
 
 
 def test_rclone_mount_command_is_read_only_and_platform_aware():
-    remote = "/nsls2/data/smi/proposals/2026-2/pass-319371"
+    remote = "/nsls2/data/smi/proposals/2026-2/pass-123456"
     windows = rclone_mount_command("nsls2", remote, "Z:", "Windows")
     linux = rclone_mount_command("nsls2", remote, "~/NSLS_II_Link/smi", "Linux")
 
@@ -179,8 +179,8 @@ def test_rclone_mount_command_is_read_only_and_platform_aware():
 
 
 def test_rclone_copy_command_can_narrow_to_one_sample():
-    command = rclone_copy_command("nsls2", "/nsls2/data/x", "/home/me/data", "Linux", "*Kim*")
-    assert command.endswith("--progress --include '*Kim*'")
+    command = rclone_copy_command("nsls2", "/nsls2/data/x", "/home/me/data", "Linux", "*sampleA*")
+    assert command.endswith("--progress --include '*sampleA*'")
     assert "--include" not in rclone_copy_command(
         "nsls2", "/nsls2/data/x", "/home/me/data", "Linux"
     )
@@ -198,7 +198,7 @@ def test_rclone_install_command_includes_the_fuse_driver():
 
 
 def test_sftp_download_command_creates_the_target_and_recurses():
-    remote = "/nsls2/data/smi/proposals/2026-2/pass-319371/Results/giwaxs"
+    remote = "/nsls2/data/smi/proposals/2026-2/pass-123456/Results/giwaxs"
     linux = sftp_download_command("yuzhang", remote, "~/data/giwaxs", "Linux")
     windows = sftp_download_command("yuzhang", remote, r"C:\data\giwaxs", "Windows")
 
