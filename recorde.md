@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.8.0`
+- Current package version: `0.9.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -105,7 +105,10 @@ folders hold only AgBH calibration frames, which the default filter hides.
 16. Filtering is always must-contain / may-contain / must-not-contain, in that
     order, on every page. An AND-only box cannot express "UV_20 or UV_30", which
     is the commonest request.
-17. Renaming a shipped file needs the `setup.py` shim to keep working: pip
+17. The Python Console runs the user's code in-process on purpose; that is the
+    feature. The one guard that matters is `is_local_only` — do not remove it,
+    and do not let the page render its editor on a non-loopback bind.
+18. Renaming a shipped file needs the `setup.py` shim to keep working: pip
     builds a local directory in place and setuptools never removes files from
     `build/lib`, so a rename otherwise ships both names. For pages that is fatal
     — Streamlit rejects two pages with the same inferred URL. `cli.py` also
@@ -171,6 +174,11 @@ Core logic, all Streamlit-free:
 - `src/pyscattviz/mounts.py`: proposal validation plus SSHFS, rclone, GVFS, and
   `sftp -r` command generation and the per-platform method registry.
 - `src/pyscattviz/filters.py`: the boolean filename expression language.
+- `src/pyscattviz/codegen.py`: turns GUI state into a runnable script. Pure text
+  generation, and every generator is executed in `tests/test_codegen.py` — a
+  snippet that raises on the first line is worse than none.
+- `src/pyscattviz/console.py`: notebook-style execution of a snippet, plus
+  `is_local_only`, which gates the console on a loopback bind address.
 - `src/pyscattviz/shell.py`: the read-only terminal. Every verb is parsed and
   carried out with `pathlib`; nothing reaches a system shell. `select`/`save`
   build the same named collections Data Selection reads.
@@ -231,7 +239,7 @@ Tests:
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           371 passed
+python -m pytest -q           413 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps

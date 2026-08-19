@@ -23,6 +23,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from pyscattviz.app.components.codeview import render_code_export
 from pyscattviz.app.components.files import (
     cached_arrays,
     cached_curve,
@@ -32,6 +33,7 @@ from pyscattviz.app.components.files import (
 )
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 from pyscattviz.app.components.scattering import CMAPS, color_limits, downsample, log_scale
+from pyscattviz.codegen import curve_overlay_code, image_code, stack_code
 from pyscattviz.data_sources import load_path_mappings
 from pyscattviz.dataio import (
     ARRAY_SUFFIXES,
@@ -328,6 +330,27 @@ with tab_1d:
 
                 plotted = [curve for curve in curves if "plot_x" in curve]
                 export_table = pd.concat(export_frames, axis=1) if export_frames else None
+                render_code_export(
+                    curve_overlay_code(
+                        [curve["path"] for curve in plotted],
+                        x_column=None if x_column == "auto" else x_column,
+                        y_column=None if y_column == "auto" else y_column,
+                        normalization=normalization,
+                        reference_x=float(reference_x),
+                        offset=float(offset),
+                        multiplier=float(multiplier),
+                        log_x=log_x,
+                        log_y=log_y,
+                        x_min=x_min,
+                        x_max=x_max,
+                        title=title,
+                        xlabel=curves[0]["x_name"],
+                        ylabel=curves[0]["y_name"],
+                    ),
+                    key="quickplot_1d_code",
+                    tab_name=TAB_NAME,
+                    filename=f"overlay_{len(plotted)}_curves",
+                )
                 render_save_panel(
                     TAB_NAME,
                     f"curves_{len(plotted)}",
@@ -539,6 +562,20 @@ with tab_stack:
 
                     stack_table = pd.DataFrame(matrix.T, columns=names)
                     stack_table.insert(0, stacked[0]["x_name"], grid)
+                    render_code_export(
+                        stack_code(
+                            [curve["path"] for curve in stacked],
+                            points=int(grid_points),
+                            log_x=stack_logx,
+                            log_intensity=stack_logI,
+                            x_min=stack_xmin,
+                            x_max=stack_xmax,
+                            cmap=stack_cmap,
+                        ),
+                        key="quickplot_stack_code",
+                        tab_name=TAB_NAME,
+                        filename=f"stack_{len(names)}_curves",
+                    )
                     render_save_panel(
                         TAB_NAME,
                         f"stack_{len(names)}_curves",
@@ -642,6 +679,20 @@ with tab_2d:
                 f"{shown.shape[0]} × {shown.shape[1]} after decimation."
             )
 
+            render_code_export(
+                image_code(
+                    chosen_2d,
+                    array_name,
+                    log_intensity=log_2d,
+                    cmap=cmap_2d,
+                    percentiles=(percentiles[0], percentiles[1]),
+                    equal_aspect=equal_2d,
+                    flip=flip_2d,
+                ),
+                key="quickplot_2d_code",
+                tab_name=TAB_NAME,
+                filename=f"{Path(chosen_2d).stem}_{array_name}",
+            )
             render_save_panel(
                 TAB_NAME,
                 f"{Path(chosen_2d).stem}_{array_name}",

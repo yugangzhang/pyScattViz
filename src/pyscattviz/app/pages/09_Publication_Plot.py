@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.components.codeview import render_code_export
 from pyscattviz.app.components.datasource import (
     apply_term_filters,
     render_folder_picker,
@@ -17,6 +18,7 @@ from pyscattviz.app.components.scattering import (
     index_frames,
     load_cir,
 )
+from pyscattviz.codegen import publication_code
 from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
 from pyscattviz.plotting import fig_to_bytes
@@ -175,6 +177,24 @@ curve_frames = [
 ]
 curve_table = pd.concat(curve_frames, axis=1) if curve_frames else None
 
+render_code_export(
+    publication_code(
+        [rows.loc[stem, "cir"] for stem in selected if stem in rows.index],
+        theme=theme,
+        normalization=normalization,
+        q_min=q_min,
+        q_max=q_max,
+        offset=float(offset),
+        log_x=logx,
+        log_y=logy,
+        title=title,
+        figsize=(float(figure_width), float(figure_height)),
+        legend=legend,
+    ),
+    key="publication_code",
+    tab_name=TAB_NAME,
+    filename=f"publication_{len(selected)}_curves",
+)
 render_save_panel(
     TAB_NAME,
     f"curves_{len(selected)}_{theme}",

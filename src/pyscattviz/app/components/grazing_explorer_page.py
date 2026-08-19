@@ -38,6 +38,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from pyscattviz.app.components.batch import render_batch_export
+from pyscattviz.app.components.codeview import render_code_export
 from pyscattviz.app.components.datasource import (
     apply_term_filters,
     render_folder_picker,
@@ -84,6 +85,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.components.scattering import (
     style_1d_axes as _style_1d_axes,
 )
+from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
 
@@ -731,6 +733,28 @@ if rendered_figures:
             f"Written under the {PROFILE['name']}_Explorer subfolder of the output "
             "root. HTML stays interactive; PNG/SVG/PDF need the free kaleido package."
         ),
+    )
+    render_code_export(
+        frame_panel_code(
+            analysis_root,
+            str(sel["stem"]),
+            {
+                "A · raw": "stitched",
+                "QC image": "qc",
+                "B · q-image": "q_image",
+                "C · q–φ map": "qphi",
+                "D · circular average": "cir_avg",
+                "D · I(q)": "cir_avg",
+                "A · stitched raw": "stitched",
+            }.get(chosen_panel, "cir_avg"),
+            cmap=cmap,
+            log_intensity=logI,
+            b_mode=b_mode,
+            log_q=logq,
+        ),
+        key=f"{STATE_PREFIX}_panel_code",
+        tab_name=f"{PROFILE['name']} Explorer",
+        filename=f"{sel['stem']}_panel",
     )
     render_batch_export(
         work,

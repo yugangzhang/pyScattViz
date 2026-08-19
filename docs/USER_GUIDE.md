@@ -30,6 +30,27 @@ The application has eleven task pages in addition to Home.
     written there.
 12. **Terminal** gives `ls`, `cd`, `cat`, `find` and friends over a mounted or
     local folder, and builds the named file lists the plotting pages read.
+13. **Python Console** runs your own code against the session's data.
+
+## From clicking to code
+
+Every plotting page offers **🐍 Python for this figure** — the script behind
+what is on screen, using only the public API, with the file paths written out.
+It runs unchanged in a notebook or a terminal. Each generator is executed by the
+test suite, so what is shown is code that works.
+
+The **Python Console** starts with the session loaded: `basket` (the current
+file list), `folder` (the active data folder), the readers (`read_curve`,
+`read_table`, `read_arrays`, `read_image`, `stack_curves`), the selection
+helpers (`ls_dir`, `find_files`, `find_folders`), `pv`/`np`/`pd`/`plt`/`go`, and
+the saving helpers. A trailing expression is echoed as in a notebook, `print`
+output is captured, and figures and DataFrames are rendered. Names persist
+between runs; **Reset names** clears them.
+
+The console executes your code in this process with your permissions, which is
+the same as typing it at a Python prompt. It is disabled when the server is
+bound to a non-loopback address, because then the browser typing the code might
+not be yours.
 
 ## Choosing the folder, and narrowing the frames
 

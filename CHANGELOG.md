@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.0
+
+- Every plotting page can now hand over **the Python behind the figure on
+  screen** — Quick Plot's 1D overlay, stacked map and 2D image, the Publication
+  Plot, and the explorer panels. The script uses only the public API, writes out
+  the file paths, and runs unchanged in a notebook or a terminal. Each generator
+  is executed in the test suite, because a snippet that raises on the first line
+  is worse than no snippet.
+- Added a **Python Console** page. Write and run your own code against the data
+  the session already has: `basket` is the current file list, `folder` the
+  active data folder, and the readers, plotting API, and save helpers are
+  already imported. A trailing expression is echoed as in a notebook, printed
+  output is captured, matplotlib and Plotly figures and DataFrames are rendered,
+  and names persist between runs. Four worked examples are built in.
+- Generated code can be downloaded, saved beside the figures, or opened straight
+  in the console with one button.
+- The console refuses to run anything when the server has been bound to an
+  address other people can reach. pyScattViz listens on 127.0.0.1 by default;
+  running code typed into a browser is only reasonable when the browser is
+  yours.
+
 ## 0.8.0
 
 - Added a **Terminal** page. `ls`, `cd`, `cat`, `head`, `tail`, `find`, `wc` and

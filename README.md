@@ -36,6 +36,7 @@ The application runs locally on Windows, macOS, and Linux, listens on
 | **Plotting Studio** | 1D, 2D, 3D, and multi-axes workspaces on the `pyscattviz.plotting` API |
 | **Output Folder** | Where saved figures go, and what has been written there |
 | **Terminal** | `ls`, `cd`, `cat`, `find` over a mounted folder, and `select` to build a named list every plotting tab reads |
+| **Python Console** | Your own code against the session's data, with the readers and plotting API already imported |
 
 Each explorer can also export one panel for *every* frame that passes its
 filters, which turns an angle series or an in-situ run into a folder of figures
@@ -797,6 +798,45 @@ That list *is* the dataset basket, so it shows up immediately in Quick Plot, in
 Publication Plot, and in the explorers. `save <name>` keeps it as a named
 collection under `~/.pyscattviz/collections/`, and `load <name>` brings it back
 next week. Type `help` in the page to see every command.
+
+## From clicking to code
+
+Clicking is fast for looking; a script is what you keep. Every plotting page —
+Quick Plot's 1D overlay, stacked map and 2D image, the Publication Plot, and the
+explorer panels — offers **🐍 Python for this figure**: the code behind what is
+on screen, written out with the file paths, using only the public API. It runs
+unchanged in a notebook, in a terminal, or in the console below. Download it,
+save it beside the figures, or open it in the console with one button.
+
+The **Python Console** page is where it continues. The namespace arrives loaded:
+
+| Name | What it is |
+|---|---|
+| `basket` | the current file list, from the Terminal or Data Selection |
+| `folder` | the active data folder |
+| `read_curve`, `read_table`, `read_arrays`, `read_image`, `stack_curves` | the readers |
+| `ls_dir`, `find_files`, `find_folders` | the same selection helpers the GUI uses |
+| `pv`, `np`, `pd`, `plt`, `go` | plotting and the usual scientific stack |
+| `build_curve_figure`, `save_matplotlib_figure`, `resolve_output_dir` | figures and saving |
+
+A trailing expression is echoed as in a notebook, `print` output is captured,
+and matplotlib figures, Plotly figures and DataFrames are rendered. Names persist
+between runs, so a session builds up. Four worked examples are built in — an
+overlay, a power-law fit, a folder listing, and writing a figure to disk:
+
+```python
+curve = read_curve(basket[0])
+q, intensity = curve["x"], curve["y"]
+
+window = (q > 0.01) & (q < 0.05) & (intensity > 0)
+slope, _ = np.polyfit(np.log10(q[window]), np.log10(intensity[window]), 1)
+print(f"I(q) ~ q^{slope:.2f}")
+```
+
+The console runs your code in this process with your permissions — the same as
+typing it at a Python prompt, which is the point. It refuses to run at all if the
+server has been bound to an address other people can reach; pyScattViz listens
+on `127.0.0.1` by default.
 
 ## Saving figures to your own folder
 
