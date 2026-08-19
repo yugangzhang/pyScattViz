@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0
+
+- Replaced the Windows mount recommendation with the free RaiDrive SFTP client,
+  verified against the NSLS-II server with BNL password, Duo Push, and a mounted
+  Windows drive.
+- Added proposal, beamline-proposals, `/nsls2/data`, and validated custom mount
+  scopes while retaining proposal scope as the safest default.
+- Split GISAXS, GIWAXS, transmission SAXS, and transmission WAXS into independent
+  pages with geometry-specific q ranges, detector paths, cut widths, and log-axis
+  defaults.
+- Added a Plotting Studio exposing the consolidated 1D, 2D, 3D, and multi-axes
+  plotting tools with safe uploads, selected q-images, interactive controls, and
+  data/figure export.
+- Improved interactive 2D percentile clipping, log-color labeling, and physical
+  coordinate handling.
+
 ## 0.5.0
 
 - Removed the Globus browser, transfer workflow, CLI dependency, and remote

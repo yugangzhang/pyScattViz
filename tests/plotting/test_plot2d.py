@@ -69,6 +69,15 @@ def test_imshow_interactive():
     assert hasattr(fig, "update_layout")
 
 
+def test_imshow_interactive_honors_log_percentile_range():
+    from pyscattviz.plotting.plot2d import imshow
+
+    image = np.arange(1, 101, dtype=float).reshape(10, 10)
+    fig = imshow(image, interactive=True, log=True, zlim=(0.1, 0.9))
+    assert fig.layout.coloraxis.cmin is not None
+    assert fig.layout.coloraxis.cmax is not None
+
+
 def test_imshow_z_linear():
     from pyscattviz.plotting.plot2d import imshow_z
 
@@ -145,6 +154,15 @@ def test_heatmap_interactive():
 
     fig = heatmap(np.random.rand(10, 10), interactive=True)
     assert hasattr(fig, "update_layout")
+
+
+def test_heatmap_interactive_uses_coordinate_edges_as_centers():
+    from pyscattviz.plotting.plot2d import heatmap
+
+    data = np.arange(6).reshape(2, 3)
+    fig = heatmap(data, x=np.arange(4), y=np.arange(3), interactive=True)
+    assert list(fig.data[0].x) == [0.5, 1.5, 2.5]
+    assert list(fig.data[0].y) == [0.5, 1.5]
 
 
 def test_imshow_on_existing_ax():

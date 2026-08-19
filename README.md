@@ -354,11 +354,24 @@ The example used below is:
 /nsls2/data/smi/proposals/2026-2/pass-319371
 ```
 
+The GUI supports several mount scopes:
+
+| Scope | Remote root | Recommended use |
+|---|---|---|
+| Proposal | `/nsls2/data/smi/proposals/2026-2/pass-319371` | Safest default for collaborators |
+| Beamline proposals | `/nsls2/data/smi/proposals` | Several authorized SMI proposals |
+| NSLS-II data | `/nsls2/data` | Staff working across beamlines |
+| Custom | Any validated path below `/nsls2/data` | A specific project or results tree |
+
+A broader mount exposes more directory names and may be slower to browse. It
+does not grant new permissions: the SFTP server still enforces the BNL account's
+authorization.
+
 ### Windows 10 or 11
 
-Windows OpenSSH can authenticate to the NSLS-II SFTP server with BNL password
-and Duo, but SSHFS-Win cannot complete this keyboard-interactive 2FA sequence.
-The practical native-Windows mount is Mountain Duck:
+The verified native-Windows route is the free RaiDrive SFTP client. It has been
+tested with the NSLS-II server, BNL password, Duo Push, and a mounted `Z:` drive.
+pyScattViz needs read access only.
 
 1. Connect to the BNL VPN if the SFTP service is unavailable from the current
    network.
@@ -375,16 +388,21 @@ The practical native-Windows mount is Mountain Duck:
    exit
    ```
 
-4. Install the [Mountain Duck Windows trial](https://mountainduck.io/). It is
-   commercial software after the trial.
-5. Create an **SFTP** bookmark:
+4. Install [RaiDrive](https://www.raidrive.com/) from PowerShell:
+
+   ```powershell
+   winget install --exact --id OpenBoxLab.RaiDrive
+   ```
+
+5. Open RaiDrive, add a new **SFTP** storage connection, and enter:
 
    ```text
-   Server:       sftp.nsls2.bnl.gov
+   Address:      sftp.nsls2.bnl.gov
    Port:         22
    Username:     your BNL username
    Path:         /nsls2/data/smi/proposals/2026-2/pass-319371
-   Connect mode: Online
+   Drive letter: Z: (or another available letter)
+   Access:       Read-only, when available
    ```
 
 6. Verify the server's ED25519 fingerprint before accepting it:
@@ -393,9 +411,9 @@ The practical native-Windows mount is Mountain Duck:
    SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE
    ```
 
-7. Connect using the BNL password and Duo. **Online** mode downloads an opened
-   file through an on-demand local cache. It does not synchronize the complete
-   proposal. Disconnect the bookmark when the review is finished.
+7. Connect, complete the BNL password and Duo Push prompts, and confirm that the
+   drive opens in File Explorer. A mounted filesystem reads remote file bytes
+   when an application opens them; it does not copy the complete proposal.
 8. In **Data Sources & Mounts**, enter the mounted location shown by File
    Explorer, select **Test mounted path**, then **Register mount for File
    Selection**.
@@ -409,10 +427,14 @@ The practical native-Windows mount is Mountain Duck:
    Use the actual drive or mounted location shown on the computer; it may not
    be `Z:`.
 
-Free Windows alternatives are running pyScattViz and Linux SSHFS inside WSL, or
-asking NSLS-II support to register an SSH public key and then using SSHFS-Win
-key authentication. Do not retry `\\sshfs.r\...` with a password: that provider
-does not support the required Duo prompt.
+The mounted account may have write permission. For scientific review, enable
+read-only access when possible and do not rename, move, or delete proposal
+content. The pyScattViz folder command bar itself implements only `pwd`, `ls`,
+`cd`, and bounded `du`; it does not provide write commands.
+
+SSHFS-Win is not used for password authentication because its Windows provider
+cannot complete the separate Duo prompt. WSL plus Linux SSHFS remains another
+free option for advanced users.
 
 ### Linux
 
@@ -481,9 +503,6 @@ select Duo option `1`, approve the push, and register the mounted folder under
 umount "$HOME/NSLS_II_Link/smi-pass-319371"
 ```
 
-Mountain Duck Online mode is also available on macOS when a desktop mount is
-preferred.
-
 ### Mount troubleshooting
 
 - `Permission denied` usually means the BNL password/Duo authentication failed
@@ -514,6 +533,41 @@ Adjacent terms imply `AND`. A pasted or uploaded filename list provides exact
 selection. Product prefixes and extensions are normalized, so
 `Cir_Avg_sample.tif.csv`, `qimg_sample.tif.npz`, and `sample` select the same
 frame.
+
+## Geometry-specific scattering explorers
+
+The four experiment geometries have independent pages and independent widget
+state. They share tested file loaders and plotting primitives, but not a single
+set of scientific defaults.
+
+| Explorer | Default q window (Å⁻¹) | Default q axis | Primary review tools |
+|---|---:|---|---|
+| GISAXS | 0.001–0.5 | logarithmic I(q) | low-q qx/qz maps and band cuts |
+| GIWAXS | 0–3.0 | linear q | wide-q orientation maps and q–φ cuts |
+| Transmission SAXS | 0.001–0.5 | logarithmic I(q) | SAXS detector path, anisotropy, low-q I(q) |
+| Transmission WAXS | 0–3.5 | linear q | WAXS detector path, orientation, high-q I(q) |
+
+These are starting ranges, not hard limits. Every explorer exposes editable
+axis limits, intensity limits, detector/raw paths, line-cut centers and widths,
+filename filtering, and product selection. Large 2D products are downsampled
+for browser display; line cuts use the selected loaded array.
+
+## Plotting Studio
+
+The **Plotting Studio** restores the principal plotting tools to the web GUI:
+
+- **1D:** multiple curves, normalization, log axes, markers, unified hover, and
+  plotted-table CSV download;
+- **2D:** NPY/NPZ, numeric table, detector-image, or saved q-image input with
+  robust percentile contrast and linear/log color display;
+- **3D:** interactive surfaces, wireframes, and top-down contours from demo or
+  uploaded matrices;
+- **Multi-axes:** grids, main-plus-residual layouts, and named mosaics using the
+  science, notebook, presentation, or poster themes, with PNG/SVG/PDF export.
+
+The page uses the same supported `pyscattviz.plotting` functions available to
+notebooks and scripts. NPY/NPZ uploads are loaded with Python object pickles
+disabled.
 
 ## Publication plots
 

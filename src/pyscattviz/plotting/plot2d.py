@@ -517,17 +517,26 @@ def _imshow_plotly(image, **kwargs):
     import plotly.express as px
 
     log = kwargs.get("log", False)
-    img = image.copy()
+    img = np.asarray(image, dtype=float).copy()
+    vmin = kwargs.get("vmin")
+    vmax = kwargs.get("vmax")
+    zlim = kwargs.get("zlim")
+    if zlim is not None and vmin is None and vmax is None:
+        vmin, vmax = _apply_zlim(img, zlim, logs=log)
     if log:
         pos_min = img[img > 0].min() if np.any(img > 0) else 1e-10
         img[img <= 0] = pos_min / 10.0
         img = np.log10(img)
+        vmin = np.log10(max(vmin, pos_min / 10.0)) if vmin is not None else None
+        vmax = np.log10(max(vmax, pos_min / 10.0)) if vmax is not None else None
 
     fig = px.imshow(
         img,
         color_continuous_scale=kwargs.get("cmap", "viridis"),
+        range_color=(vmin, vmax) if vmin is not None or vmax is not None else None,
         origin=kwargs.get("origin", "lower"),
         aspect=kwargs.get("aspect", "auto"),
+        labels={"color": "log₁₀(value)" if log else "value"},
     )
     layout_kw = {}
     if "title" in kwargs:
@@ -568,8 +577,12 @@ def _heatmap_plotly(data, x=None, y=None, dtype="ndarray", **kwargs):
     else:
         z, _ = to_array(data)
         z = np.atleast_2d(z).astype(float)
-        x_labels = None
-        y_labels = None
+        x_labels, _ = to_array(x) if x is not None else (None, None)
+        y_labels, _ = to_array(y) if y is not None else (None, None)
+        if x_labels is not None and len(x_labels) == z.shape[1] + 1:
+            x_labels = (x_labels[:-1] + x_labels[1:]) / 2
+        if y_labels is not None and len(y_labels) == z.shape[0] + 1:
+            y_labels = (y_labels[:-1] + y_labels[1:]) / 2
 
     fig = px.imshow(
         z,

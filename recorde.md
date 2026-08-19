@@ -8,8 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.5.0`
-- Mount-only baseline commit: `7ecda70` (`Replace Globus workflow with SFTP mounts`)
+- Current package version: `0.6.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -41,35 +40,43 @@ The server's observed ED25519 fingerprint is:
 SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE
 ```
 
+The user then verified the free RaiDrive client on Windows. BNL password and
+Duo succeeded, the SFTP storage appeared as `Z:`, proposal folders were
+browsable, and the account's write permission was confirmed by creating a test
+folder. pyScattViz should nevertheless recommend read-only mounting for review.
+
 ## Current design decisions
 
-1. Globus was removed from the web GUI, Python modules, dependency list, tests,
-   and current documentation. Historical changelog entries remain historical.
-2. pyScattViz now reads only normal local or mounted filesystem paths.
-3. The GUI must never request or store a BNL password, Duo response, token, or
+1. pyScattViz reads only normal local or mounted filesystem paths.
+2. The GUI must never request or store a BNL password, Duo response, token, or
    private key.
-4. Interactive authentication must happen in a real terminal or desktop SFTP
+3. Interactive authentication must happen in a real terminal or desktop SFTP
    mount client. The GUI may generate commands, explain setup, validate a mount,
    and save path mappings.
-5. Linux and macOS use direct SSHFS mounting through
+4. Linux and macOS use direct SSHFS mounting through
    `sftp.nsls2.bnl.gov`. The **Data Sources & Mounts** page generates the exact
    proposal-specific command.
-6. Native Windows SSHFS-Win password mounting is not recommended because it
+5. Native Windows SSHFS-Win password mounting is not recommended because it
    could not complete BNL keyboard-interactive Duo authentication (`net use`
    ended with system error 67). Do not repeat that path unless key-based access
    has first been arranged with NSLS-II support.
-7. The current native-Windows recommendation is a Mountain Duck SFTP bookmark
-   in **Online** mode. This still fetches and may locally cache bytes for files
-   that an application opens; it does not synchronize the complete proposal.
-   Mountain Duck is commercial after its trial.
-8. WSL plus Linux SSHFS is the free Windows alternative. It is more involved
-   because pyScattViz and the mount should both run in the WSL environment.
+6. The verified native-Windows recommendation is the free RaiDrive SFTP client.
+   Use read-only access when possible. A mount fetches bytes for opened files
+   but does not synchronize the complete proposal.
+7. Proposal scope is the safest default. Authorized staff may instead mount a
+   beamline proposal root, `/nsls2/data`, or a validated custom subpath.
+8. GISAXS, GIWAXS, transmission SAXS, and transmission WAXS have independent
+   pages and scientific defaults.
+9. The Plotting Studio exposes 1D, 2D, 3D, and multi-axes workflows using the
+   supported `pyscattviz.plotting` API.
 
 ## Application workflow
 
 1. Open **Data Sources & Mounts**.
-2. Enter beamline `SMI`, cycle `2026-2`, proposal `319371`, and the BNL username.
-3. Select Windows, Linux, or macOS instructions.
+2. Select the mount scope and enter beamline `SMI`, cycle `2026-2`, proposal
+   `319371`, and the BNL username as needed.
+3. On Windows, configure RaiDrive SFTP with the generated remote root and an
+   available drive such as `Z:`. Linux/macOS use the generated SSHFS command.
 4. Complete password/Duo authentication outside the browser.
 5. Return to the GUI and enter the mounted path.
 6. Select **Test mounted path**.
@@ -77,8 +84,9 @@ SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE
 8. Open **File Selection** and browse with its `pwd`, `ls`, `cd`, and bounded
    `du` commands, or paste the original `/nsls2/...` result path. A pasted remote
    path works only when a corresponding available mount mapping is registered.
-9. Scan filenames, select frames, and open a scattering viewer. Array data are
-   opened only for the active frame.
+9. Scan filenames, select frames, and open the geometry-specific scattering
+   viewer. Array data are opened only for the active frame.
+10. Use Plotting Studio for interactive 1D/2D/3D or multi-axes figures.
 
 Mappings contain paths only and are saved at:
 
@@ -113,38 +121,37 @@ Do not recreate `.venv` after every pull when
 - `src/pyscattviz/mounts.py`: proposal validation and SSHFS command generation.
 - `src/pyscattviz/app/pages/2_File_Selection.py`: mounted/local filesystem
   browsing and lazy filename selection.
+- `src/pyscattviz/app/components/grazing_explorer_page.py`: shared low-level
+  renderer with independent GISAXS/GIWAXS profiles.
+- `src/pyscattviz/app/components/transmission_explorer_page.py`: shared
+  low-level renderer with independent TSAXS/TWAXS profiles.
+- `src/pyscattviz/app/pages/8_Plotting_Studio.py`: 1D, 2D, 3D, and multi-axes
+  GUI workspaces.
+- `src/pyscattviz/studio.py`: safe upload adapters and deterministic demos.
 - `src/pyscattviz/data_sources.py`: persistent remote-to-mounted path mapping.
 - `tests/test_mounts.py` and `tests/test_app_smoke.py`: mount and GUI regression
   coverage.
 
 ## Last verification
 
-The mount-only `0.5.0` implementation passed:
+The `0.6.0` implementation passed:
 
 ```text
-python -m pytest -q           156 passed
+python -m pytest -q           169 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps
 ```
 
-The clean wheel was inspected and contained neither the deleted Globus modules
-nor the deleted Globus page or dependency.
-
 ## Next work
 
-1. Have the user pull and install the latest `main` on Windows.
-2. Confirm that **Data Sources & Mounts** opens and retains the proposal fields
-   while navigating between pages.
-3. Test Mountain Duck with BNL password/Duo and **Online** mode. This specific
-   desktop mount has not yet been confirmed by the user.
-4. Register the actual Windows mount location, browse to the GIWAXS result
-   folder, scan a small filename filter, and open one `cir_avg` or `q_image`
-   frame.
-5. If Mountain Duck authentication fails, capture its exact error and version.
-   Investigate WSL SSHFS or NSLS-II-approved public-key authentication. Do not
-   restore the Globus GUI unless the user explicitly changes the mount-only
-   requirement.
+1. Have the user pull and install `0.6.0` on Windows.
+2. Register the verified RaiDrive `Z:` mapping at the chosen remote scope.
+3. Browse to the GIWAXS result folder, scan a small filename filter, and open
+   one `cir_avg` or `q_image` frame.
+4. Verify the separate GISAXS, GIWAXS, TSAXS, and TWAXS q defaults against real
+   beamline outputs and adjust only with scientific evidence.
+5. Exercise Plotting Studio with representative user CSV and NPZ files.
 
 ## Suggested prompt for a new chat
 

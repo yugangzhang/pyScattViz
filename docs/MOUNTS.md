@@ -26,12 +26,13 @@ the browser and never stores passwords, Duo codes, or SSH keys.
 ## Application workflow
 
 1. Open **Data Sources & Mounts**.
-2. Enter beamline, cycle, proposal, and BNL username.
-3. Select the operating system and follow the generated instructions.
-4. Complete BNL password and Duo authentication outside the web GUI.
-5. Return to the page and select **Test mounted path**.
-6. Select **Register mount for File Selection**.
-7. Browse from the proposal mount to `projects/.../Results/giwaxs`, `gisaxs`,
+2. Choose proposal, beamline-proposals, `/nsls2/data`, or a custom mount scope.
+3. Enter the beamline/proposal information required by that scope and the BNL username.
+4. Select the operating system and follow the generated instructions.
+5. Complete BNL password and Duo authentication outside the web GUI.
+6. Return to the page and select **Test mounted path**.
+7. Select **Register mount for File Selection**.
+8. Browse from the proposal mount to `projects/.../Results/giwaxs`, `gisaxs`,
    `tsaxs`, or `twaxs` in File Selection.
 
 The saved mapping contains paths only and is stored in:
@@ -43,14 +44,17 @@ The saved mapping contains paths only and is stored in:
 ## Windows
 
 Windows OpenSSH successfully supports BNL password and Duo authentication, but
-SSHFS-Win does not support the keyboard-interactive 2FA exchange. Use Mountain
-Duck with an SFTP bookmark and **Online** connect mode. Set the server, username,
-and proposal path shown by pyScattViz. Online mode uses an on-demand local cache
-for files that applications open; it does not synchronize the complete proposal.
+SSHFS-Win does not support the separate keyboard-interactive 2FA exchange. Use
+the free RaiDrive SFTP client. This route has been verified with BNL password,
+Duo Push, and an NSLS-II proposal mounted as a Windows drive.
 
-Mountain Duck is commercial after its trial. Free alternatives are Linux
-SSHFS inside WSL or SSHFS-Win key authentication after NSLS-II support has
-registered an SSH public key for the account.
+Install it with `winget install --exact --id OpenBoxLab.RaiDrive`, then create an
+SFTP connection to `sftp.nsls2.bnl.gov` on port 22. Use the remote root generated
+by pyScattViz and an available drive letter such as `Z:`. Enable read-only access
+when available: visualization does not require remote write access.
+
+The account may still have server-side write permission. Do not rename, move,
+or delete proposal content during review.
 
 ## Linux and macOS
 

@@ -15,11 +15,12 @@ from pyscattviz.data_sources import (
     save_path_mappings,
 )
 from pyscattviz.mounts import (
-    MOUNTAIN_DUCK_URL,
+    RAIDRIVE_URL,
+    RAIDRIVE_WINGET_ID,
     SFTP_HOST,
     SFTP_HOST_KEY_FINGERPRINT,
     make_mount_folder_command,
-    proposal_path,
+    mount_remote_path,
     sftp_test_command,
     sshfs_mount_command,
     suggested_mount_folder,
@@ -31,6 +32,21 @@ st.title("🗂️ Data Sources & Mounts")
 st.caption("Mount NSLS-II data on demand, then register the mounted/local folder.")
 
 st.session_state.setdefault("pyscattviz_path_mappings", load_path_mappings())
+
+scope_key = prepare_persistent_widget(
+    st.session_state, "pyscattviz_mount_scope", "Proposal"
+)
+scope = st.selectbox(
+    "Remote mount scope",
+    ["Proposal", "Beamline proposals", "NSLS-II data", "Custom"],
+    key=scope_key,
+    on_change=store_persistent_widget,
+    args=(st.session_state, "pyscattviz_mount_scope"),
+    help=(
+        "Proposal is safest and fastest. A broader root is convenient for users who "
+        "work across proposals, but it exposes more directory names in the mounted drive."
+    ),
+)
 
 top1, top2, top3, top4 = st.columns([1, 1, 1, 1])
 beamline_key = prepare_persistent_widget(
@@ -74,15 +90,28 @@ username = top4.text_input(
     placeholder="yuzhang",
 )
 
+custom_path = ""
+if scope == "Custom":
+    custom_key = prepare_persistent_widget(
+        st.session_state, "pyscattviz_mount_custom_path", "/nsls2/data"
+    )
+    custom_path = st.text_input(
+        "Custom NSLS-II folder",
+        key=custom_key,
+        on_change=store_persistent_widget,
+        args=(st.session_state, "pyscattviz_mount_custom_path"),
+        placeholder="/nsls2/data/smi/proposals",
+    )
+
 remote_root = ""
-if proposal:
-    try:
-        remote_root = proposal_path(beamline, cycle, proposal)
-    except ValueError as exc:
+try:
+    remote_root = mount_remote_path(scope, beamline, cycle, proposal, custom_path)
+except ValueError as exc:
+    if scope != "Proposal" or proposal:
         st.error(str(exc))
-    else:
-        st.markdown("**Remote proposal folder**")
-        st.code(remote_root, language=None)
+else:
+    st.markdown("**Remote folder to mount**")
+    st.code(remote_root, language=None)
 
 mount_tab, folders_tab = st.tabs(["Mount setup", "Mounted / local folders"])
 
@@ -111,27 +140,35 @@ with mount_tab:
     )
 
     if platform_name == "Windows":
-        st.subheader("Windows: Mountain Duck SFTP mount")
-        st.markdown(
-            "The standard SSHFS-Win drive provider cannot complete BNL's "
-            "keyboard-interactive Duo sequence. Mountain Duck supports SFTP with Duo "
-            "and its **Online** mode fetches a file only when an application opens it."
+        st.subheader("Windows: RaiDrive SFTP mount")
+        st.success(
+            "RaiDrive has been verified with the NSLS-II SFTP server, BNL password, "
+            "Duo Push, and a mounted Windows drive such as Z:."
         )
-        st.link_button("Download Mountain Duck for Windows", MOUNTAIN_DUCK_URL)
+        st.markdown(
+            "Install the free RaiDrive edition from PowerShell or download it from "
+            "the official site. pyScattViz needs read access only."
+        )
+        st.code(
+            f"winget install --exact --id {RAIDRIVE_WINGET_ID}",
+            language="powershell",
+        )
+        st.link_button("Download RaiDrive for Windows", RAIDRIVE_URL)
         st.markdown(
             """
-Create a new bookmark with these settings:
+In RaiDrive, add a new **SFTP** storage connection with these settings:
 
-- **Protocol:** SFTP (SSH File Transfer Protocol)
-- **Server:** `sftp.nsls2.bnl.gov`
+- **Type:** SFTP
+- **Address:** `sftp.nsls2.bnl.gov`
 - **Port:** `22`
 - **Username:** your BNL username
-- **Path:** the remote proposal folder shown above
-- **Connect mode:** **Online**
+- **Path:** the remote folder shown above
+- **Drive letter:** `Z:` or any available letter
+- **Access:** read-only when that option is available
 
-Connect, enter the BNL password, enter `1` at the Duo choice, and approve the
-push. If a host-key dialog appears, verify the fingerprint below. The mounted
-location then appears in Windows File Explorer.
+Connect, complete the BNL password and Duo Push prompts, and confirm the mounted
+drive in Windows File Explorer. If a host-key dialog appears, verify the
+fingerprint below.
 """
         )
         st.code(SFTP_HOST_KEY_FINGERPRINT, language=None)
@@ -140,9 +177,9 @@ location then appears in Windows File Explorer.
             st.code(sftp_test_command(username), language="powershell")
         suggested_local = "Z:\\"
         st.warning(
-            "Mountain Duck is commercial software with a trial. A free native SSHFS-Win "
-            "mount requires an NSLS-II-registered SSH public key; password + Duo mounting "
-            "is not supported by SSHFS-Win. WSL with Linux SSHFS is the free alternative."
+            "The mounted account may have write permission. Use read-only mode when "
+            "possible and do not rename, move, or delete proposal data during review. "
+            "The File Selection command bar itself provides read-only commands only."
         )
     else:
         st.subheader(f"{platform_name}: SSHFS mount")
@@ -164,7 +201,9 @@ location then appears in Windows File Explorer.
                 "brew install gromgit/fuse/sshfs-mac",
                 language="bash",
             )
-        suggested_local = str(suggested_mount_folder(beamline, proposal))
+        suggested_local = str(
+            suggested_mount_folder(beamline, proposal, scope, custom_path)
+        )
 
     mount_path_name = f"pyscattviz_mount_path_{platform_name.lower()}"
     suggestion_key = f"{mount_path_name}__suggested"

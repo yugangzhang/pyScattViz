@@ -2,17 +2,24 @@
 
 ## Application flow
 
-I organized the application around five pages.
+The application has eight task pages in addition to Home.
 
 1. **Data Sources & Mounts** builds the NSLS-II SFTP path, generates
    platform-specific mount instructions, validates mounts, and records paths.
 2. **File Selection** includes a folder navigator, scans filenames, applies
    boolean or exact-list filters, and saves canonical frame names.
-3. **GISAXS / GIWAXS Explorer** reviews grazing-incidence results.
-4. **Transmission SAXS / WAXS** reviews transmission results and supports
-   editable raw-detector folder locations.
-5. **Publication Plot** turns selected circular averages into static figures
+3. **GISAXS Explorer** reviews low-q grazing-incidence results with GISAXS
+   ranges and qx/qz cut widths.
+4. **GIWAXS Explorer** reviews wide-q grazing-incidence results with GIWAXS
+   ranges and orientation analysis.
+5. **Transmission SAXS** uses SAXS detector defaults, low-q ranges, and log-q
+   I(q) display.
+6. **Transmission WAXS** uses WAXS detector defaults, high-q ranges, and
+   linear-q display.
+7. **Publication Plot** turns selected circular averages into static figures
    for papers, reports, and presentations.
+8. **Plotting Studio** provides interactive 1D, 2D, and 3D workspaces plus an
+   exportable multi-axes builder.
 
 ## Selecting folders
 
@@ -48,6 +55,22 @@ Use the exact-list box for filenames copied from a spreadsheet, log, or Python
 script. Lines and commas are both accepted. Product-specific names are reduced
 to the common frame stem before matching.
 
+## Geometry-specific explorers
+
+The experiment geometries are deliberately separate because their useful q
+ranges, detector locations, line-cut widths, and analysis emphasis differ.
+
+| Geometry | Initial q range (Å⁻¹) | q-axis default | Emphasis |
+|---|---:|---|---|
+| GISAXS | 0.001–0.5 | log for I(q) | low-q qx/qz morphology |
+| GIWAXS | 0–3.0 | linear | wide-q texture and orientation |
+| Transmission SAXS | 0.001–0.5 | log | low-q size/structure and anisotropy |
+| Transmission WAXS | 0–3.5 | linear | high-q peaks and orientation |
+
+Every value remains editable in the page. The four pages retain independent
+widget state and raw-detector choices while sharing the same tested lazy file
+loaders.
+
 ## Understanding the panels
 
 - **Raw / stitched** shows detector or stitched pixel coordinates.
@@ -62,10 +85,29 @@ display while line cuts use the loaded array values.
 
 ## Line cuts
 
-The grazing-incidence viewer supports bands on q-images and q–φ maps. Enter one
-or more centers separated by spaces or commas and set a band width. The shaded
-bands appear on the map, and the averaged profiles appear below the panels.
-Download exports every displayed profile to one CSV table.
+The GISAXS and GIWAXS pages support bands on q-images and q–φ maps. The
+transmission pages focus their cuts on q–φ maps. Enter one or more centers
+separated by spaces or commas and set a band width. The shaded bands appear on
+the map, and the averaged profiles appear below the panels. Download exports
+every displayed profile to one CSV table.
+
+## Plotting Studio
+
+The four Plotting Studio tabs expose the reusable plotting API without writing
+Python code:
+
+- **1D** reads a numeric table, overlays chosen columns, applies maximum or
+  integral normalization, and exports the plotted table.
+- **2D** accepts NPY/NPZ, numeric tables, common detector-image formats, or
+  q-images saved by File Selection. Percentile clipping and log intensity are
+  interactive.
+- **3D** turns a matrix into a rotatable surface or wireframe, or a top-down
+  contour.
+- **Multi-axes** builds grids, main-plus-residual figures, and mosaics with the
+  supported publication themes and PNG/SVG/PDF output.
+
+NPY/NPZ object pickles are disabled. Uploaded content remains in the local
+Streamlit session.
 
 ## Publication figures
 

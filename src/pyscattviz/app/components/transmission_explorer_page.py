@@ -1,4 +1,4 @@
-"""Transmission SAXS / WAXS Explorer — raw · q-image · q–φ map · I(q).
+"""Shared implementation for independent transmission SAXS and WAXS pages.
 
 Transmission-geometry counterpart to the GIWAXS explorer. Point it at a
 ``saxs/`` or ``waxs/`` folder's ``analysis/`` directory (CMS auto-reduction).
@@ -70,24 +70,71 @@ from pyscattviz.app.components.scattering import (
 )
 from pyscattviz.filters import FilterSyntaxError
 
-# Where the 2D raw image lives *relative to the analysis dir*. CMS transmission
-# data keeps it in a sibling ``raw/``; SMI stores it per detector under
-# ``user_data/`` (e.g. ``../../user_data/2M`` for SAXS2M), so it is editable in
-# the sidebar rather than fixed.
-RAW_SUBDIR = "../raw"
-RAW_SUBDIR_CHOICES = ["../raw", "../../user_data/2M", "../../user_data/900KW", "stitched"]
+EXPLORER_MODE = globals().get("EXPLORER_MODE", "tsaxs")
+_PROFILES = {
+    "tsaxs": {
+        "name": "Transmission SAXS",
+        "short": "TSAXS",
+        "icon": "🔬",
+        "folder": "tsaxs",
+        "state": "tsaxs",
+        "description": (
+            "Small-angle transmission review with SAXS detector paths, low-q limits, "
+            "log-q I(q), q–φ anisotropy cuts, and selected-frame loading."
+        ),
+        "logq": True,
+        "q_range": (0.001, 0.5),
+        "q_cut_center": "0.1",
+        "q_cut_width": 0.005,
+        "raw_choices": [
+            "../../user_data/2M",
+            "../raw",
+            "../../user_data/900KW",
+            "stitched",
+        ],
+    },
+    "twaxs": {
+        "name": "Transmission WAXS",
+        "short": "TWAXS",
+        "icon": "🔭",
+        "folder": "twaxs",
+        "state": "twaxs",
+        "description": (
+            "Wide-angle transmission review with WAXS detector paths, high-q limits, "
+            "linear-q I(q), q–φ orientation cuts, and selected-frame loading."
+        ),
+        "logq": False,
+        "q_range": (0.0, 3.5),
+        "q_cut_center": "1.0",
+        "q_cut_width": 0.05,
+        "raw_choices": [
+            "../../user_data/900KW",
+            "../raw",
+            "../../user_data/2M",
+            "stitched",
+        ],
+    },
+}
+PROFILE = _PROFILES[EXPLORER_MODE]
+STATE_PREFIX = f"pyscattviz_{PROFILE['state']}"
+RAW_SUBDIR_CHOICES = PROFILE["raw_choices"]
+RAW_SUBDIR = RAW_SUBDIR_CHOICES[0]
 
 
 # ===========================================================================
-st.set_page_config(page_title="TSAXS Explorer", page_icon="🔬", layout="wide")
+st.set_page_config(
+    page_title=f"{PROFILE['short']} Explorer",
+    page_icon=PROFILE["icon"],
+    layout="wide",
+)
 
-st.title("🔬 Transmission SAXS / WAXS Explorer")
-st.caption("Raw image · q-image · q–φ map · I(q) — with q–φ line-cuts (q, φ).")
+st.title(f"{PROFILE['icon']} {PROFILE['name']} Explorer")
+st.caption(PROFILE["description"])
 
 with st.sidebar:
-    st.header("📁 Analysis folder")
+    st.header(f"📁 {PROFILE['short']} analysis folder")
     analysis = st.text_input(
-        "Data path (tsaxs/twaxs/analysis or one product folder)",
+        f"Data path ({PROFILE['folder']}/analysis or one product folder)",
         value=st.session_state.get("pyscattviz_active_root", ""),
     )
     analysis_available = bool(analysis and Path(analysis).expanduser().is_dir())
@@ -112,7 +159,7 @@ with st.sidebar:
         st.stop()
 
     analysis_root, products, selected_products = scattering_product_selector(
-        "tsaxs_products", analysis
+        f"{PROFILE['state']}_products", analysis
     )
     raw_subdir = st.selectbox(
         "Raw image folder (relative to analysis/)",
@@ -201,7 +248,7 @@ st.markdown(f"**{sel['stem']}**  ·  well `{sel['well']}`  ·  t = {ts}")
 # --- Display controls -------------------------------------------------------
 dc1, dc2, dc3, dc4 = st.columns(4)
 logI = dc1.checkbox("log I (2D panels)", value=True)
-logq = dc2.checkbox("log q (1D)", value=False)
+logq = dc2.checkbox("log q (1D)", value=PROFILE["logq"])
 logiq = dc3.checkbox("log I (1D)", value=True)
 cmap = dc4.selectbox("2D colormap", CMAPS, index=0)  # default Turbo
 
@@ -224,8 +271,12 @@ _PANEL_H = 380
 def _rng(col, label, key, lo_val=None, hi_val=None, fmt="%.4g"):
     """Two side-by-side optional number inputs → (min, max); None means auto."""
     a, b = col.columns(2)
-    lo = a.number_input(f"{label} min", value=lo_val, key=f"{key}_lo", format=fmt)
-    hi = b.number_input(f"{label} max", value=hi_val, key=f"{key}_hi", format=fmt)
+    lo = a.number_input(
+        f"{label} min", value=lo_val, key=f"{STATE_PREFIX}_{key}_lo", format=fmt
+    )
+    hi = b.number_input(
+        f"{label} max", value=hi_val, key=f"{STATE_PREFIX}_{key}_hi", format=fmt
+    )
     return lo, hi
 
 
@@ -254,13 +305,27 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     a_yr = _rng(ap, "y (px)", "a_y")
     cp.markdown("**C · q–φ**")
     c_vmin, c_vmax = _rng(cp, "I", "c_v")
-    c_qr = _rng(cp, "q", "c_q")
+    c_qr = _rng(
+        cp,
+        "q",
+        "c_q",
+        lo_val=PROFILE["q_range"][0],
+        hi_val=PROFILE["q_range"][1],
+    )
     c_phir = _rng(cp, "φ", "c_phi", lo_val=0.0, hi_val=180.0)  # default φ [0,180]
     dp.markdown("**D · I(q)**")
-    d_qr = _rng(dp, "q", "d_q")
+    d_qr = _rng(
+        dp,
+        "q",
+        "d_q",
+        lo_val=PROFILE["q_range"][0],
+        hi_val=PROFILE["q_range"][1],
+    )
     d_ir = _rng(dp, "I", "d_i")
     st.caption("D curve style")
-    d_style = _curve_style_controls("tsaxs_d_style", defaults={"color": "Crimson", "width": 2.2})
+    d_style = _curve_style_controls(
+        f"{STATE_PREFIX}_d_style", defaults={"color": "Crimson", "width": 2.2}
+    )
 
 
 # ===========================================================================
@@ -278,7 +343,11 @@ if "qphi" in active_products:
     _is_qcut = cut_dir.startswith("q-cut")
     centers_lab = "q center(s)" if _is_qcut else "φ center(s)"
     width_lab = "q width" if _is_qcut else "φ width"
-    def_centers, def_width = ("1.0", 0.05) if _is_qcut else ("0", 10.0)
+    def_centers, def_width = (
+        (PROFILE["q_cut_center"], PROFILE["q_cut_width"])
+        if _is_qcut
+        else ("0", 10.0)
+    )
 
     centers_txt = lc3.text_input(
         centers_lab, value=def_centers, help="Comma / space separated; one profile per center."
@@ -488,7 +557,9 @@ if centers:
             )
             lc_yr = _rng(lp2, "I", "tsaxs_lc_i")
             st.caption("Profile curve style (applied to all cuts)")
-            lc_style = _curve_style_controls("tsaxs_lc_style", defaults={"width": 2.0})
+            lc_style = _curve_style_controls(
+                f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0}
+            )
 
         import plotly.express as px
 

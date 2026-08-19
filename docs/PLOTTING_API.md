@@ -1,5 +1,16 @@
 # pyScattViz plotting API
 
+## Plotting Studio
+
+The local web application exposes the principal API through **Plotting
+Studio**. Its tabs cover 1D overlays, 2D arrays, interactive 3D
+surface/wireframe/contour views, and multi-axes grids, residual layouts, and
+mosaics. It accepts numeric tables, NPY/NPZ arrays, common images, and q-images
+saved by File Selection. Multi-axes figures export to PNG, SVG, or PDF.
+
+The GUI and Python examples below use the same implementation, so a figure
+explored interactively can be reproduced later in a notebook or script.
+
 I consolidated my earlier pyViz package into `pyscattviz.plotting`. This keeps
 the plotting functions and the scattering-review application in one supported
 installation.

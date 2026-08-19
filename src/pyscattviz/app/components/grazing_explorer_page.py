@@ -1,4 +1,4 @@
-"""GIWAXS / GISAXS Explorer — selectable reduction panels per frame.
+"""Shared implementation for the independent GISAXS and GIWAXS pages.
 
 Point it at an SMI ``Results/gisaxs`` or ``Results/giwaxs`` folder, or at a
 CMS MAXS/GIWAXS ``analysis/`` folder, containing per reduced frame:
@@ -79,19 +79,62 @@ from pyscattviz.app.components.scattering import (
 )
 from pyscattviz.filters import FilterSyntaxError
 
-# ===========================================================================
-st.set_page_config(page_title="GIWAXS Explorer", page_icon="🧭", layout="wide")
+EXPLORER_MODE = globals().get("EXPLORER_MODE", "giwaxs")
+_PROFILES = {
+    "gisaxs": {
+        "name": "GISAXS",
+        "icon": "🧭",
+        "folder": "gisaxs",
+        "state": "gisaxs",
+        "description": (
+            "Small-angle grazing-incidence review with GISAXS-specific q limits, "
+            "qx/qz band cuts, q–φ cuts, and log-q I(q) defaults."
+        ),
+        "logq": True,
+        "qx_range": (-0.5, 0.5),
+        "qz_range": (0.0, 0.5),
+        "q_range": (0.001, 0.5),
+        "q_cut_center": "0.1",
+        "q_cut_width": 0.01,
+        "qz_cut_center": "0.05",
+        "qz_cut_width": 0.01,
+    },
+    "giwaxs": {
+        "name": "GIWAXS",
+        "icon": "🧭",
+        "folder": "giwaxs",
+        "state": "giwaxs",
+        "description": (
+            "Wide-angle grazing-incidence review with GIWAXS-specific q limits, "
+            "q-space orientation maps, q–φ cuts, and linear-q defaults."
+        ),
+        "logq": False,
+        "qx_range": (-3.0, 3.0),
+        "qz_range": (0.0, 3.0),
+        "q_range": (0.0, 3.0),
+        "q_cut_center": "1.0",
+        "q_cut_width": 0.05,
+        "qz_cut_center": "0.0",
+        "qz_cut_width": 0.05,
+    },
+}
+PROFILE = _PROFILES[EXPLORER_MODE]
+STATE_PREFIX = f"pyscattviz_{PROFILE['state']}"
 
-st.title("🧭 GISAXS / GIWAXS Explorer")
-st.caption(
-    "Choose the reduction products to display — raw, QC, q-image, "
-    "q–φ, or circular-average — with q-image / q–φ line-cuts."
+# ===========================================================================
+st.set_page_config(
+    page_title=f"{PROFILE['name']} Explorer",
+    page_icon=PROFILE["icon"],
+    layout="wide",
 )
 
+st.title(f"{PROFILE['icon']} {PROFILE['name']} Explorer")
+st.caption(PROFILE["description"])
+
 with st.sidebar:
-    st.header("📁 GISAXS / GIWAXS data")
+    st.header(f"📁 {PROFILE['name']} data")
     analysis = st.text_input(
-        "Data path (gisaxs/giwaxs/ or one product folder)",
+        f"Data path ({PROFILE['folder']}/ or one product folder)",
         value=st.session_state.get("pyscattviz_active_root", ""),
     )
     analysis_available = bool(analysis and Path(analysis).expanduser().is_dir())
@@ -116,7 +159,7 @@ with st.sidebar:
         st.stop()
 
     analysis_root, products, selected_products = scattering_product_selector(
-        "giwaxs_products", analysis
+        f"{PROFILE['state']}_products", analysis
     )
     saved_stems = st.session_state.get("pyscattviz_selected_stems", ())
     saved_root = st.session_state.get("pyscattviz_selected_root")
@@ -195,7 +238,7 @@ st.markdown(f"**{sel['stem']}**  ·  θ = {th}  ·  well `{sel['well']}`  ·  t 
 # --- Display controls -------------------------------------------------------
 dc1, dc2, dc3, dc4 = st.columns(4)
 logI = dc1.checkbox("log I (2D panels)", value=True)
-logq = dc2.checkbox("log q (1D)", value=False)
+logq = dc2.checkbox("log q (1D)", value=PROFILE["logq"])
 logiq = dc3.checkbox("log I (1D)", value=True)
 cmap = dc4.selectbox("2D colormap", CMAPS, index=0)  # default Turbo (item 4)
 
@@ -235,8 +278,12 @@ _PANEL_H = 380
 def _rng(col, label, key, lo_val=None, hi_val=None, fmt="%.4g"):
     """Two side-by-side optional number inputs → (min, max); None means auto."""
     a, b = col.columns(2)
-    lo = a.number_input(f"{label} min", value=lo_val, key=f"{key}_lo", format=fmt)
-    hi = b.number_input(f"{label} max", value=hi_val, key=f"{key}_hi", format=fmt)
+    lo = a.number_input(
+        f"{label} min", value=lo_val, key=f"{STATE_PREFIX}_{key}_lo", format=fmt
+    )
+    hi = b.number_input(
+        f"{label} max", value=hi_val, key=f"{STATE_PREFIX}_{key}_hi", format=fmt
+    )
     return lo, hi
 
 
@@ -253,18 +300,44 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     bp.markdown("**B · q-image**")
     b_vmin, b_vmax = _rng(bp, "I", "b_v")
     _bx_lab = "qr" if b_mode == "qr" else "qx"
-    b_qxr = _rng(bp, _bx_lab, "b_qx")
-    b_qzr = _rng(bp, "qz", "b_qz", lo_val=0.0, hi_val=3.0)  # default qz [0,3] (item 4)
+    b_qxr = _rng(
+        bp,
+        _bx_lab,
+        "b_qx",
+        lo_val=PROFILE["qx_range"][0],
+        hi_val=PROFILE["qx_range"][1],
+    )
+    b_qzr = _rng(
+        bp,
+        "qz",
+        "b_qz",
+        lo_val=PROFILE["qz_range"][0],
+        hi_val=PROFILE["qz_range"][1],
+    )
     cp.markdown("**C · q–φ**")
     c_vmin, c_vmax = _rng(cp, "I", "c_v")
-    c_qr = _rng(cp, "q", "c_q")
+    c_qr = _rng(
+        cp,
+        "q",
+        "c_q",
+        lo_val=PROFILE["q_range"][0],
+        hi_val=PROFILE["q_range"][1],
+    )
     c_phir = _rng(cp, "φ", "c_phi", lo_val=0.0, hi_val=180.0)  # default φ [0,180] (item 4)
     st.markdown("**D · circular average**")
     dp1, dp2 = st.columns(2)
-    d_qr = _rng(dp1, "q", "d_q")
+    d_qr = _rng(
+        dp1,
+        "q",
+        "d_q",
+        lo_val=PROFILE["q_range"][0],
+        hi_val=PROFILE["q_range"][1],
+    )
     d_ir = _rng(dp2, "I", "d_i")
     st.caption("D curve style")
-    d_style = _curve_style_controls("d_style", defaults={"color": "Crimson", "width": 2.2})
+    d_style = _curve_style_controls(
+        f"{STATE_PREFIX}_d_style", defaults={"color": "Crimson", "width": 2.2}
+    )
 
 
 def _heatmap_fig(title, z, x, y, xlab, ylab, **kw):
@@ -312,7 +385,8 @@ if cut_options:
         _is_qr = cut_dir.startswith(_bx)
         centers_lab = "qz center(s)" if _is_qr else f"{_bx} center(s)"
         width_lab = "qz width" if _is_qr else f"{_bx} width"
-        def_centers, def_width = ("0.0", 0.05)
+        def_centers = PROFILE["qz_cut_center"]
+        def_width = PROFILE["qz_cut_width"]
     else:
         cut_dir = lc2.selectbox(
             "Direction", ["q-cut  (I vs φ, fixed q band)", "φ-cut  (I vs q, fixed φ band)"], index=0
@@ -320,7 +394,11 @@ if cut_options:
         _is_qcut = cut_dir.startswith("q-cut")
         centers_lab = "q center(s)" if _is_qcut else "φ center(s)"
         width_lab = "q width" if _is_qcut else "φ width"
-        def_centers, def_width = ("1.0", 0.05) if _is_qcut else ("0", 10.0)
+        def_centers, def_width = (
+            (PROFILE["q_cut_center"], PROFILE["q_cut_width"])
+            if _is_qcut
+            else ("0", 10.0)
+        )
 
     centers_txt = lc3.text_input(
         centers_lab, value=def_centers, help="Comma / space separated; one profile per center."
@@ -579,7 +657,9 @@ if centers:
             )
             lc_yr = _rng(lp2, "I", "lc_i")
             st.caption("Profile curve style (applied to all cuts)")
-            lc_style = _curve_style_controls("lc_style", defaults={"width": 2.0})
+            lc_style = _curve_style_controls(
+                f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0}
+            )
 
         import plotly.express as px
 

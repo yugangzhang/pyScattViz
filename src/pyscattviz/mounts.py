@@ -8,7 +8,8 @@ from pathlib import Path
 
 SFTP_HOST = "sftp.nsls2.bnl.gov"
 SFTP_HOST_KEY_FINGERPRINT = "SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE"
-MOUNTAIN_DUCK_URL = "https://mountainduck.io/"
+RAIDRIVE_URL = "https://www.raidrive.com/"
+RAIDRIVE_WINGET_ID = "OpenBoxLab.RaiDrive"
 
 _CYCLE = re.compile(r"^20\d{2}-[1-3]$")
 _PROPOSAL = re.compile(r"^(?:pass-)?(\d{6})$", re.IGNORECASE)
@@ -28,12 +29,54 @@ def proposal_path(beamline: str, cycle: str, proposal: str) -> str:
     return f"/nsls2/data/{beamline_key}/proposals/{cycle.strip()}/pass-{match.group(1)}"
 
 
-def suggested_mount_folder(beamline: str, proposal: str) -> Path:
-    """Return a proposal-specific local mount-point suggestion."""
+def mount_remote_path(
+    scope: str,
+    beamline: str,
+    cycle: str = "",
+    proposal: str = "",
+    custom_path: str = "",
+) -> str:
+    """Build a validated remote root for one of the supported mount scopes."""
+
+    beamline_key = beamline.strip().lower()
+    if beamline_key not in {"cms", "smi"}:
+        raise ValueError("beamline must be CMS or SMI")
+    if scope == "Proposal":
+        return proposal_path(beamline, cycle, proposal)
+    if scope == "Beamline proposals":
+        return f"/nsls2/data/{beamline_key}/proposals"
+    if scope == "NSLS-II data":
+        return "/nsls2/data"
+    if scope == "Custom":
+        value = custom_path.strip().replace("\\", "/").rstrip("/")
+        if not value.startswith("/nsls2/data"):
+            raise ValueError("custom path must start with /nsls2/data")
+        if ".." in value.split("/"):
+            raise ValueError("custom path cannot contain '..'")
+        return value or "/nsls2/data"
+    raise ValueError("unknown mount scope")
+
+
+def suggested_mount_folder(
+    beamline: str,
+    proposal: str,
+    scope: str = "Proposal",
+    custom_path: str = "",
+) -> Path:
+    """Return a readable local mount-point suggestion for the selected scope."""
 
     match = _PROPOSAL.fullmatch(proposal.strip())
     suffix = f"pass-{match.group(1)}" if match else "pass-xxxxxx"
-    return Path.home() / "NSLS_II_Link" / f"{beamline.strip().lower()}-{suffix}"
+    beamline_key = beamline.strip().lower()
+    if scope == "Beamline proposals":
+        suffix = f"{beamline_key}-proposals"
+    elif scope == "NSLS-II data":
+        suffix = "nsls2-data"
+    elif scope == "Custom":
+        suffix = Path(custom_path.rstrip("/")).name or "nsls2-data"
+    else:
+        suffix = f"{beamline_key}-{suffix}"
+    return Path.home() / "NSLS_II_Link" / suffix
 
 
 def sftp_test_command(username: str) -> str:
