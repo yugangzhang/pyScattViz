@@ -22,6 +22,15 @@
   Figures save as PNG/SVG/PDF/HTML/JSON, tables as CSV/TXT, arrays as NPZ/NPY.
 - Added an **Output Folder** page to set that root, create folders, and list what
   has been written. Preferences persist in `~/.pyscattviz/settings.json`.
+- Added **batch export** to the four explorers: render one panel for every frame
+  that passes the current filters and write the set into its own subfolder, with
+  a progress bar, a frame cap, and skipped frames reported rather than silently
+  dropped.
+- Added a dataset-basket folder picker to each explorer sidebar, so moving
+  between samples no longer means retyping a long mounted path.
+- Added a *Report products* toggle to the folder search. The report costs one
+  extra directory listing per match, which is free locally and noticeable over
+  SFTP.
 - Added free access routes beyond RaiDrive, which is Windows-only: rclone with
   the same commands on all three platforms, GNOME *Files → Connect to Server* on
   Linux with nothing to install, and `sftp -r` / `rclone copy` / FileZilla /

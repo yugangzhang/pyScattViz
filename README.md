@@ -36,6 +36,10 @@ The application runs locally on Windows, macOS, and Linux, listens on
 | **Plotting Studio** | 1D, 2D, 3D, and multi-axes workspaces on the `pyscattviz.plotting` API |
 | **Output Folder** | Where saved figures go, and what has been written there |
 
+Each explorer can also export one panel for *every* frame that passes its
+filters, which turns an angle series or an in-situ run into a folder of figures
+in one click.
+
 Everything that draws something can write it **straight to a folder you name**,
 in a subfolder named after the page it came from — no hunting through the
 browser's download directory. See
@@ -827,8 +831,16 @@ set of scientific defaults.
 These are starting ranges, not hard limits. Every explorer exposes editable
 axis limits, intensity limits, detector/raw paths, line-cut centers and widths,
 filename filtering, and product selection. Large 2D products are downsampled
-for browser display; line cuts use the selected loaded array. Any panel, and any
-set of line cuts, can be written to disk from the explorer itself.
+for browser display; line cuts use the selected loaded array.
+
+Any panel, and any set of line cuts, can be written to disk from the explorer
+itself. **Export every filtered frame** renders the same panel for each frame
+that passes the current filters and writes the set into its own subfolder — a
+contact sheet of an angle series or an in-situ run, in one click. Frames that
+lack that product are reported rather than silently dropped.
+
+Each explorer sidebar also lists the folders in the dataset basket, so moving
+between samples does not mean retyping a mounted path.
 
 ## Plotting Studio
 

@@ -34,6 +34,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from pyscattviz.app.components.batch import render_batch_export
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 
 # Shared scattering engine (aliased to the underscore names used below).
@@ -135,6 +136,29 @@ st.caption(PROFILE["description"])
 
 with st.sidebar:
     st.header(f"📁 {PROFILE['short']} analysis folder")
+
+    # Folders collected on Data Selection are the fastest way to move between
+    # samples without retyping a long mounted path.
+    basket_folders = [
+        item
+        for item in st.session_state.get("pyscattviz_dataset_paths", [])
+        if Path(item).expanduser().is_dir()
+    ]
+    if basket_folders:
+        picked = st.selectbox(
+            f"Folder from the dataset basket ({len(basket_folders)})",
+            ["— type a path below —", *basket_folders],
+            format_func=lambda item: (
+                "/".join(Path(item).parts[-2:]) if item in basket_folders else item
+            ),
+            key=f"{STATE_PREFIX}_basket_pick",
+        )
+        if picked in basket_folders and picked != st.session_state.get(
+            "pyscattviz_active_root"
+        ):
+            st.session_state["pyscattviz_active_root"] = picked
+            st.rerun()
+
     analysis = st.text_input(
         f"Data path ({PROFILE['folder']}/analysis or one product folder)",
         value=st.session_state.get("pyscattviz_active_root", ""),
@@ -570,6 +594,22 @@ if rendered_figures:
         caption=(
             f"Written under the {PROFILE['name']}_Explorer subfolder of the output "
             "root. HTML stays interactive; PNG/SVG/PDF need the free kaleido package."
+        ),
+    )
+    render_batch_export(
+        work,
+        [item for item in ("stitched", "qc", "q_image", "qphi", "cir_avg")
+         if item in active_products],
+        f"{PROFILE['name']} Explorer",
+        key=STATE_PREFIX,
+        panel_options=dict(
+            cmap=cmap,
+            logI=logI,
+            height=_PANEL_H,
+            b_mode="qx",
+            aspect=_aspect_arg(),
+            logq=logq,
+            logiq=logiq,
         ),
     )
 

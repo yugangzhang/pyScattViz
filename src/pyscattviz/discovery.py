@@ -299,6 +299,7 @@ def find_folders(
     max_results: int = 1_000,
     max_visited: int = 200_000,
     products_only: bool = False,
+    describe_products: bool = True,
     case_sensitive: bool = False,
     skip_hidden: bool = True,
     follow_symlinks: bool = False,
@@ -325,6 +326,11 @@ def find_folders(
     products_only
         Keep only folders that directly contain a reduction product folder
         (``cir_avg``, ``q_image``, ``qphi``, ``qc``, ``stitched``) or are one.
+    describe_products
+        Report which products and how many data files each match holds. This
+        costs one extra directory listing per match, which is free locally and
+        noticeable over SFTP; turn it off for a fast first pass. It is forced on
+        when ``products_only`` is requested, since that filter needs it.
 
     Returns
     -------
@@ -350,9 +356,13 @@ def find_folders(
             subject = str(path) if match_on == "path" else path.name
             if not matches_terms(subject, and_list, or_list, no_list, case_sensitive):
                 continue
-            summary = classify_folder(path)
-            if products_only and not (summary["products"] or summary["is_product_folder"]):
-                continue
+            summary = None
+            if describe_products or products_only:
+                summary = classify_folder(path)
+                if products_only and not (
+                    summary["products"] or summary["is_product_folder"]
+                ):
+                    continue
             if len(rows) >= max_results:
                 truncated = True
                 break
@@ -369,8 +379,8 @@ def find_folders(
                     "parent": str(path.parent),
                     "root": str(root),
                     "depth": depth,
-                    "products": ", ".join(summary["products"]) or "—",
-                    "data_files": summary["data_files"],
+                    "products": ", ".join(summary["products"]) or "—" if summary else "—",
+                    "data_files": summary["data_files"] if summary else None,
                     "modified": modified,
                 }
             )

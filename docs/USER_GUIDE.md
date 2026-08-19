@@ -131,6 +131,16 @@ Every value remains editable in the page. The four pages retain independent
 widget state and raw-detector choices while sharing the same tested lazy file
 loaders.
 
+The sidebar lists the folders currently in the dataset basket, so switching
+samples is a selection rather than a retyped path.
+
+**Export every filtered frame** renders one chosen panel for each frame that
+survives the filters and writes the set into its own subfolder. The batch is
+bounded by an explicit frame cap, shows a progress bar, reports frames that have
+no such product, and stops on the first genuine write failure rather than
+repeating it a hundred times. Line-cut bands are not drawn on a batch: they
+belong to the frame being inspected, not to a contact sheet.
+
 ## Understanding the panels
 
 - **Raw / stitched** shows detector or stitched pixel coordinates.

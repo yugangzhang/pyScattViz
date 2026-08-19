@@ -719,6 +719,161 @@ def heatmap_fig(
 
 
 # ---------------------------------------------------------------------------
+# One frame, one product → a figure. Used by the batch exporter, which has to
+# rebuild a panel for a frame that is not the one on screen.
+# ---------------------------------------------------------------------------
+# Panels the batch exporter can rebuild. Line-cut band overlays are deliberately
+# left out: they belong to the frame the user is inspecting, not to a contact
+# sheet of a hundred frames.
+BATCH_PANELS = {
+    "stitched": "Raw / stitched image",
+    "qc": "QC image",
+    "q_image": "q-image",
+    "qphi": "q–φ map",
+    "cir_avg": "Circular average I(q)",
+}
+
+
+def _product_path(row, key: str):
+    """Return a frame's product path, treating both None and NaN as missing."""
+
+    value = row.get(key)
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    text = str(value)
+    return text or None
+
+
+def _flat_image(path, flip: bool):
+    """Load a raw or QC image as a 2D float array with no-data blanked."""
+
+    z = np.asarray(load_raw(path), dtype=float)
+    if z.ndim == 3:  # QC PNGs can be RGB/RGBA
+        z = z[..., :3].mean(axis=2)
+    z = z.copy()
+    z[~np.isfinite(z)] = np.nan
+    z[z <= 0] = np.nan
+    return np.flipud(z) if flip else z
+
+
+def frame_panel_figure(
+    row,
+    panel: str,
+    *,
+    cmap: str = "Turbo",
+    logI: bool = True,
+    height: int = 380,
+    b_mode: str = "qx",
+    aspect=None,
+    flip_raw: bool = True,
+    logq: bool = False,
+    logiq: bool = True,
+    x_range=None,
+    y_range=None,
+    vmin_I=None,
+    vmax_I=None,
+    title: str | None = None,
+):
+    """Rebuild one product panel for one indexed frame.
+
+    ``row`` is a row of the :func:`index_frames` table. Returns
+    ``(figure, table, arrays)`` — ``table`` and ``arrays`` are ``None`` where
+    they do not apply — or ``None`` when this frame has no such product.
+
+    The interactive explorers keep their own panel code because they also draw
+    line-cut bands and per-curve styling. This function exists so a batch export
+    can produce the same picture for a frame that is not on screen.
+    """
+
+    if panel not in BATCH_PANELS:
+        raise ValueError(f"unknown panel: {panel}")
+
+    heat = dict(
+        cmap=cmap,
+        logI=logI,
+        height=height,
+        aspect=aspect,
+        x_range=x_range,
+        y_range=y_range,
+        vmin_I=vmin_I,
+        vmax_I=vmax_I,
+    )
+
+    if panel in {"stitched", "qc"}:
+        path = _product_path(row, "raw" if panel == "stitched" else "qc")
+        if path is None:
+            return None
+        z = _flat_image(path, flip=flip_raw and panel == "stitched")
+        z, px_x, px_y = downsample(z, np.arange(z.shape[1]), np.arange(z.shape[0]))
+        figure = heatmap_fig(
+            title or BATCH_PANELS[panel], z, px_x, px_y, "x (px)", "y (px)", **heat
+        )
+        return figure, None, {"image": z}
+
+    if panel == "q_image":
+        path = _product_path(row, "qimg")
+        if path is None:
+            return None
+        data = load_qimg(path)
+        qimg, qx, qz, mask, xlabel = resolve_qimage(data, b_mode)
+        if qimg is None:
+            return None
+        z = apply_mask(qimg, mask)
+        z, xx, yy = downsample(z, qx, qz)
+        figure = heatmap_fig(
+            title or BATCH_PANELS[panel], z, xx, yy, xlabel, "qz (Å⁻¹)", **heat
+        )
+        arrays = {"qimg": z, b_mode: np.asarray(xx), "qz": np.asarray(yy)}
+        return figure, None, arrays
+
+    if panel == "qphi":
+        path = _product_path(row, "qphi")
+        if path is None:
+            return None
+        q, phi, qphi, mask = load_qphi(path)
+        if qphi is None:
+            return None
+        mask = mask if getattr(mask, "shape", None) == getattr(qphi, "shape", None) else None
+        z = apply_mask(qphi, mask)
+        figure = heatmap_fig(
+            title or BATCH_PANELS[panel],
+            z,
+            q,
+            phi,
+            "q (Å⁻¹)",
+            "φ (deg)",
+            xlog=logq,
+            **heat,
+        )
+        return figure, None, {"qphi": z, "q": np.asarray(q), "phi": np.asarray(phi)}
+
+    path = _product_path(row, "cir")
+    if path is None:
+        return None
+    q_values, intensity = load_cir(path)
+    figure = go.Figure(
+        go.Scatter(
+            x=q_values,
+            y=intensity,
+            name="I(q)",
+            mode="lines",
+            line=dict(width=2.0, color="crimson"),
+            hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>",
+        )
+    )
+    figure.update_xaxes(title_text="q (Å⁻¹)", range=axrange(*(x_range or (None, None)), logq))
+    figure.update_yaxes(title_text="I(q)", range=axrange(*(y_range or (None, None)), logiq))
+    style_1d_axes(figure, logq, logiq)
+    figure.update_layout(
+        title=title or BATCH_PANELS[panel],
+        height=height,
+        template="plotly_white",
+        margin=dict(l=60, r=15, t=40, b=45),
+    )
+    return figure, pd.DataFrame({"q": q_values, "I": intensity}), None
+
+
+# ---------------------------------------------------------------------------
 # 1-D curve styling (CSV-plotter parity for the circular-average + line-cuts)
 # ---------------------------------------------------------------------------
 LINE_COLORS = {

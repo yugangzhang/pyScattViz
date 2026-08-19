@@ -202,3 +202,38 @@ def test_describe_paths_reports_kind_for_each_entry(proposal):
     )
     assert [item["kind"] for item in described] == ["folder", "file", "missing"]
     assert described[0]["products"] == "cir_avg, q_image"
+
+
+def test_find_folders_can_skip_the_product_report(proposal):
+    """The report costs one directory listing per match; it must be optional."""
+
+    described, _ = find_folders(
+        proposal, and_list=["giwaxs"], match_on="name", max_depth=6
+    )
+    plain, _ = find_folders(
+        proposal,
+        and_list=["giwaxs"],
+        match_on="name",
+        max_depth=6,
+        describe_products=False,
+    )
+    assert [row["path"] for row in plain] == [row["path"] for row in described]
+    assert all(row["products"] == "—" and row["data_files"] is None for row in plain)
+    assert any(row["products"] != "—" for row in described)
+
+
+def test_products_only_still_works_without_the_report(proposal):
+    rows, _ = find_folders(
+        proposal,
+        match_on="name",
+        max_depth=6,
+        products_only=True,
+        describe_products=False,
+    )
+    assert sorted(row["name"] for row in rows) == [
+        "cir_avg",
+        "cir_avg",
+        "gisaxs",
+        "giwaxs",
+        "q_image",
+    ]

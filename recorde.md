@@ -154,6 +154,10 @@ Streamlit layer:
   on screen at once and must not fight over the value.
 - `src/pyscattviz/app/components/files.py`: cached loaders keyed on file mtime,
   and `collect_files` which expands a mixed basket into a file list.
+- `src/pyscattviz/app/components/batch.py`: export one panel for every filtered
+  frame. It calls `frame_panel_figure` in `scattering.py`, which rebuilds a
+  panel for a frame that is not on screen; the interactive pages keep their own
+  panel code because they also draw line-cut bands and per-curve styling.
 - `src/pyscattviz/app/components/grazing_explorer_page.py` and
   `transmission_explorer_page.py`: shared renderers with independent profiles.
 
@@ -163,14 +167,15 @@ Tests:
   `tests/test_exporting.py`, `tests/test_files_component.py`: the new core.
 - `tests/test_mounts.py`: proposal paths and every generated command.
 - `tests/test_data_selection_page.py`, `tests/test_quick_plot_page.py`,
-  `tests/test_saving_page.py`, `tests/test_app_smoke.py`: GUI regression.
+  `tests/test_saving_page.py`, `tests/test_batch_export.py`,
+  `tests/test_app_smoke.py`: GUI regression.
 
 ## Last verification
 
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           280 passed
+python -m pytest -q           295 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps

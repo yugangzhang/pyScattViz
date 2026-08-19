@@ -172,15 +172,28 @@ with search_tab:
         "Maximum results", 10, 20_000, 500, 50, key="pyscattviz_search_max"
     )
     if mode == "Folders":
-        products_only = option_columns[3].checkbox(
-            "Only reduction folders",
-            value=False,
-            key="pyscattviz_search_products_only",
-            help="Keep folders that contain cir_avg, q_image, qphi, qc, or stitched.",
-        )
+        with option_columns[3]:
+            products_only = st.checkbox(
+                "Only reduction folders",
+                value=False,
+                key="pyscattviz_search_products_only",
+                help="Keep folders that contain cir_avg, q_image, qphi, qc, or stitched.",
+            )
+            describe_products = st.checkbox(
+                "Report products",
+                value=True,
+                key="pyscattviz_search_describe",
+                disabled=products_only,
+                help=(
+                    "Lists which products each folder holds. It costs one extra "
+                    "directory listing per match — free locally, noticeable over "
+                    "SFTP. Turn it off for a fast first pass."
+                ),
+            )
         extensions: tuple[str, ...] = ()
     else:
         products_only = False
+        describe_products = True
         extensions = tuple(
             option_columns[3].multiselect(
                 "Extensions",
@@ -205,6 +218,7 @@ with search_tab:
                     max_depth=int(max_depth),
                     max_results=int(max_results),
                     products_only=products_only,
+                    describe_products=describe_products,
                 )
             else:
                 rows, truncated = find_files(
