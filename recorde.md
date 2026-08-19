@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.9.0`
+- Current package version: `0.10.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -108,7 +108,15 @@ folders hold only AgBH calibration frames, which the default filter hides.
 17. The Python Console runs the user's code in-process on purpose; that is the
     feature. The one guard that matters is `is_local_only` — do not remove it,
     and do not let the page render its editor on a non-loopback bind.
-18. Renaming a shipped file needs the `setup.py` shim to keep working: pip
+18. Every input widget must have a `key`, or its value cannot survive a page
+    change — Streamlit stores an unkeyed widget under an internal id that never
+    appears in `session_state`. `tests/test_state_persistence.py` fails if any
+    unkeyed widget is added. Buttons, downloads and uploaders are the exception:
+    they must go through `action_key` so `keep_widget_state` leaves them alone,
+    since they reject assignment at widget-creation time.
+19. Because values now persist, a remembered choice can outlive its options. Use
+    `coerce_choice`/`coerce_choices` wherever the options depend on the data.
+20. Renaming a shipped file needs the `setup.py` shim to keep working: pip
     builds a local directory in place and setuptools never removes files from
     `build/lib`, so a rename otherwise ships both names. For pages that is fatal
     — Streamlit rejects two pages with the same inferred URL. `cli.py` also
@@ -239,7 +247,7 @@ Tests:
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           413 passed
+python -m pytest -q           467 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps

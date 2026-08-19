@@ -50,6 +50,7 @@ from pyscattviz.app.components.saving import render_output_settings, render_save
 # Some are aliased to the underscore names this page's body already uses.
 from pyscattviz.app.components.scattering import (
     CMAPS,
+    detect_beamline,
     frame_axis_ranges,
     heatmap_fig,
     index_frames,
@@ -105,6 +106,7 @@ _PROFILES = {
         "qx_range": (-0.5, 0.5),
         "qz_range": (0.0, 0.5),
         "q_range": (0.001, 0.5),
+        "qphi_q_range": (0.001, 0.5),
         "phi_range": (0.0, 180.0),
         "q_cut_center": "0.1",
         "q_cut_width": 0.01,
@@ -126,6 +128,7 @@ _PROFILES = {
         "qx_range": (0.0, 5.0),
         "qz_range": (0.0, 5.0),
         "q_range": (0.0, 5.0),
+        "qphi_q_range": (0.0, 5.0),
         "phi_range": (0.0, 180.0),
         "q_cut_center": "1.0",
         "q_cut_width": 0.05,
@@ -133,8 +136,22 @@ _PROFILES = {
         "qz_cut_width": 0.05,
     },
 }
-PROFILE = _PROFILES[EXPLORER_MODE]
+# CMS and SMI put different detectors at different distances, so the window
+# worth opening on differs. These are the values Yugang reviews CMS GIWAXS in;
+# anything without an entry here starts on auto-fit instead (see AUTO_FIT_KEY).
+_BEAMLINE_PROFILES = {
+    ("giwaxs", "cms"): {
+        "qx_range": (0.0, 3.0),
+        "qz_range": (0.0, 3.0),
+        "qphi_q_range": (0.5, 3.5),
+        "phi_range": (0.0, 180.0),
+    },
+}
+
+PROFILE = dict(_PROFILES[EXPLORER_MODE])
 STATE_PREFIX = f"pyscattviz_{PROFILE['state']}"
+AUTO_FIT_KEY = f"{STATE_PREFIX}_auto_fit"
+BEAMLINE_KEY = f"{STATE_PREFIX}_last_beamline"
 
 # ===========================================================================
 st.set_page_config(
@@ -166,6 +183,26 @@ with st.sidebar:
     if not analysis:
         st.info("Choose or paste a data folder to start.")
         st.stop()
+
+    # "Once the folder contains cms" — the window worth opening on follows the
+    # beamline, so apply its preset the moment the data comes from a different
+    # one rather than leaving the previous beamline's limits in place.
+    BEAMLINE = detect_beamline(analysis)
+    _override = _BEAMLINE_PROFILES.get((EXPLORER_MODE, BEAMLINE))
+    if _override:
+        PROFILE.update(_override)
+    if st.session_state.get(BEAMLINE_KEY) != (EXPLORER_MODE, BEAMLINE):
+        st.session_state[BEAMLINE_KEY] = (EXPLORER_MODE, BEAMLINE)
+        st.session_state[AUTO_FIT_KEY] = _override is None
+        for _key, _span in (
+            ("b_qx", PROFILE["qx_range"]),
+            ("b_qz", PROFILE["qz_range"]),
+            ("c_q", PROFILE["qphi_q_range"]),
+            ("c_phi", PROFILE["phi_range"]),
+            ("d_q", PROFILE["q_range"]),
+        ):
+            st.session_state[f"{STATE_PREFIX}_{_key}_lo"] = float(_span[0])
+            st.session_state[f"{STATE_PREFIX}_{_key}_hi"] = float(_span[1])
 
     analysis_root, products, selected_products = scattering_product_selector(
         f"{PROFILE['state']}_products", analysis
@@ -367,6 +404,17 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
         "are in **intensity** units (pre-log); auto colour uses robust "
         "percentiles of each panel."
     )
+    auto_fit = st.checkbox(
+        "Auto-fit the q-image and q–φ q limits to each frame",
+        value=bool(st.session_state.get(AUTO_FIT_KEY, True)),
+        key=AUTO_FIT_KEY,
+        help=(
+            "A remeshed q-image covers only part of the qx–qz plane and the rest "
+            "is blank, so fixed limits leave the picture stranded in a field of "
+            "NaN. With this on, the boxes below are ignored for those axes and "
+            "each frame is framed on its own data. φ is left alone."
+        ),
+    )
     fill_left, fill_middle, fill_right = st.columns([1.2, 1.4, 2.4])
     if fill_left.button(
         "Fit to this frame", key=action_key(st.session_state, f"{STATE_PREFIX}_fit_ranges")
@@ -390,7 +438,7 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
             {
                 "b_qx": PROFILE["qx_range"],
                 "b_qz": PROFILE["qz_range"],
-                "c_q": PROFILE["q_range"],
+                "c_q": PROFILE["qphi_q_range"],
                 "c_phi": PROFILE["phi_range"],
                 "d_q": PROFILE["q_range"],
             }
@@ -414,7 +462,7 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     b_qzr = _rng(bp, "qz", "b_qz", *PROFILE["qz_range"])
     cp.markdown("**C · q–φ**")
     c_vmin, c_vmax = _rng(cp, "I", "c_v")
-    c_qr = _rng(cp, "q", "c_q", *PROFILE["q_range"])
+    c_qr = _rng(cp, "q", "c_q", *PROFILE["qphi_q_range"])
     # The reduction writes φ over -179 … +179; the two halves are mirror images
     # for an isotropic film, so the review default is the upper half.
     c_phir = _rng(cp, "φ", "c_phi", *PROFILE["phi_range"])
@@ -426,6 +474,17 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     d_style = _curve_style_controls(
         f"{STATE_PREFIX}_d_style", defaults={"color": "Crimson", "width": 2.2}
     )
+
+
+if auto_fit:
+    _measured = frame_axis_ranges(sel, b_mode)
+    _fitted = _measured.get("qr" if b_mode == "qr" else "qx")
+    if _fitted:
+        b_qxr = _fitted
+    if _measured.get("qz"):
+        b_qzr = _measured["qz"]
+    if _measured.get("qphi_q"):
+        c_qr = _measured["qphi_q"]
 
 
 def _heatmap_fig(title, z, x, y, xlab, ylab, **kw):
@@ -842,11 +901,15 @@ if centers:
             xlab = "φ (deg)" if _is_qcut else "q (Å⁻¹)"
         xlog = logq and along_is_q
 
-        # Styling + axis limits for the line-cut profiles. Blank limits let the
-        # profile show its whole range; a φ profile really does run -179 … +179.
+        # A φ profile opens on the upper half, matching the q–φ panel above it.
+        _phi_profile = xlab.startswith("φ")
         with st.expander("🎛️ Line-cut plot: limits & style", expanded=True):
             lp1, lp2 = st.columns(2)
-            lc_xr = _rng(lp1, xlab, "lc_x")
+            lc_xr = (
+                _rng(lp1, xlab, "lc_x_phi", *PROFILE["phi_range"])
+                if _phi_profile
+                else _rng(lp1, xlab, "lc_x")
+            )
             lc_yr = _rng(lp2, "I", "lc_i")
             st.caption("Profile curve style (applied to all cuts)")
             lc_style = _curve_style_controls(f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0})

@@ -193,13 +193,17 @@ ranges, detector locations, line-cut widths, and analysis emphasis differ.
 | Transmission SAXS | log | 0.001–0.5 | low-q size/structure and anisotropy |
 | Transmission WAXS | linear | 0–3.5 | high-q peaks and orientation |
 
-Each geometry opens on the window it is normally reviewed in; GIWAXS uses
-0–5 Å⁻¹ for the q-image axes and I(q), and 0–180° for φ, since the two halves of
-a q–φ map mirror each other. **Fit to this frame** fills the boxes from the
-frame's own arrays — reach for it when a map looks cut off, because the q a
-reduction covers depends on the detector, its distance, and the energy, and real
-SMI GIWAXS reaches 7 Å⁻¹ where CMS reaches 3. **Clear back to auto** blanks the
-boxes so each panel scales to its own data.
+Each geometry opens on the window it is normally reviewed in, and that window
+follows the beamline read from the folder path: CMS GIWAXS uses 0–3 Å⁻¹ for the
+q-image axes, 0.5–3.5 for the q–φ q axis, and 0–180° for φ. Moving the explorer
+to data from the other beamline re-applies the right preset.
+
+**Auto-fit** measures the q-image and q–φ q limits from the pixels that hold
+data, frame by frame. A remeshed q-image covers only part of the qx–qz plane, so
+a fixed window can leave the picture in a field of NaN; auto-fit is on wherever
+there is no explicit beamline preset, and it leaves φ alone. **Fit to this
+frame** does the same measurement once, and **Clear back to auto** blanks the
+boxes.
 
 The QC panel starts unchecked: it is the reduction's diagnostic picture, not the
 data under review, and drawing it slows every frame change on a mounted folder.

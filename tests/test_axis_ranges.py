@@ -57,15 +57,15 @@ def test_measured_ranges_cover_the_whole_axis(frame):
     assert ranges["cir_q"][1] == pytest.approx(6.585, rel=1e-3)
 
 
-def test_the_measured_ranges_are_the_ones_the_old_defaults_clipped(frame):
+def test_the_measured_ranges_are_the_ones_a_fixed_window_would_clip(frame):
     ranges = frame_axis_ranges(frame)
 
-    # Old GIWAXS defaults: qx (-3, 3), qz (0, 3), q (0, 3), phi (0, 180).
-    assert ranges["qx"][1] > 3.0, "qx reached past the old +3 limit"
-    assert ranges["qz"][0] < 0.0, "qz goes negative; the old minimum was 0"
+    # This frame is filled everywhere, so the data box is the whole axis.
+    assert ranges["qx"][1] > 3.0, "qx reaches past a +3 limit"
+    assert ranges["qz"][0] < 0.0, "qz goes negative; a 0 minimum would hide it"
     assert ranges["qz"][1] > 3.0
     assert ranges["qphi_q"][1] > 3.0
-    assert ranges["phi"][0] < 0.0, "phi goes negative; the old window started at 0"
+    assert ranges["phi"][0] < 0.0, "phi goes negative; a 0…180 window hides half"
 
 
 def test_a_missing_or_unreadable_product_is_simply_absent(tmp_path):
@@ -121,10 +121,17 @@ def test_real_beamline_output_needs_more_than_the_old_defaults(dataset, old_q_ma
     table = index_frames(str(folder))
     if table.empty:
         pytest.skip(f"{folder} holds no indexable frame")
-    ranges = frame_axis_ranges(table.iloc[0])
+    row = table.iloc[0]
+    ranges = frame_axis_ranges(row)
 
-    if "phi" in ranges:
-        assert ranges["phi"][0] < -90, f"{dataset}: phi runs negative, 0…180 hid half of it"
+    # The reduction writes phi over -179 … +179. frame_axis_ranges reports where
+    # the data actually is, which can be a subset, so check the axis itself.
+    if row.get("qphi"):
+        with np.load(row["qphi"]) as archive:
+            if "phi" in archive.files:
+                assert float(archive["phi"].min()) < -90, (
+                    f"{dataset}: the reduction writes phi negative; 0…180 hides half"
+                )
     covered = max(span[1] for key, span in ranges.items() if key in {"qphi_q", "cir_q", "qz"})
     if "giwaxs" in dataset or "twaxs" in dataset:
         assert covered > old_q_max, (

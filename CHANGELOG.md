@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.10.0
+
+- **Settings survive switching tabs.** Streamlit discards a widget as soon as
+  its page stops being rendered, so leaving the explorer and coming back threw
+  away the colour map, the q limits, the filters — everything just set. Every
+  page now keeps its state, sixty previously unkeyed widgets have stable keys,
+  and a remembered choice whose options have changed is snapped back to a real
+  one. Verified in a browser: set a filter, a colour map and a q limit, navigate
+  away, come back, all three still there.
+- CMS GIWAXS opens on qx and qz over 0–3 Å⁻¹, q–φ over q 0.5–3.5 and φ 0–180°.
+  The preset follows the data: point the explorer at a CMS folder and it
+  applies, point it at SMI and that one does.
+- **Auto-fit for the blank q-image.** A remeshed q-image covers only part of the
+  qx–qz plane and the rest is NaN, so a fixed window left SMI GISAXS stranded in
+  a field of blank. The limits are now measured from the pixels that actually
+  hold data — SMI GISAXS frames on ±0.21 in qx and −0.31…0.16 in qz instead of
+  ±0.5 and 0…0.5, which also recovers the negative qz a 0-based minimum hid.
+  On by default wherever there is no explicit beamline preset; φ is left alone.
+- A φ line-cut profile opens on 0–180° again, matching the q–φ panel above it.
+- **Publication Plot has the whole of matplotlib.** Per curve: colour, line
+  style, width, marker, marker size, marker spacing, opacity and label, edited
+  in a table. For the axes: x and y limits, labels, a stacking multiplier, base
+  font size, major and minor grids with opacity, minor ticks, tick direction,
+  length and width, ticks on the top and right, frame width, and legend
+  position, columns, font size and box.
+
 ## 0.9.0
 
 - Every plotting page can now hand over **the Python behind the figure on

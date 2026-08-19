@@ -131,6 +131,65 @@ def detect_datatype(path: str):
     return None
 
 
+def detect_beamline(path: str):
+    """Best-effort guess of the beamline from a path: ``"cms"``, ``"smi"``, or None.
+
+    Detector geometry differs enough between the two that the sensible starting
+    q window does too — a CMS GIWAXS q-image reaches about 3 A^-1 where SMI
+    reaches 7 — so the explorers use it to pick their defaults.
+    """
+
+    for part in (item.lower() for item in Path(path).parts):
+        for key in ("cms", "smi"):
+            # Match a path component that *is* the beamline, or begins with it
+            # ("cms_remote", "smi-proposals"), not an arbitrary substring.
+            if part == key or part.startswith((key + "_", key + "-", key + " ")):
+                return key
+    return None
+
+
+def data_extent(z, x=None, y=None, min_fraction: float = 0.0):
+    """Return the box that actually contains data: ``(x0, x1, y0, y1)``.
+
+    A remeshed q-image is mostly empty — the detector only covers part of the
+    qx–qz plane, and everything outside it is NaN. Framing the plot on the axis
+    limits therefore shows a small picture surrounded by blank, which is exactly
+    what SMI GISAXS looks like at the moment. Framing it on the rows and columns
+    that hold finite values instead puts the data on screen.
+
+    ``min_fraction`` ignores rows and columns holding less than that fraction of
+    finite pixels, so a few stray hot pixels far from the detector do not drag
+    the view back out. Returns None when nothing is finite.
+    """
+
+    array = np.asarray(z, dtype=float)
+    if array.ndim != 2 or not array.size:
+        return None
+    finite = np.isfinite(array)
+    if not finite.any():
+        return None
+
+    columns = finite.mean(axis=0) > min_fraction
+    rows = finite.mean(axis=1) > min_fraction
+    if not columns.any() or not rows.any():
+        columns, rows = finite.any(axis=0), finite.any(axis=1)
+        if not columns.any() or not rows.any():
+            return None
+
+    x_axis = np.arange(array.shape[1]) if x is None else np.asarray(x, dtype=float)
+    y_axis = np.arange(array.shape[0]) if y is None else np.asarray(y, dtype=float)
+    if x_axis.size != array.shape[1] or y_axis.size != array.shape[0]:
+        return None
+
+    used_x, used_y = x_axis[columns], y_axis[rows]
+    return (
+        float(np.nanmin(used_x)),
+        float(np.nanmax(used_x)),
+        float(np.nanmin(used_y)),
+        float(np.nanmax(used_y)),
+    )
+
+
 @st.cache_data(show_spinner=False, ttl=30)
 def _product_file_count(folder: Path, patterns, limit: int = 100_000):
     """Count direct product files without retaining every path in memory."""
@@ -831,7 +890,10 @@ def frame_axis_ranges(row, b_mode: str = "qx") -> dict:
     """Measure the axis ranges one frame's own products actually cover.
 
     Returns any of ``qx``/``qr``, ``qz``, ``qphi_q``, ``phi``, ``cir_q`` that
-    could be read, each as a ``(min, max)`` pair.
+    could be read, each as a ``(min, max)`` pair. For the 2D products this is
+    the box that actually holds data rather than the full axis extent, because a
+    remeshed image covers only part of the plane and framing it on the axes
+    leaves the picture stranded in a field of blank.
 
     The reduction's q coverage depends on the detector, its distance, and the
     photon energy, so no fixed number is right for long. Measuring the frame is:
@@ -845,11 +907,17 @@ def frame_axis_ranges(row, b_mode: str = "qx") -> dict:
     path = _product_path(row, "qimg")
     if path:
         try:
-            _z, x, y, _mask, _label = resolve_qimage(load_qimg(path), b_mode)
+            z, x, y, mask, _label = resolve_qimage(load_qimg(path), b_mode)
         except DataReadError:
-            x = y = None
-        horizontal = _span(x)
-        vertical = _span(y)
+            z = x = y = mask = None
+        horizontal, vertical = _span(x), _span(y)
+        # A remeshed q-image only covers part of the qx–qz plane; the rest is
+        # NaN. Prefer the box that actually holds data, or the view is mostly
+        # blank — which is what SMI GISAXS looks like on the full axes.
+        if z is not None:
+            box = data_extent(apply_mask(z, mask), x, y)
+            if box:
+                horizontal, vertical = (box[0], box[1]), (box[2], box[3])
         if horizontal:
             ranges["qr" if b_mode == "qr" else "qx"] = horizontal
         if vertical:
@@ -858,13 +926,19 @@ def frame_axis_ranges(row, b_mode: str = "qx") -> dict:
     path = _product_path(row, "qphi")
     if path:
         try:
-            q_values, phi_values, _map, _mask = load_qphi(path)
+            q_values, phi_values, caked, mask = load_qphi(path)
         except DataReadError:
-            q_values = phi_values = None
-        if _span(q_values):
-            ranges["qphi_q"] = _span(q_values)
-        if _span(phi_values):
-            ranges["phi"] = _span(phi_values)
+            q_values = phi_values = caked = mask = None
+        q_span, phi_span = _span(q_values), _span(phi_values)
+        if caked is not None:
+            usable = mask if getattr(mask, "shape", None) == getattr(caked, "shape", None) else None
+            box = data_extent(apply_mask(caked, usable), q_values, phi_values)
+            if box:
+                q_span, phi_span = (box[0], box[1]), (box[2], box[3])
+        if q_span:
+            ranges["qphi_q"] = q_span
+        if phi_span:
+            ranges["phi"] = phi_span
 
     path = _product_path(row, "cir")
     if path:

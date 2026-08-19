@@ -23,7 +23,15 @@ from pyscattviz.codegen import publication_code
 from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
 from pyscattviz.plotting import fig_to_bytes
-from pyscattviz.publication import Curve, build_curve_figure
+from pyscattviz.publication import (
+    LEGEND_LOCATIONS,
+    LINE_STYLES,
+    MARKERS,
+    TICK_DIRECTIONS,
+    Curve,
+    CurveStyle,
+    build_curve_figure,
+)
 
 TAB_NAME = "Publication Plot"
 
@@ -131,6 +139,99 @@ title = s1.text_input("Title", value="", key="pub_title")
 figure_width = s2.number_input("Width (in)", 3.0, 20.0, 7.0, 0.5, key="pub_width")
 figure_height = s3.number_input("Height (in)", 3.0, 20.0, 5.0, 0.5, key="pub_height")
 
+with st.expander("📐 Axes, ticks, and legend", expanded=False):
+    a1, a2, a3, a4 = st.columns(4)
+    x_low = a1.number_input("x min (blank = auto)", value=None, format="%.5g", key="pub_xlim_lo")
+    x_high = a2.number_input("x max (blank = auto)", value=None, format="%.5g", key="pub_xlim_hi")
+    y_low = a3.number_input("y min (blank = auto)", value=None, format="%.5g", key="pub_ylim_lo")
+    y_high = a4.number_input("y max (blank = auto)", value=None, format="%.5g", key="pub_ylim_hi")
+
+    b1, b2, b3, b4 = st.columns(4)
+    xlabel = b1.text_input("x label", value=r"q ($\AA^{-1}$)", key="pub_xlabel")
+    ylabel_override = b2.text_input("y label (blank = automatic)", value="", key="pub_ylabel")
+    multiplier = b3.number_input(
+        "Multiply curve n by",
+        value=1.0,
+        min_value=0.0001,
+        format="%.5g",
+        key="pub_multiplier",
+        help="A factor of 2 stacks curves as 1, 2, 4, 8 … on a log axis.",
+    )
+    font_size = b4.number_input("Base font size", 5.0, 30.0, 10.0, 0.5, key="pub_font_size")
+
+    c1_, c2_, c3_, c4_ = st.columns(4)
+    grid = c1_.checkbox("Grid", value=False, key="pub_grid")
+    minor_grid = c2_.checkbox("Minor grid", value=False, key="pub_minor_grid")
+    minor_ticks = c3_.checkbox("Minor ticks", value=True, key="pub_minor_ticks")
+    grid_alpha = c4_.slider("Grid opacity", 0.05, 1.0, 0.3, 0.05, key="pub_grid_alpha")
+
+    d1, d2, d3, d4 = st.columns(4)
+    tick_direction = d1.selectbox("Tick direction", TICK_DIRECTIONS, key="pub_tick_direction")
+    tick_length = d2.number_input("Tick length", 0.0, 20.0, 4.0, 0.5, key="pub_tick_length")
+    tick_width = d3.number_input("Tick width", 0.1, 5.0, 1.0, 0.1, key="pub_tick_width")
+    spine_width = d4.number_input("Frame width", 0.1, 5.0, 1.0, 0.1, key="pub_spine_width")
+
+    e1_, e2_, e3_, e4_ = st.columns(4)
+    tick_top = e1_.checkbox("Ticks on top", value=True, key="pub_tick_top")
+    tick_right = e2_.checkbox("Ticks on right", value=True, key="pub_tick_right")
+    legend_frame = e3_.checkbox("Legend box", value=True, key="pub_legend_frame")
+    legend_columns = e4_.number_input("Legend columns", 1, 6, 1, 1, key="pub_legend_cols")
+
+    f1_, f2_ = st.columns(2)
+    legend_location = f1_.selectbox("Legend position", LEGEND_LOCATIONS, key="pub_legend_loc")
+    legend_font_size = f2_.number_input(
+        "Legend font size", 4.0, 24.0, 9.0, 0.5, key="pub_legend_font"
+    )
+
+with st.expander("🎨 Per-curve style", expanded=False):
+    st.caption(
+        "One row per curve, in plotting order. Leave the colour blank to follow "
+        "the theme's own cycle."
+    )
+    style_table = pd.DataFrame(
+        {
+            "curve": selected,
+            "label": ["" for _ in selected],
+            "color": ["" for _ in selected],
+            "line": ["solid" for _ in selected],
+            "width": [1.6 for _ in selected],
+            "marker": ["none" for _ in selected],
+            "marker size": [5.0 for _ in selected],
+            "every nth marker": [1 for _ in selected],
+            "opacity": [1.0 for _ in selected],
+        }
+    )
+    edited_styles = st.data_editor(
+        style_table,
+        width="stretch",
+        hide_index=True,
+        disabled=["curve"],
+        column_config={
+            "line": st.column_config.SelectboxColumn(options=list(LINE_STYLES)),
+            "marker": st.column_config.SelectboxColumn(options=list(MARKERS)),
+            "color": st.column_config.TextColumn(help="A matplotlib colour: crimson, #1f77b4, C0"),
+            "width": st.column_config.NumberColumn(min_value=0.1, max_value=10.0, step=0.1),
+            "marker size": st.column_config.NumberColumn(min_value=0.0, max_value=30.0, step=0.5),
+            "every nth marker": st.column_config.NumberColumn(min_value=1, max_value=500, step=1),
+            "opacity": st.column_config.NumberColumn(min_value=0.05, max_value=1.0, step=0.05),
+        },
+        key="pub_curve_styles",
+    )
+
+curve_styles = [
+    CurveStyle(
+        color=(str(row["color"]).strip() or None),
+        linestyle=LINE_STYLES.get(str(row["line"]), "-"),
+        linewidth=float(row["width"]),
+        marker=MARKERS.get(str(row["marker"])),
+        markersize=float(row["marker size"]),
+        markevery=int(row["every nth marker"]),
+        alpha=float(row["opacity"]),
+        label=(str(row["label"]).strip() or None),
+    )
+    for _index, row in edited_styles.iterrows()
+]
+
 rows = available.set_index("stem")
 curves = []
 unreadable = []
@@ -158,9 +259,28 @@ try:
         logx=logx,
         logy=logy,
         title=title,
-        ylabel="Normalized I(q)" if normalization != "none" else "I(q)",
+        xlabel=xlabel,
+        ylabel=ylabel_override or ("Normalized I(q)" if normalization != "none" else "I(q)"),
         figsize=(float(figure_width), float(figure_height)),
         legend=legend,
+        styles=curve_styles,
+        multiplier=float(multiplier),
+        xlim=(x_low, x_high),
+        ylim=(y_low, y_high),
+        grid=grid,
+        minor_grid=minor_grid,
+        grid_alpha=float(grid_alpha),
+        minor_ticks=minor_ticks,
+        tick_direction=tick_direction,
+        tick_top=tick_top,
+        tick_right=tick_right,
+        tick_length=float(tick_length),
+        tick_width=float(tick_width),
+        spine_width=float(spine_width),
+        font_size=float(font_size),
+        legend_location=legend_location,
+        legend_columns=int(legend_columns),
+        legend_font_size=float(legend_font_size),
     )
 except ValueError as exc:
     st.error(str(exc))

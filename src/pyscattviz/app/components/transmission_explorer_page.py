@@ -743,7 +743,11 @@ if centers:
 
         with st.expander("🎛️ Line-cut plot: limits & style", expanded=True):
             lp1, lp2 = st.columns(2)
-            lc_xr = _rng(lp1, xlab, "tsaxs_lc_x")
+            lc_xr = (
+                _rng(lp1, xlab, "lc_x_phi", *PROFILE["phi_range"])
+                if xlab.startswith("φ")
+                else _rng(lp1, xlab, "tsaxs_lc_x")
+            )
             lc_yr = _rng(lp2, "I", "tsaxs_lc_i")
             st.caption("Profile curve style (applied to all cuts)")
             lc_style = _curve_style_controls(f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0})

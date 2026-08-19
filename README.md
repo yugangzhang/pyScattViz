@@ -908,16 +908,23 @@ set of scientific defaults.
 | Transmission SAXS | logarithmic I(q) | 0.001–0.5 | SAXS detector path, anisotropy, low-q I(q) |
 | Transmission WAXS | linear q | 0–3.5 | WAXS detector path, orientation, high-q I(q) |
 
-Each explorer opens on the window that geometry is normally reviewed in — GIWAXS
-on qx and qz over 0–5 Å⁻¹ and φ over 0–180°, since the two halves of the q–φ map
-mirror each other. Those are starting points, not limits.
+Each explorer opens on the window that geometry is normally reviewed in, and the
+window follows the beamline — point the explorer at a CMS folder and it uses the
+CMS preset, point it at SMI and it uses that one. CMS GIWAXS opens on qx and qz
+over 0–3 Å⁻¹, q–φ over q 0.5–3.5 and φ over 0–180°, since the two halves of a
+q–φ map mirror each other.
 
-Three buttons sit above the limit boxes. **Fit to this frame** fills them from
-the frame's own arrays, which is what to reach for when a map looks cut off: the
-q a reduction covers depends on the detector, its distance, and the photon
-energy, and real SMI GIWAXS reaches 7 Å⁻¹ while CMS reaches 3. The **geometry
-preset** restores the values in the table above, and **Clear back to auto**
-empties the boxes so each panel scales to its own data.
+**Auto-fit** handles the rest. A remeshed q-image covers only part of the qx–qz
+plane and everything outside it is NaN, so a fixed window can leave the picture
+stranded in a field of blank — SMI GISAXS on the old ±0.5 default was mostly
+empty, and its negative qz was cut off entirely. With auto-fit on, the q-image
+and q–φ q limits are measured from the pixels that actually hold data, frame by
+frame. It is on wherever there is no explicit beamline preset, and it leaves φ
+alone.
+
+Three buttons sit above the limit boxes: **Fit to this frame** measures the
+current frame once, the **beamline preset** restores the values in the table
+above, and **Clear back to auto** empties the boxes.
 
 The **QC image** panel starts unchecked — it is the reduction's own diagnostic
 picture rather than the data under review, and drawing it slows every frame
@@ -967,9 +974,19 @@ disabled.
 ## Publication plots
 
 The **Publication Plot** page reads only the explicitly selected circular-average
-CSVs. It supports science/notebook/presentation/poster themes, maximum or
-integral normalization, q-range selection, log axes, vertical offsets, legend
-control, and PNG/SVG/PDF output either as a download or straight to disk.
+CSVs, and gives you the whole of matplotlib over the result.
+
+Per curve, edited as a table — one row each, in plotting order: colour, line
+style, width, marker, marker size, how often to draw a marker, opacity, and the
+legend label. Leave the colour blank to follow the theme's own cycle.
+
+For the figure: science/notebook/presentation/poster themes, maximum or integral
+normalization, x and y limits, axis labels, log axes, an additive offset and a
+multiplicative stacking factor, base font size, major and minor grids with
+adjustable opacity, minor ticks, tick direction, length and width, ticks on the
+top and right, frame width, and legend position, columns, font size and box.
+Output as PNG, SVG, PDF, EPS or TIFF, either downloaded or written straight to
+disk.
 
 ## Python plotting API
 
