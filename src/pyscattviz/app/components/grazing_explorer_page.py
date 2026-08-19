@@ -80,6 +80,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.components.scattering import (
     style_1d_axes as _style_1d_axes,
 )
+from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "giwaxs")
@@ -283,8 +284,15 @@ if aspect_mode == "Custom":
     aspect_ratio = dc5.number_input(
         "y:x ratio", value=1.0, min_value=0.05, max_value=20.0, step=0.1, format="%.2f"
     )
-# Does the current frame's q_image expose a qr–qz representation?
-_qimg_data = load_qimg(sel["qimg"]) if "q_image" in active_products and sel["has_qimg"] else None
+# Does the current frame's q_image expose a qr–qz representation? A frame whose
+# npz is unreadable must not take the page down with it.
+_qimg_data = None
+_qimg_error = ""
+if "q_image" in active_products and sel["has_qimg"]:
+    try:
+        _qimg_data = load_qimg(sel["qimg"])
+    except DataReadError as exc:
+        _qimg_error = str(exc)
 _has_qr = qimage_has_qr(_qimg_data)
 b_axis_mode = dc6.selectbox(
     "B x-axis",
@@ -439,7 +447,7 @@ _band_color = "rgba(255,0,0,0.15)"
 _line_color = "crimson"
 
 if centers:
-    if cut_source.startswith("q_image") and sel["has_qimg"]:
+    if cut_source.startswith("q_image") and sel["has_qimg"] and _qimg_data is not None:
         qimg, qx, qz, qmask, _ = resolve_qimage(_qimg_data, b_mode)
         if qimg is not None:
             for c in centers:
@@ -478,7 +486,11 @@ if centers:
                         )
                     )
     elif cut_source.startswith("q–φ") and sel["has_qphi"]:
-        q, phi, qphi, pmask = load_qphi(sel["qphi"])
+        try:
+            q, phi, qphi, pmask = load_qphi(sel["qphi"])
+        except DataReadError as exc:
+            st.error(str(exc))
+            q = phi = qphi = pmask = None
         # qphi_mask is stored on the raw-detector grid, not (nphi, nq); skip it.
         pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
         if qphi is not None:
@@ -535,7 +547,11 @@ def _render_image(path, title, *, flip=False):
     if not path:
         st.info(f"No {title.lower()} for this frame.")
         return
-    raw = load_raw(path)
+    try:
+        raw = load_raw(path)
+    except DataReadError as exc:
+        st.error(str(exc))
+        return
     z = raw.astype(float)
     # QC PNGs can be RGB/RGBA; use a luminance-like average for the shared
     # heatmap renderer while preserving the same panel behavior as raw images.
@@ -580,7 +596,9 @@ def _render_panel(panel):
         else:
             st.info("No QC image for this frame.")
     elif panel == "q_image":
-        if sel["has_qimg"] and _qimg_data is not None:
+        if _qimg_error:
+            st.error(_qimg_error)
+        elif sel["has_qimg"] and _qimg_data is not None:
             qimg, qx, qz, qmask, b_xlab = resolve_qimage(_qimg_data, b_mode)
             z = _apply_mask(qimg, qmask)
             z, xx, yy = _downsample(z, qx, qz)
@@ -609,7 +627,11 @@ def _render_panel(panel):
             st.info("No q-image for this frame.")
     elif panel == "qphi":
         if sel["has_qphi"]:
-            q, phi, qphi, pmask = load_qphi(sel["qphi"])
+            try:
+                q, phi, qphi, pmask = load_qphi(sel["qphi"])
+            except DataReadError as exc:
+                st.error(str(exc))
+                return
             pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
             z = _apply_mask(qphi, pmask)
             fig = _heatmap_fig(
@@ -637,7 +659,11 @@ def _render_panel(panel):
             st.info("No q–φ map for this frame.")
     elif panel == "cir_avg":
         if sel["has_cir"]:
-            qq, ii = load_cir(sel["cir"])
+            try:
+                qq, ii = load_cir(sel["cir"])
+            except DataReadError as exc:
+                st.error(str(exc))
+                return
             tk = _apply_curve_style(
                 dict(
                     x=qq, y=ii, name="I(q)", hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>"

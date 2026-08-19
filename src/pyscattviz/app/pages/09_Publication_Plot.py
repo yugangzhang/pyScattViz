@@ -14,6 +14,7 @@ from pyscattviz.app.components.scattering import (
     index_frames,
     load_cir,
 )
+from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
 from pyscattviz.plotting import fig_to_bytes
 from pyscattviz.publication import Curve, build_curve_figure
@@ -108,9 +109,19 @@ figure_height = s3.number_input("Height (in)", 3.0, 20.0, 5.0, 0.5)
 
 rows = available.set_index("stem")
 curves = []
+unreadable = []
 for stem in selected:
-    q, intensity = load_cir(rows.loc[stem, "cir"])
+    try:
+        q, intensity = load_cir(rows.loc[stem, "cir"])
+    except DataReadError as exc:
+        unreadable.append(str(exc))
+        continue
     curves.append(Curve(stem, q, intensity))
+for message in unreadable:
+    st.warning(message)
+if not curves:
+    st.error("None of the selected circular averages could be read.")
+    st.stop()
 
 try:
     figure = build_curve_figure(
@@ -148,10 +159,10 @@ with e3:
         type="primary",
     )
 
-curve_frames = []
-for stem in selected:
-    q_values, intensity_values = load_cir(rows.loc[stem, "cir"])
-    curve_frames.append(pd.DataFrame({f"q[{stem}]": q_values, f"I[{stem}]": intensity_values}))
+curve_frames = [
+    pd.DataFrame({f"q[{curve.name}]": curve.q, f"I[{curve.name}]": curve.intensity})
+    for curve in curves
+]
 curve_table = pd.concat(curve_frames, axis=1) if curve_frames else None
 
 render_save_panel(

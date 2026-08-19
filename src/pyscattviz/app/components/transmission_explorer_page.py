@@ -71,6 +71,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.components.scattering import (
     style_1d_axes as _style_1d_axes,
 )
+from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "tsaxs")
@@ -387,7 +388,11 @@ _band_color = "rgba(255,0,0,0.15)"
 _line_color = "crimson"
 
 if centers and "qphi" in active_products and sel["has_qphi"]:
-    q, phi, qphi, pmask = load_qphi(sel["qphi"])
+    try:
+        q, phi, qphi, pmask = load_qphi(sel["qphi"])
+    except DataReadError as exc:
+        st.error(str(exc))
+        q = phi = qphi = pmask = None
     pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
     if qphi is not None:
         for c in centers:
@@ -442,10 +447,13 @@ rowB = st.columns(2)
 
 # A) raw image ---------------------------------------------------------------
 with rowA[0]:
-    if "stitched" not in active_products:
-        pass
-    elif sel["has_raw"]:
-        raw = load_raw(sel["raw"])
+    raw = None
+    if "stitched" in active_products and sel["has_raw"]:
+        try:
+            raw = load_raw(sel["raw"])
+        except DataReadError as exc:
+            st.error(str(exc))
+    if raw is not None:
         z = raw.astype(float).copy()
         z[~np.isfinite(z)] = np.nan
         z[z <= 0] = np.nan
@@ -470,17 +478,20 @@ with rowA[0]:
         st.plotly_chart(fig, width="stretch")
         rendered_figures["A · raw"] = fig
         rendered_arrays["A · raw"] = {"image": z}
-    elif "stitched" in active_products:
+    elif "stitched" in active_products and not sel["has_raw"]:
         st.info("No raw image for this frame.")
 
 # B) q-image (reserved — no remesh for transmission data yet) ----------------
 with rowA[1]:
-    if "q_image" not in active_products:
-        pass
-    elif sel["has_qimg"]:
+    data = None
+    if "q_image" in active_products and sel["has_qimg"]:
         from pyscattviz.app.components.scattering import load_qimg, resolve_qimage
 
-        data = load_qimg(sel["qimg"])
+        try:
+            data = load_qimg(sel["qimg"])
+        except DataReadError as exc:
+            st.error(str(exc))
+    if data is not None:
         qimg, qx, qz, qmask, b_xlab = resolve_qimage(data, "qx")
         z = _apply_mask(qimg, qmask)
         z, xx, yy = _downsample(z, qx, qz)
@@ -502,7 +513,7 @@ with rowA[1]:
             "qx": np.asarray(xx),
             "qz": np.asarray(yy),
         }
-    elif "q_image" in active_products:
+    elif "q_image" in active_products and not sel["has_qimg"]:
         st.info(
             "🔧 **q-image** — no qx–qz remesh exists for this transmission "
             "dataset yet. This panel is reserved: it will render "
@@ -511,10 +522,13 @@ with rowA[1]:
 
 # C) q–φ map -----------------------------------------------------------------
 with rowB[0]:
-    if "qphi" not in active_products:
-        pass
-    elif sel["has_qphi"]:
-        q, phi, qphi, pmask = load_qphi(sel["qphi"])
+    qphi = None
+    if "qphi" in active_products and sel["has_qphi"]:
+        try:
+            q, phi, qphi, pmask = load_qphi(sel["qphi"])
+        except DataReadError as exc:
+            st.error(str(exc))
+    if qphi is not None:
         pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
         z = _apply_mask(qphi, pmask)
         fig = _heatmap_fig(
@@ -538,15 +552,18 @@ with rowB[0]:
             "q": np.asarray(q),
             "phi": np.asarray(phi),
         }
-    elif "qphi" in active_products:
+    elif "qphi" in active_products and not sel["has_qphi"]:
         st.info("No qphi map for this frame.")
 
 # D) I(q) circular average ---------------------------------------------------
 with rowB[1]:
-    if "cir_avg" not in active_products:
-        pass
-    elif sel["has_cir"]:
-        qq, ii = load_cir(sel["cir"])
+    qq = None
+    if "cir_avg" in active_products and sel["has_cir"]:
+        try:
+            qq, ii = load_cir(sel["cir"])
+        except DataReadError as exc:
+            st.error(str(exc))
+    if qq is not None:
         tk = _apply_curve_style(
             dict(x=qq, y=ii, name="I(q)", hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>"),
             d_style,
@@ -565,7 +582,7 @@ with rowB[1]:
         st.plotly_chart(fig, width="stretch")
         rendered_figures["D · I(q)"] = fig
         rendered_tables["D · I(q)"] = pd.DataFrame({"q": qq, "I": ii})
-    elif "cir_avg" in active_products:
+    elif "cir_avg" in active_products and not sel["has_cir"]:
         st.info("No circular average for this frame.")
 
 if rendered_figures:

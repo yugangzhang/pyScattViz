@@ -45,6 +45,11 @@
   correct past nine pages.
 - Kaleido is now installed with pyScattViz so static Plotly export works out of
   the box; HTML export continues to need nothing.
+- Made the loaders survive the files a real proposal folder actually contains.
+  A zero-byte CSV, a single-column CSV, a truncated npz, an npz that is not an
+  archive, and a PNG that is not an image each used to take the whole page down;
+  they now raise one catchable error, and the panel or curve reports itself
+  while the rest of the review continues.
 
 ## 0.6.0
 

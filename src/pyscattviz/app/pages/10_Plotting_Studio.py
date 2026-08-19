@@ -16,6 +16,7 @@ import streamlit as st
 import pyscattviz.plotting as pv
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 from pyscattviz.app.components.scattering import load_qimg
+from pyscattviz.dataio import DataReadError
 from pyscattviz.studio import (
     demo_curve_table,
     demo_image,
@@ -195,7 +196,10 @@ with tab_2d:
             key="studio_2d_saved_frame",
         )
         qimg_path = available_qimg.set_index("stem").loc[chosen_stem, "qimg"]
-        bundle = {name: np.asarray(value) for name, value in load_qimg(qimg_path).items()}
+        try:
+            bundle = {name: np.asarray(value) for name, value in load_qimg(qimg_path).items()}
+        except DataReadError as exc:
+            st.error(str(exc))
 
     arrays_2d = two_dimensional_arrays(bundle)
     if arrays_2d:

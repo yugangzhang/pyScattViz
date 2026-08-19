@@ -78,6 +78,9 @@ in the GUI and the README. Do not upgrade the wording without a real test.
 11. Streamlit-free modules (`discovery`, `datasets`, `dataio`, `exporting`,
     `mounts`, `filters`, `publication`, `plotting`) hold the logic so it stays
     testable and usable from notebooks.
+12. Every loader raises one catchable `DataReadError`. A corrupt file must
+    report itself and leave the rest of the page working; it must never raise
+    a bare `EOFError`, `BadZipFile`, or `EmptyDataError` into Streamlit.
 
 ## Application workflow
 
@@ -169,13 +172,17 @@ Tests:
 - `tests/test_data_selection_page.py`, `tests/test_quick_plot_page.py`,
   `tests/test_saving_page.py`, `tests/test_batch_export.py`,
   `tests/test_app_smoke.py`: GUI regression.
+- `tests/test_corrupt_files.py`: a result folder holding a zero-byte CSV, a
+  truncated npz, and a PNG that is not an image. Every page must survive it.
+  This is not hypothetical — an interrupted reduction or a dropped mount
+  produces exactly these files.
 
 ## Last verification
 
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           295 passed
+python -m pytest -q           307 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps

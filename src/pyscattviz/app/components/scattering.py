@@ -21,6 +21,7 @@ import fnmatch
 import os
 import re
 import warnings
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -29,6 +30,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import compile_filter, parse_filename_list
 
 # Max pixels to keep for a heatmap; larger images are stride-decimated.
@@ -439,12 +441,36 @@ def index_frames(
 
 # ---------------------------------------------------------------------------
 # Loaders
+#
+# A real proposal folder always contains a few files that cannot be read: a
+# reduction that was interrupted mid-write, a zero-byte CSV, an npz truncated by
+# a dropped mount. Every loader below turns that into one catchable
+# ``DataReadError`` so a single bad frame reports itself instead of taking the
+# whole page down.
 # ---------------------------------------------------------------------------
+_READ_FAILURES = (
+    OSError,  # includes PIL's UnidentifiedImageError and a vanished mount
+    ValueError,  # includes pandas EmptyDataError and ParserError
+    KeyError,
+    IndexError,  # a CSV with fewer columns than the fallback expects
+    EOFError,  # a truncated npz
+    zipfile.BadZipFile,  # an npz that is not a zip at all
+)
+
+
+def _read_error(path: str, exc: Exception) -> DataReadError:
+    return DataReadError(f"{Path(path).name} could not be read: {exc}")
+
+
 @st.cache_data(show_spinner=False)
 def load_raw(fpath: str):
     from PIL import Image
 
-    return np.asarray(Image.open(fpath)).astype(float)
+    try:
+        with Image.open(fpath) as image:
+            return np.asarray(image).astype(float)
+    except (*_READ_FAILURES, Image.DecompressionBombError) as exc:
+        raise _read_error(fpath, exc) from exc
 
 
 @st.cache_data(show_spinner=False)
@@ -457,8 +483,11 @@ def load_qimg(fpath: str):
     * a 2D remesh ``qrimg`` / ``qr_image`` / ``qr_img`` (+ ``qr (nx,)``), or
     * a 1D ``qr (nx,)`` axis reused with ``qimg`` as an alternative x-axis.
     """
-    d = np.load(fpath)
-    return {k: d[k] for k in d.files}
+    try:
+        with np.load(fpath) as archive:
+            return {name: archive[name] for name in archive.files}
+    except _READ_FAILURES as exc:
+        raise _read_error(fpath, exc) from exc
 
 
 # Candidate npz keys holding a 2D qr–qz remeshed image.
@@ -517,17 +546,26 @@ def resolve_qimage(data: dict, mode: str):
 
 @st.cache_data(show_spinner=False)
 def load_qphi(fpath: str):
-    d = np.load(fpath)
-    return (d.get("q"), d.get("phi"), d.get("qphi"), d.get("qphi_mask"))
+    try:
+        with np.load(fpath) as archive:
+            return tuple(
+                archive[name] if name in archive.files else None
+                for name in ("q", "phi", "qphi", "qphi_mask")
+            )
+    except _READ_FAILURES as exc:
+        raise _read_error(fpath, exc) from exc
 
 
 @st.cache_data(show_spinner=False)
 def load_cir(fpath: str):
-    df = pd.read_csv(fpath)
-    cols = {c.lower(): c for c in df.columns}
-    qcol = cols.get("q_ca") or cols.get("q") or df.columns[-2]
-    icol = cols.get("iq_ca") or cols.get("intensity") or df.columns[-1]
-    return df[qcol].to_numpy(float), df[icol].to_numpy(float)
+    try:
+        df = pd.read_csv(fpath)
+        cols = {c.lower(): c for c in df.columns}
+        qcol = cols.get("q_ca") or cols.get("q") or df.columns[-2]
+        icol = cols.get("iq_ca") or cols.get("intensity") or df.columns[-1]
+        return df[qcol].to_numpy(float), df[icol].to_numpy(float)
+    except _READ_FAILURES as exc:
+        raise _read_error(fpath, exc) from exc
 
 
 # ---------------------------------------------------------------------------

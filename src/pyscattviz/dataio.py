@@ -14,6 +14,7 @@ selected for plotting.
 from __future__ import annotations
 
 import re
+import zipfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
@@ -246,7 +247,9 @@ def read_arrays(path: str | Path) -> dict[str, np.ndarray]:
             return {target.stem: np.asarray(np.load(target, allow_pickle=False))}
         with np.load(target, allow_pickle=False) as archive:
             return {name: np.asarray(archive[name]) for name in archive.files}
-    except (OSError, ValueError, KeyError) as exc:
+    # A truncated npz raises EOFError and a non-archive raises BadZipFile;
+    # neither is an OSError, and both turn up in interrupted reductions.
+    except (OSError, ValueError, KeyError, EOFError, zipfile.BadZipFile) as exc:
         raise DataReadError(f"Could not read arrays from {target.name}: {exc}") from exc
 
 
@@ -259,7 +262,7 @@ def read_image(path: str | Path) -> np.ndarray:
     try:
         with Image.open(target) as image:
             array = np.asarray(image, dtype=float)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise DataReadError(f"Could not read {target.name} as an image: {exc}") from exc
     if array.ndim == 3:
         array = array[..., :3].mean(axis=2)
