@@ -51,11 +51,50 @@ _DELIMITERS = (",", "\t", ";", "|")
 # free-text note. A comment such as "# q  I  sigma" is a header; "# sample B"
 # is not, and letting it through would rename the columns to nonsense.
 _AXIS_WORDS = (
-    "q", "qr", "qx", "qy", "qz", "i", "iq", "int", "intensity", "counts", "cts",
-    "sigma", "sig", "err", "error", "std", "esd", "x", "y", "z", "theta",
-    "twotheta", "tth", "2theta", "chi", "phi", "psi", "angle", "d", "dspacing",
-    "r", "t", "time", "frame", "index", "wavelength", "energy", "temperature",
-    "temp", "pressure", "azimuth", "radius", "pixel", "channel",
+    "q",
+    "qr",
+    "qx",
+    "qy",
+    "qz",
+    "i",
+    "iq",
+    "int",
+    "intensity",
+    "counts",
+    "cts",
+    "sigma",
+    "sig",
+    "err",
+    "error",
+    "std",
+    "esd",
+    "x",
+    "y",
+    "z",
+    "theta",
+    "twotheta",
+    "tth",
+    "2theta",
+    "chi",
+    "phi",
+    "psi",
+    "angle",
+    "d",
+    "dspacing",
+    "r",
+    "t",
+    "time",
+    "frame",
+    "index",
+    "wavelength",
+    "energy",
+    "temperature",
+    "temp",
+    "pressure",
+    "azimuth",
+    "radius",
+    "pixel",
+    "channel",
 )
 _TOKEN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.^()\[\]/%+*-]*$")
 
@@ -152,9 +191,7 @@ def _sniff_layout(path: Path, max_probe: int = 400) -> tuple[str | None, int, li
                 is_comment = raw.startswith(("#", ";", "!"))
                 candidate = raw.lstrip("#;!").strip()
                 names = _split(candidate, delimiter)
-                usable = len(names) == len(fields) and not all(
-                    _is_number(name) for name in names
-                )
+                usable = len(names) == len(fields) and not all(_is_number(name) for name in names)
                 if usable and (not is_comment or _looks_like_axis_names(names)):
                     header = [name.strip() or f"column_{i}" for i, name in enumerate(names)]
                 break
@@ -253,9 +290,7 @@ def _curve_from_arrays(target: Path, x_column: str | None, y_column: str | None)
     arrays = read_arrays(target)
     one_d = {name: value for name, value in arrays.items() if np.ndim(value) == 1}
     if len(one_d) < 2:
-        raise DataReadError(
-            f"{target.name} does not contain two one-dimensional arrays to plot."
-        )
+        raise DataReadError(f"{target.name} does not contain two one-dimensional arrays to plot.")
     names = list(one_d)
     x_name = x_column if x_column in one_d else _pick(names, _Q_NAMES, 0)
     remaining = [name for name in names if name != x_name] or names
@@ -285,9 +320,7 @@ def read_curve(
 
     target = Path(path).expanduser()
     if target.suffix.lower() in ARRAY_SUFFIXES:
-        x_values, y_values, x_name, y_name, names = _curve_from_arrays(
-            target, x_column, y_column
-        )
+        x_values, y_values, x_name, y_name, names = _curve_from_arrays(target, x_column, y_column)
     else:
         table = read_table(target)
         names = list(table.columns)

@@ -44,9 +44,7 @@ def add_path_mapping(mappings, remote_root: str, local_root: str) -> list[dict]:
     """Add or replace a remote-root mapping."""
 
     new_mapping = normalize_mapping(remote_root, local_root)
-    result = [
-        item for item in mappings if item.get("remote_root") != new_mapping["remote_root"]
-    ]
+    result = [item for item in mappings if item.get("remote_root") != new_mapping["remote_root"]]
     result.append(new_mapping)
     return sorted(result, key=lambda item: item["remote_root"])
 

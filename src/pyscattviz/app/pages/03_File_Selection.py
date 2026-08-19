@@ -31,9 +31,7 @@ st.session_state.setdefault("pyscattviz_path_mappings", load_path_mappings())
 default_root = st.session_state.get("pyscattviz_active_root", "")
 st.session_state.setdefault("pyscattviz_file_root", default_root)
 browser_start = (
-    default_root
-    if default_root and Path(default_root).expanduser().is_dir()
-    else Path.home()
+    default_root if default_root and Path(default_root).expanduser().is_dir() else Path.home()
 )
 st.session_state.setdefault("pyscattviz_browser_cwd", str(browser_start))
 
@@ -97,8 +95,7 @@ with st.expander(
     rows = result["rows"]
     if rows:
         display_rows = [
-            {key: row[key] for key in ("name", "type", "size", "modified")}
-            for row in rows
+            {key: row[key] for key in ("name", "type", "size", "modified")} for row in rows
         ]
         st.dataframe(display_rows, width="stretch", hide_index=True)
         folders = [row for row in rows if row["is_dir"]]
@@ -149,25 +146,18 @@ effective_root, active_mapping = translate_remote_path(
 )
 effective_path_available = Path(effective_root).expanduser().is_dir()
 unavailable_mapping = bool(active_mapping and not effective_path_available)
-unmounted_remote = root_input.startswith("/nsls2/") and (
-    not active_mapping or unavailable_mapping
-)
+unmounted_remote = root_input.startswith("/nsls2/") and (not active_mapping or unavailable_mapping)
 
 if root_input and not unmounted_remote:
     st.session_state["pyscattviz_active_root"] = str(
         Path(effective_root).expanduser().resolve(strict=False)
     )
 if active_mapping and effective_path_available:
-    st.info(
-        f"Remote path mapped through `{active_mapping['remote_root']}` to "
-        f"`{effective_root}`."
-    )
+    st.info(f"Remote path mapped through `{active_mapping['remote_root']}` to `{effective_root}`.")
 elif unmounted_remote:
     detail = ""
     if unavailable_mapping:
-        detail = (
-            f" The saved mapping points to unavailable folder `{effective_root}`."
-        )
+        detail = f" The saved mapping points to unavailable folder `{effective_root}`."
     st.warning(
         "This `/nsls2` path is not mounted on this computer. Open Data Sources & "
         "Mounts, complete the SFTP mount in a terminal/Desktop client, test it, and "

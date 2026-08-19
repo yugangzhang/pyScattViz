@@ -94,9 +94,7 @@ def render_batch_export(
             format_func=lambda item: BATCH_PANELS[item],
             key=f"{key}_batch_panel",
         )
-        fmt = controls[1].selectbox(
-            "Format", list(PLOTLY_FORMATS), key=f"{key}_batch_format"
-        )
+        fmt = controls[1].selectbox("Format", list(PLOTLY_FORMATS), key=f"{key}_batch_format")
         limit = controls[2].number_input(
             "Maximum frames",
             1,
@@ -187,8 +185,7 @@ def render_batch_export(
         if missing:
             st.info(
                 f"{len(missing):,} frame(s) have no {BATCH_PANELS[panel]} and were "
-                f"skipped: {', '.join(missing[:5])}"
-                + (" …" if len(missing) > 5 else "")
+                f"skipped: {', '.join(missing[:5])}" + (" …" if len(missing) > 5 else "")
             )
         for message in failed[:5]:
             st.error(message)

@@ -19,9 +19,7 @@ _LEGACY_PAGE = re.compile(r"^[1-9]_[A-Za-z]")
 
 def _warn_about_legacy_pages(pages_dir: Path) -> None:
     try:
-        stale = sorted(
-            item.name for item in pages_dir.iterdir() if _LEGACY_PAGE.match(item.name)
-        )
+        stale = sorted(item.name for item in pages_dir.iterdir() if _LEGACY_PAGE.match(item.name))
     except OSError:
         return
     if not stale:

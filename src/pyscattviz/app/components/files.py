@@ -93,8 +93,7 @@ def collect_files(
     """
 
     allowed = tuple(
-        suffix.lower() if suffix.startswith(".") else "." + suffix.lower()
-        for suffix in extensions
+        suffix.lower() if suffix.startswith(".") else "." + suffix.lower() for suffix in extensions
     )
     if not allowed:
         allowed = (*CURVE_SUFFIXES, *ARRAY_SUFFIXES, *IMAGE_SUFFIXES)

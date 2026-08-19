@@ -10,9 +10,7 @@ PAGES_DIR = APP_DIR / "pages"
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path_factory, monkeypatch):
-    monkeypatch.setenv(
-        "PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config"))
-    )
+    monkeypatch.setenv("PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config")))
 
 
 @pytest.fixture
@@ -43,9 +41,9 @@ def test_output_folder_page_lists_one_folder_per_page(output_root):
 def test_output_folder_page_creates_the_root_and_a_custom_subfolder(output_root):
     target = output_root / "chosen"
     app = AppTest.from_file(str(PAGES_DIR / "11_Output_Folder.py"), default_timeout=60).run()
-    next(
-        item for item in app.text_input if item.label == "Save figures and tables to"
-    ).set_value(str(target))
+    next(item for item in app.text_input if item.label == "Save figures and tables to").set_value(
+        str(target)
+    )
     app.run()
     next(item for item in app.button if item.label == "Create it now").click().run()
     assert target.is_dir()
@@ -61,9 +59,9 @@ def test_output_folder_page_creates_the_root_and_a_custom_subfolder(output_root)
 def test_the_output_root_is_remembered_across_pages(output_root):
     target = output_root / "shared"
     app = AppTest.from_file(str(PAGES_DIR / "11_Output_Folder.py"), default_timeout=60).run()
-    next(
-        item for item in app.text_input if item.label == "Save figures and tables to"
-    ).set_value(str(target))
+    next(item for item in app.text_input if item.label == "Save figures and tables to").set_value(
+        str(target)
+    )
     app.run()
 
     other = AppTest.from_file(str(PAGES_DIR / "08_Quick_Plot.py"), default_timeout=60).run()
@@ -76,9 +74,7 @@ def test_a_publication_figure_is_written_into_its_own_page_folder(giwaxs, output
     app.run()
     assert not app.exception
 
-    next(
-        item for item in app.button if item.key == "publication_save_save"
-    ).click().run()
+    next(item for item in app.button if item.key == "publication_save_save").click().run()
 
     written = list((output_root / "Publication_Plot").glob("*.png"))
     assert len(written) == 1
@@ -91,17 +87,11 @@ def test_an_explorer_panel_is_written_into_its_own_page_folder(giwaxs, output_ro
     app.run()
     assert not app.exception
 
-    fmt = next(
-        item
-        for item in app.selectbox
-        if item.key == "pyscattviz_giwaxs_panel_save_format"
-    )
+    fmt = next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_panel_save_format")
     fmt.set_value("html")
     app.run()
     next(
-        item
-        for item in app.button
-        if item.key == "pyscattviz_giwaxs_panel_save_save"
+        item for item in app.button if item.key == "pyscattviz_giwaxs_panel_save_save"
     ).click().run()
 
     written = list((output_root / "GIWAXS_Explorer").glob("*.html"))
@@ -115,9 +105,7 @@ def test_turning_off_the_per_page_subfolder_writes_into_the_root(giwaxs, output_
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.session_state["pyscattviz_output_subfolder_per_tab"] = False
     app.run()
-    next(
-        item for item in app.button if item.key == "publication_save_save"
-    ).click().run()
+    next(item for item in app.button if item.key == "publication_save_save").click().run()
 
     assert list(output_root.glob("*.png"))
     assert not (output_root / "Publication_Plot").exists()
@@ -130,9 +118,7 @@ def test_switching_the_payload_switches_to_a_valid_format(giwaxs, output_root):
     app.session_state["pyscattviz_dataset_paths"] = [str(giwaxs)]
     app.run()
 
-    next(item for item in app.selectbox if item.key == "quickplot_1d_save_format").set_value(
-        "svg"
-    )
+    next(item for item in app.selectbox if item.key == "quickplot_1d_save_format").set_value("svg")
     app.run()
     next(item for item in app.selectbox if item.key == "quickplot_1d_save_what").set_value(
         "Plotted data (table)"
@@ -153,9 +139,9 @@ def test_changing_the_root_in_one_panel_updates_the_sidebar_box(giwaxs, output_r
     app.session_state["pyscattviz_dataset_paths"] = [str(giwaxs)]
     app.run()
 
-    next(
-        item for item in app.text_input if item.key == "quickplot_1d_save_root"
-    ).set_value(str(target))
+    next(item for item in app.text_input if item.key == "quickplot_1d_save_root").set_value(
+        str(target)
+    )
     app.run()
 
     assert not app.exception
@@ -164,7 +150,5 @@ def test_changing_the_root_in_one_panel_updates_the_sidebar_box(giwaxs, output_r
         item for item in app.text_input if item.key == "pyscattviz_output_root_widget"
     )
     assert sidebar_box.value == str(target)
-    other_panel = next(
-        item for item in app.text_input if item.key == "quickplot_list_save_root"
-    )
+    other_panel = next(item for item in app.text_input if item.key == "quickplot_list_save_root")
     assert other_panel.value == str(target)

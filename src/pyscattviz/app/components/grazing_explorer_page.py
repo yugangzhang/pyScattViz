@@ -153,9 +153,7 @@ with st.sidebar:
             ),
             key=f"{STATE_PREFIX}_basket_pick",
         )
-        if picked in basket_folders and picked != st.session_state.get(
-            "pyscattviz_active_root"
-        ):
+        if picked in basket_folders and picked != st.session_state.get("pyscattviz_active_root"):
             st.session_state["pyscattviz_active_root"] = picked
             st.rerun()
 
@@ -308,12 +306,8 @@ _PANEL_H = 380
 def _rng(col, label, key, lo_val=None, hi_val=None, fmt="%.4g"):
     """Two side-by-side optional number inputs → (min, max); None means auto."""
     a, b = col.columns(2)
-    lo = a.number_input(
-        f"{label} min", value=lo_val, key=f"{STATE_PREFIX}_{key}_lo", format=fmt
-    )
-    hi = b.number_input(
-        f"{label} max", value=hi_val, key=f"{STATE_PREFIX}_{key}_hi", format=fmt
-    )
+    lo = a.number_input(f"{label} min", value=lo_val, key=f"{STATE_PREFIX}_{key}_lo", format=fmt)
+    hi = b.number_input(f"{label} max", value=hi_val, key=f"{STATE_PREFIX}_{key}_hi", format=fmt)
     return lo, hi
 
 
@@ -425,9 +419,7 @@ if cut_options:
         centers_lab = "q center(s)" if _is_qcut else "φ center(s)"
         width_lab = "q width" if _is_qcut else "φ width"
         def_centers, def_width = (
-            (PROFILE["q_cut_center"], PROFILE["q_cut_width"])
-            if _is_qcut
-            else ("0", 10.0)
+            (PROFILE["q_cut_center"], PROFILE["q_cut_width"]) if _is_qcut else ("0", 10.0)
         )
 
     centers_txt = lc3.text_input(
@@ -531,7 +523,6 @@ if centers:
 # ===========================================================================
 st.divider()
 st.markdown(f"### 🖼️ {sel['stem']}")
-
 
 
 # Figures kept as they are drawn, so the save panel below can offer any of them.
@@ -681,9 +672,7 @@ for start in range(0, len(panel_order), 2):
 if rendered_figures:
     st.divider()
     st.markdown("#### 💾 Save a panel to disk")
-    chosen_panel = st.selectbox(
-        "Panel", list(rendered_figures), key=f"{STATE_PREFIX}_save_panel"
-    )
+    chosen_panel = st.selectbox("Panel", list(rendered_figures), key=f"{STATE_PREFIX}_save_panel")
     render_save_panel(
         f"{PROFILE['name']} Explorer",
         f"{sel['stem']}_{chosen_panel.split('·')[-1].strip()}",
@@ -746,9 +735,7 @@ if centers:
             )
             lc_yr = _rng(lp2, "I", "lc_i")
             st.caption("Profile curve style (applied to all cuts)")
-            lc_style = _curve_style_controls(
-                f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0}
-            )
+            lc_style = _curve_style_controls(f"{STATE_PREFIX}_lc_style", defaults={"width": 2.0})
 
         import plotly.express as px
 

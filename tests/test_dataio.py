@@ -193,9 +193,7 @@ def test_stack_curves_leaves_out_of_range_points_as_nan(tmp_path):
     short.write_text("q,I\n0.1,1\n0.2,2\n")
     long = tmp_path / "long.csv"
     long.write_text("q,I\n0.1,1\n0.5,5\n")
-    grid, _labels, matrix = stack_curves(
-        [read_curve(short), read_curve(long)], points=11
-    )
+    grid, _labels, matrix = stack_curves([read_curve(short), read_curve(long)], points=11)
     assert np.isnan(matrix[0, -1])
     assert not np.isnan(matrix[1, -1])
 

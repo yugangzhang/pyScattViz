@@ -127,9 +127,7 @@ def test_find_folders_matching_on_name_returns_only_the_result_folders(proposal)
 
 
 def test_find_folders_reports_products_and_can_require_them(proposal):
-    rows, _truncated = find_folders(
-        proposal, and_list=["giwaxs"], match_on="name", max_depth=6
-    )
+    rows, _truncated = find_folders(proposal, and_list=["giwaxs"], match_on="name", max_depth=6)
     giwaxs = next(row for row in rows if "microbeam" in row["path"])
     assert giwaxs["products"] == "cir_avg, q_image"
 
@@ -140,9 +138,7 @@ def test_find_folders_reports_products_and_can_require_them(proposal):
 
 
 def test_find_folders_skips_hidden_folders_and_missing_roots(proposal):
-    rows, _truncated = find_folders(
-        [proposal, proposal / "does_not_exist"], max_depth=2
-    )
+    rows, _truncated = find_folders([proposal, proposal / "does_not_exist"], max_depth=2)
     assert not any(row["name"].startswith(".") for row in rows)
 
 
@@ -207,9 +203,7 @@ def test_describe_paths_reports_kind_for_each_entry(proposal):
 def test_find_folders_can_skip_the_product_report(proposal):
     """The report costs one directory listing per match; it must be optional."""
 
-    described, _ = find_folders(
-        proposal, and_list=["giwaxs"], match_on="name", max_depth=6
-    )
+    described, _ = find_folders(proposal, and_list=["giwaxs"], match_on="name", max_depth=6)
     plain, _ = find_folders(
         proposal,
         and_list=["giwaxs"],

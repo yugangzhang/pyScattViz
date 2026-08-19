@@ -48,9 +48,7 @@ def test_normalize_paths_translates_a_remote_path_through_a_mapping():
 
 
 def test_save_and_load_a_collection_round_trip(config_home):
-    written = save_collection(
-        "microbeam Kim", ["/mnt/a", "/mnt/b"], "0.10 and 0.15 deg"
-    )
+    written = save_collection("microbeam Kim", ["/mnt/a", "/mnt/b"], "0.10 and 0.15 deg")
     assert written.name == "microbeam_Kim.json"
 
     payload = load_collection("microbeam Kim")

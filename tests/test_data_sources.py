@@ -21,9 +21,7 @@ def test_remote_path_maps_to_windows_drive():
 
 def test_remote_path_maps_to_posix_mount(tmp_path):
     mappings = add_path_mapping([], REMOTE_ROOT, str(tmp_path))
-    translated, _mapping = translate_remote_path(
-        REMOTE_ROOT + "/2026-2/pass-319371", mappings
-    )
+    translated, _mapping = translate_remote_path(REMOTE_ROOT + "/2026-2/pass-319371", mappings)
     assert translated == str(tmp_path / "2026-2" / "pass-319371")
 
 

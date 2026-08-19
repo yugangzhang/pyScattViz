@@ -215,8 +215,7 @@ def rclone_config_command(remote_name: str, username: str) -> str:
     if not user:
         raise ValueError("BNL username is required")
     return (
-        f"rclone config create {name} sftp"
-        f" host {SFTP_HOST} user {user} port 22 ask_password true"
+        f"rclone config create {name} sftp host {SFTP_HOST} user {user} port 22 ask_password true"
     )
 
 

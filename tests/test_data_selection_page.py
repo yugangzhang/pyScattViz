@@ -11,12 +11,8 @@ PAGE = PAGES_DIR / "02_Data_Selection.py"
 def isolated_config(tmp_path_factory, monkeypatch):
     """Keep saved collections and settings out of the developer's home folder."""
 
-    monkeypatch.setenv(
-        "PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config"))
-    )
-    monkeypatch.setenv(
-        "PYSCATTVIZ_OUTPUT_DIR", str(tmp_path_factory.mktemp("pyscattviz_output"))
-    )
+    monkeypatch.setenv("PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config")))
+    monkeypatch.setenv("PYSCATTVIZ_OUTPUT_DIR", str(tmp_path_factory.mktemp("pyscattviz_output")))
 
 
 @pytest.fixture
@@ -38,9 +34,7 @@ def _search(app, and_terms="", or_terms="", not_terms=""):
     next(item for item in app.text_input if item.label.startswith("May contain")).set_value(
         or_terms
     )
-    next(item for item in app.text_input if item.label.startswith("Must not")).set_value(
-        not_terms
-    )
+    next(item for item in app.text_input if item.label.startswith("Must not")).set_value(not_terms)
     app.run()
     next(item for item in app.button if item.label == "Search").click().run()
     return app
@@ -85,9 +79,7 @@ def test_pasted_paths_are_described_and_can_fill_the_basket(proposal):
     assert not app.exception
     assert any("not available" in item.value for item in app.warning)
 
-    add_button = next(
-        item for item in app.button if item.label.startswith("Add 1 available")
-    )
+    add_button = next(item for item in app.button if item.label.startswith("Add 1 available"))
     add_button.click().run()
     assert app.session_state["pyscattviz_dataset_paths"] == [str(giwaxs)]
 

@@ -108,8 +108,7 @@ def test_sftp_and_sshfs_commands_are_copy_pasteable_and_quote_spaces():
 def test_unmount_commands():
     local = "/home/a user/mount"
     assert unmount_command(local, "Linux") == (
-        "fusermount3 -u '/home/a user/mount' || "
-        "fusermount -u '/home/a user/mount'"
+        "fusermount3 -u '/home/a user/mount' || fusermount -u '/home/a user/mount'"
     )
     assert unmount_command(local, "macOS") == "umount '/home/a user/mount'"
     with pytest.raises(ValueError):
@@ -180,9 +179,7 @@ def test_rclone_mount_command_is_read_only_and_platform_aware():
 
 
 def test_rclone_copy_command_can_narrow_to_one_sample():
-    command = rclone_copy_command(
-        "nsls2", "/nsls2/data/x", "/home/me/data", "Linux", "*Kim*"
-    )
+    command = rclone_copy_command("nsls2", "/nsls2/data/x", "/home/me/data", "Linux", "*Kim*")
     assert command.endswith("--progress --include '*Kim*'")
     assert "--include" not in rclone_copy_command(
         "nsls2", "/nsls2/data/x", "/home/me/data", "Linux"

@@ -25,10 +25,7 @@ def prepare_persistent_widget(session_state, persistent_key: str, default):
     disposable_key = widget_key(persistent_key)
     marker_key = _marker_key(persistent_key)
     persistent_value = session_state[persistent_key]
-    if (
-        disposable_key not in session_state
-        or session_state.get(marker_key) != persistent_value
-    ):
+    if disposable_key not in session_state or session_state.get(marker_key) != persistent_value:
         session_state[disposable_key] = persistent_value
         session_state[marker_key] = persistent_value
     return disposable_key

@@ -143,7 +143,10 @@ def safe_component(name: str, fallback: str = "pyscattviz") -> str:
     cleaned = _COLLAPSE.sub("_", cleaned).strip("._- ")
     # Windows reserves these device names regardless of extension.
     reserved = {
-        "CON", "PRN", "AUX", "NUL",
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
         *(f"COM{i}" for i in range(1, 10)),
         *(f"LPT{i}" for i in range(1, 10)),
     }

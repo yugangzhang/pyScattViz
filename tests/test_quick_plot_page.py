@@ -13,9 +13,7 @@ Q = np.logspace(-2, 0, 60)
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path_factory, monkeypatch):
-    monkeypatch.setenv(
-        "PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config"))
-    )
+    monkeypatch.setenv("PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config")))
 
 
 @pytest.fixture
@@ -90,9 +88,7 @@ def test_a_figure_is_written_into_a_subfolder_named_after_the_tab(curves, output
     fmt = next(item for item in app.selectbox if item.key == "quickplot_1d_save_format")
     fmt.set_value("html")
     app.run()
-    next(
-        item for item in app.button if item.key == "quickplot_1d_save_save"
-    ).click().run()
+    next(item for item in app.button if item.key == "quickplot_1d_save_save").click().run()
 
     assert not app.exception
     written = list((output_root / "Quick_Plot").glob("*.html"))
@@ -110,9 +106,7 @@ def test_the_plotted_table_can_be_written_next_to_the_figure(curves, output_root
         "Plotted data (table)"
     )
     app.run()
-    next(
-        item for item in app.button if item.key == "quickplot_1d_save_save"
-    ).click().run()
+    next(item for item in app.button if item.key == "quickplot_1d_save_save").click().run()
 
     written = list((output_root / "Quick_Plot").glob("*.csv"))
     assert len(written) == 1
@@ -127,9 +121,7 @@ def test_a_second_save_never_overwrites_the_first(curves, output_root):
     fmt.set_value("html")
     app.run()
     for _attempt in range(2):
-        next(
-            item for item in app.button if item.key == "quickplot_1d_save_save"
-        ).click().run()
+        next(item for item in app.button if item.key == "quickplot_1d_save_save").click().run()
 
     names = sorted(path.name for path in (output_root / "Quick_Plot").glob("*.html"))
     assert len(names) == 2

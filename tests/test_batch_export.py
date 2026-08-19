@@ -15,9 +15,7 @@ Q = np.logspace(-2, 0.4, 40)
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path_factory, monkeypatch):
-    monkeypatch.setenv(
-        "PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config"))
-    )
+    monkeypatch.setenv("PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config")))
 
 
 @pytest.fixture
@@ -117,17 +115,15 @@ def test_batch_export_writes_one_file_per_frame(giwaxs, output_root):
     app.run()
     assert not app.exception
 
-    next(
-        item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel"
-    ).set_value("cir_avg")
+    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel").set_value(
+        "cir_avg"
+    )
     app.run()
-    next(
-        item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_format"
-    ).set_value("html")
+    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_format").set_value(
+        "html"
+    )
     app.run()
-    next(
-        item for item in app.button if item.key == "pyscattviz_giwaxs_batch_run"
-    ).click().run()
+    next(item for item in app.button if item.key == "pyscattviz_giwaxs_batch_run").click().run()
 
     assert not app.exception
     folder = output_root / "GIWAXS_Explorer" / "batch_cir_avg"
@@ -141,13 +137,11 @@ def test_batch_export_reports_frames_without_that_product(giwaxs, output_root):
     app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.run()
-    next(
-        item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_format"
-    ).set_value("html")
+    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_format").set_value(
+        "html"
+    )
     app.run()
-    next(
-        item for item in app.button if item.key == "pyscattviz_giwaxs_batch_run"
-    ).click().run()
+    next(item for item in app.button if item.key == "pyscattviz_giwaxs_batch_run").click().run()
 
     assert not app.exception
     assert any("were skipped" in item.value for item in app.info)
@@ -158,19 +152,15 @@ def test_batch_subfolder_follows_the_panel_until_the_user_renames_it(giwaxs, out
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.run()
 
-    box = next(
-        item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder"
-    )
+    box = next(item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder")
     assert box.value.startswith("batch_")
-    next(
-        item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel"
-    ).set_value("cir_avg")
+    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel").set_value(
+        "cir_avg"
+    )
     app.run()
     assert (
         next(
-            item
-            for item in app.text_input
-            if item.key == "pyscattviz_giwaxs_batch_subfolder"
+            item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder"
         ).value
         == "batch_cir_avg"
     )
@@ -179,15 +169,13 @@ def test_batch_subfolder_follows_the_panel_until_the_user_renames_it(giwaxs, out
         item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder"
     ).set_value("angle_series")
     app.run()
-    next(
-        item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel"
-    ).set_value("q_image")
+    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel").set_value(
+        "q_image"
+    )
     app.run()
     assert (
         next(
-            item
-            for item in app.text_input
-            if item.key == "pyscattviz_giwaxs_batch_subfolder"
+            item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder"
         ).value
         == "angle_series"
     )
@@ -202,7 +190,5 @@ def test_the_dataset_basket_offers_folders_in_the_explorer_sidebar(giwaxs):
     app.run()
 
     assert not app.exception
-    picker = next(
-        item for item in app.selectbox if item.key == "pyscattviz_giwaxs_basket_pick"
-    )
+    picker = next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_basket_pick")
     assert picker.options == ["— type a path below —", "Results/giwaxs", "Results/gisaxs"]

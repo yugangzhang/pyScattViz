@@ -307,9 +307,7 @@ which is exactly what pyScattViz needs. Copy that path into the box below.
 """
         )
         st.code(gvfs_hint(username), language="bash")
-        st.caption(
-            "A GVFS mount is convenient but slower than SSHFS for large image folders."
-        )
+        st.caption("A GVFS mount is convenient but slower than SSHFS for large image folders.")
         if username:
             suggested_local = (
                 f"/run/user/{os.getuid() if hasattr(os, 'getuid') else 1000}"
@@ -414,9 +412,7 @@ which is exactly what pyScattViz needs. Copy that path into the box below.
                 placeholder="*Kim*",
             )
             st.code(
-                rclone_copy_command(
-                    remote_name, remote_root, local_mount, platform_name, include
-                ),
+                rclone_copy_command(remote_name, remote_root, local_mount, platform_name, include),
                 language=shell,
             )
     elif method["key"] == "download" and remote_root and username and local_mount:
@@ -515,9 +511,7 @@ with folders_tab:
         value="\n".join(existing),
         height=160,
         placeholder=(
-            r"Z:\projects\sample\Results\giwaxs"
-            if os.name == "nt"
-            else "/path/to/Results/giwaxs"
+            r"Z:\projects\sample\Results\giwaxs" if os.name == "nt" else "/path/to/Results/giwaxs"
         ),
     )
     if st.button("Save folder list"):

@@ -129,9 +129,7 @@ def filter_names(
     """Filter a list of names with the AND / OR / EXCLUDE term lists."""
 
     return [
-        name
-        for name in names
-        if matches_terms(name, and_list, or_list, no_list, case_sensitive)
+        name for name in names if matches_terms(name, and_list, or_list, no_list, case_sensitive)
     ]
 
 
@@ -198,9 +196,7 @@ def classify_folder(path: str | Path) -> dict:
     products: list[str] = []
     subfolders = 0
     data_files = 0
-    every_extension = tuple(
-        suffix for group in DATA_EXTENSIONS.values() for suffix in group
-    )
+    every_extension = tuple(suffix for group in DATA_EXTENSIONS.values() for suffix in group)
     try:
         with os.scandir(folder) as entries:
             for entry in entries:
@@ -359,17 +355,13 @@ def find_folders(
             summary = None
             if describe_products or products_only:
                 summary = classify_folder(path)
-                if products_only and not (
-                    summary["products"] or summary["is_product_folder"]
-                ):
+                if products_only and not (summary["products"] or summary["is_product_folder"]):
                     continue
             if len(rows) >= max_results:
                 truncated = True
                 break
             try:
-                modified = datetime.fromtimestamp(path.stat().st_mtime).strftime(
-                    "%Y-%m-%d %H:%M"
-                )
+                modified = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
             except OSError:
                 modified = "—"
             rows.append(
@@ -418,8 +410,7 @@ def find_files(
         raise ValueError("max_depth must be at least 1")
 
     allowed = tuple(
-        suffix.lower() if suffix.startswith(".") else "." + suffix.lower()
-        for suffix in extensions
+        suffix.lower() if suffix.startswith(".") else "." + suffix.lower() for suffix in extensions
     )
     if not allowed:
         allowed = tuple(suffix for group in DATA_EXTENSIONS.values() for suffix in group)

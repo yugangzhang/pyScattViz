@@ -90,9 +90,7 @@ def _split_command(command: str, windows: bool | None = None) -> list[str]:
     parts = shlex.split(command, posix=not use_windows_rules)
     if use_windows_rules:
         parts = [
-            part[1:-1]
-            if len(part) >= 2 and part[0] == part[-1] and part[0] in {'"', "'"}
-            else part
+            part[1:-1] if len(part) >= 2 and part[0] == part[-1] and part[0] in {'"', "'"} else part
             for part in parts
         ]
     return parts

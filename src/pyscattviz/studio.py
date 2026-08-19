@@ -69,7 +69,7 @@ def demo_curve_table(points: int = 500) -> pd.DataFrame:
         {
             "q": q,
             "power_law": 2.5e-2 * q**-2.2 + 0.2,
-            "broad_peak": 30 * np.exp(-((q - 0.18) / 0.045) ** 2) + 0.8,
+            "broad_peak": 30 * np.exp(-(((q - 0.18) / 0.045) ** 2)) + 0.8,
             "structure_factor": 6 + 3 * np.sin(55 * q) ** 2 * np.exp(-2 * q),
         }
     )
@@ -81,7 +81,7 @@ def demo_image(size: int = 220) -> np.ndarray:
     x = np.linspace(-1.2, 1.2, size)
     y = np.linspace(0.0, 1.8, int(size * 0.8))
     xx, yy = np.meshgrid(x, y)
-    ring = np.exp(-((np.sqrt(xx**2 + (yy - 0.15) ** 2) - 0.72) / 0.045) ** 2)
-    horizon = np.exp(-((yy - 0.12) / 0.035) ** 2) * np.exp(-(xx / 0.65) ** 2)
+    ring = np.exp(-(((np.sqrt(xx**2 + (yy - 0.15) ** 2) - 0.72) / 0.045) ** 2))
+    horizon = np.exp(-(((yy - 0.12) / 0.035) ** 2)) * np.exp(-((xx / 0.65) ** 2))
     lobes = np.exp(-((xx / 0.12) ** 2 + ((yy - 0.9) / 0.42) ** 2))
     return 1.0 + 1200 * ring + 700 * horizon + 400 * lobes

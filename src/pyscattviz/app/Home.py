@@ -70,9 +70,7 @@ with status_left:
 with status_right:
     st.markdown("**Saved figures go to**")
     st.code(str(current_root), language=None)
-    st.caption(
-        "Created on demand, with one subfolder per page. Change it on Output Folder."
-    )
+    st.caption("Created on demand, with one subfolder per page. Change it on Output Folder.")
 
 st.markdown(
     """

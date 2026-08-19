@@ -294,16 +294,12 @@ with search_tab:
             if action_columns[1].button("Add every result to basket"):
                 added = _add_to_basket([row["path"] for row in rows])
                 st.success(f"Added {added} new path(s) to the basket.")
-            if action_columns[2].button(
-                "Open first in explorers", disabled=not chosen
-            ):
+            if action_columns[2].button("Open first in explorers", disabled=not chosen):
                 first = chosen[0]
                 folder = first if Path(first).is_dir() else str(Path(first).parent)
                 set_persistent_value(st.session_state, "pyscattviz_file_root", folder)
                 st.session_state["pyscattviz_active_root"] = folder
-                st.success(
-                    f"`{folder}` is now the active folder for the scattering explorers."
-                )
+                st.success(f"`{folder}` is now the active folder for the scattering explorers.")
             action_columns[3].caption(
                 "Tick the ✔ column to choose rows, or add every result at once."
             )
@@ -362,12 +358,8 @@ with paste_tab:
                 "proposal or correct the path; the rest can still be added."
             )
         left, right = st.columns(2)
-        if left.button(
-            f"Add {len(available)} available path(s) to basket", disabled=not available
-        ):
-            st.success(
-                f"Added {_add_to_basket(item['path'] for item in available)} new path(s)."
-            )
+        if left.button(f"Add {len(available)} available path(s) to basket", disabled=not available):
+            st.success(f"Added {_add_to_basket(item['path'] for item in available)} new path(s).")
         if right.button("Add all pasted paths anyway", disabled=not described):
             st.info(f"Added {_add_to_basket(item['path'] for item in described)} path(s).")
 

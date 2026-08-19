@@ -18,12 +18,8 @@ def test_mount_page_generates_proposal_specific_sshfs_command():
     app = AppTest.from_file(
         str(PAGES_DIR / "01_Data_Sources_and_Mounts.py"), default_timeout=10
     ).run()
-    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value(
-        "319371"
-    )
-    next(item for item in app.text_input if item.label == "BNL username").set_value(
-        "yuzhang"
-    )
+    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("319371")
+    next(item for item in app.text_input if item.label == "BNL username").set_value("yuzhang")
     app.run()
 
     assert not app.exception
@@ -32,8 +28,7 @@ def test_mount_page_generates_proposal_specific_sshfs_command():
     )
     assert mounted_path.value.endswith("smi-pass-319371")
     assert any(
-        "yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/"
-        in code.value
+        "yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/" in code.value
         for code in app.code
     )
 
@@ -45,9 +40,7 @@ def test_mount_page_supports_broad_nsls2_scope_and_raidrive():
     next(item for item in app.selectbox if item.label == "Remote mount scope").set_value(
         "NSLS-II data"
     )
-    next(item for item in app.selectbox if item.label == "Instructions for").set_value(
-        "Windows"
-    )
+    next(item for item in app.selectbox if item.label == "Instructions for").set_value("Windows")
     app.run()
 
     assert not app.exception
@@ -78,8 +71,7 @@ def test_file_selection_accepts_original_nsls2_path_through_mount_mapping(tmp_pa
 
 def test_file_selection_requires_mount_for_original_nsls2_path():
     remote_root = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
-        "projects/microbeam_Kim/Results/giwaxs"
+        "/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs"
     )
     app = AppTest.from_file(str(PAGES_DIR / "03_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_file_root"] = remote_root
@@ -93,8 +85,7 @@ def test_file_selection_requires_mount_for_original_nsls2_path():
 
 def test_file_selection_ignores_unavailable_saved_drive_mapping():
     remote_root = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
-        "projects/microbeam_Kim/Results/giwaxs"
+        "/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs"
     )
     app = AppTest.from_file(str(PAGES_DIR / "03_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_file_root"] = remote_root
@@ -113,8 +104,7 @@ def test_file_selection_ignores_unavailable_saved_drive_mapping():
 
 def test_scattering_viewers_request_mount_for_nsls2_path():
     remote_root = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
-        "projects/microbeam_Kim/Results/giwaxs"
+        "/nsls2/data/smi/proposals/2026-2/pass-319371/projects/microbeam_Kim/Results/giwaxs"
     )
     for filename in (
         "04_GISAXS_Explorer.py",
@@ -152,9 +142,7 @@ def test_decoupled_explorers_use_mode_specific_q_defaults(tmp_path):
 
         assert not app.exception
         assert app.title[0].value.endswith(title)
-        assert q_max in [
-            item.value for item in app.number_input if item.label == "q max"
-        ]
+        assert q_max in [item.value for item in app.number_input if item.label == "q max"]
         log_widget = next(item for item in app.checkbox if item.label == "log q (1D)")
         assert log_widget.value is log_q
 
@@ -168,9 +156,7 @@ def test_mount_page_offers_free_alternatives_on_every_platform():
         app = AppTest.from_file(
             str(PAGES_DIR / "01_Data_Sources_and_Mounts.py"), default_timeout=15
         ).run()
-        next(item for item in app.selectbox if item.label == "Instructions for").set_value(
-            platform
-        )
+        next(item for item in app.selectbox if item.label == "Instructions for").set_value(platform)
         app.run()
 
         methods = next(item for item in app.selectbox if item.label == "Access method")
@@ -185,9 +171,7 @@ def test_mount_page_generates_the_rclone_commands():
     app = AppTest.from_file(
         str(PAGES_DIR / "01_Data_Sources_and_Mounts.py"), default_timeout=15
     ).run()
-    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value(
-        "319371"
-    )
+    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("319371")
     next(item for item in app.text_input if item.label == "BNL username").set_value("yuzhang")
     app.run()
     next(item for item in app.selectbox if item.label == "Access method").set_value(
@@ -206,9 +190,7 @@ def test_mount_page_generates_a_subset_download_command():
     app = AppTest.from_file(
         str(PAGES_DIR / "01_Data_Sources_and_Mounts.py"), default_timeout=15
     ).run()
-    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value(
-        "319371"
-    )
+    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value("319371")
     next(item for item in app.text_input if item.label == "BNL username").set_value("yuzhang")
     app.run()
     next(item for item in app.selectbox if item.label == "Access method").set_value(
@@ -232,9 +214,9 @@ def test_local_folder_method_registers_without_a_proposal(tmp_path):
         "Data already on this computer"
     )
     app.run()
-    next(
-        item for item in app.text_input if item.label == "Folder on this computer"
-    ).set_value(str(tmp_path))
+    next(item for item in app.text_input if item.label == "Folder on this computer").set_value(
+        str(tmp_path)
+    )
     app.run()
     next(
         item for item in app.button if item.label == "Register folder for the other pages"

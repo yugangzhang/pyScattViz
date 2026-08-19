@@ -820,9 +820,7 @@ def frame_panel_figure(
             return None
         z = apply_mask(qimg, mask)
         z, xx, yy = downsample(z, qx, qz)
-        figure = heatmap_fig(
-            title or BATCH_PANELS[panel], z, xx, yy, xlabel, "qz (Å⁻¹)", **heat
-        )
+        figure = heatmap_fig(title or BATCH_PANELS[panel], z, xx, yy, xlabel, "qz (Å⁻¹)", **heat)
         arrays = {"qimg": z, b_mode: np.asarray(xx), "qz": np.asarray(yy)}
         return figure, None, arrays
 

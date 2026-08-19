@@ -42,8 +42,7 @@ with st.sidebar:
     st.header("💾 Saving")
     render_output_settings(st)
     st.caption(
-        "Every workspace below writes into the Plotting_Studio subfolder of this "
-        "output root."
+        "Every workspace below writes into the Plotting_Studio subfolder of this output root."
     )
 
 
@@ -73,9 +72,7 @@ def _normalize(values: np.ndarray, method: str) -> np.ndarray:
     return result / scale if np.isfinite(scale) and scale > 0 else result
 
 
-tab_1d, tab_2d, tab_3d, tab_multi = st.tabs(
-    ["📈 1D", "🗺️ 2D", "⛰️ 3D", "▦ Multi-axes"]
-)
+tab_1d, tab_2d, tab_3d, tab_multi = st.tabs(["📈 1D", "🗺️ 2D", "⛰️ 3D", "▦ Multi-axes"])
 
 with tab_1d:
     st.subheader("1D curves and overlays")
@@ -106,9 +103,7 @@ with tab_1d:
     log_x = p1.checkbox("Log x", value=True, key="studio_1d_logx")
     log_y = p2.checkbox("Log y", value=True, key="studio_1d_logy")
     markers = p3.checkbox("Show markers", value=False, key="studio_1d_markers")
-    normalization = p4.selectbox(
-        "Normalize", ["none", "maximum", "integral"], key="studio_1d_norm"
-    )
+    normalization = p4.selectbox("Normalize", ["none", "maximum", "integral"], key="studio_1d_norm")
     title_1d = st.text_input("Figure title", "1D scattering comparison", key="studio_1d_title")
 
     if y_columns:
@@ -363,9 +358,7 @@ with tab_multi:
     )
     multi_logx = f2.checkbox("Log x", value=True, key="studio_multi_logx")
     multi_logy = f3.checkbox("Log y", value=True, key="studio_multi_logy")
-    export_format = f4.selectbox(
-        "Export", ["png", "svg", "pdf"], key="studio_multi_export"
-    )
+    export_format = f4.selectbox("Export", ["png", "svg", "pdf"], key="studio_multi_export")
 
     if multi_y:
         x_values = table_multi[multi_x].to_numpy()
@@ -398,9 +391,7 @@ with tab_multi:
                 if multi_logx:
                     residual_axis.set_xscale("log")
             elif layout == "Mosaic":
-                figure_multi, axes_by_name = pv.create_axes_mosaic(
-                    "AAB\nCCD", figsize=(11, 7)
-                )
+                figure_multi, axes_by_name = pv.create_axes_mosaic("AAB\nCCD", figsize=(11, 7))
                 axes = list(axes_by_name.values())
                 for axis, column in zip(axes, multi_y):
                     pv.plot1d(

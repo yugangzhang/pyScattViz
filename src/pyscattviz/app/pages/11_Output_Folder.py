@@ -150,9 +150,7 @@ if root.is_dir():
                     "file": name,
                     "subfolder": str(Path(folder).relative_to(root)) or ".",
                     "size": human_size(stat.st_size),
-                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime(
-                        "%Y-%m-%d %H:%M"
-                    ),
+                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
                     "path": str(item),
                 }
             )

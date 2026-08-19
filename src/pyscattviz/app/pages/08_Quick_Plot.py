@@ -212,12 +212,8 @@ with tab_1d:
                 available_columns = ["auto"]
 
             column_row = st.columns(4)
-            x_column = column_row[0].selectbox(
-                "x column", available_columns, key="quickplot_1d_x"
-            )
-            y_column = column_row[1].selectbox(
-                "y column", available_columns, key="quickplot_1d_y"
-            )
+            x_column = column_row[0].selectbox("x column", available_columns, key="quickplot_1d_x")
+            y_column = column_row[1].selectbox("y column", available_columns, key="quickplot_1d_y")
             normalization = column_row[2].selectbox(
                 "Normalize",
                 ["none", "maximum", "integral", "at x"],
@@ -288,9 +284,7 @@ with tab_1d:
                         st.warning(f"{label}: nothing inside the selected x range.")
                         continue
                     x_values = x_values[keep]
-                    y_values = _normalize(
-                        curve["y"][keep], normalization, x_values, reference_x
-                    )
+                    y_values = _normalize(curve["y"][keep], normalization, x_values, reference_x)
                     y_values = y_values * (multiplier**index) + index * float(offset)
                     curve["plot_x"], curve["plot_y"], curve["plot_label"] = (
                         x_values,
@@ -573,9 +567,7 @@ with tab_2d:
             if Path(chosen_2d).suffix.lower() in ARRAY_SUFFIXES:
                 arrays = {
                     name: np.asarray(value)
-                    for name, value in cached_arrays(
-                        chosen_2d, file_signature(chosen_2d)
-                    ).items()
+                    for name, value in cached_arrays(chosen_2d, file_signature(chosen_2d)).items()
                     if np.ndim(value) == 2
                 }
             else:
@@ -587,13 +579,9 @@ with tab_2d:
             st.warning("This file holds no two-dimensional array.")
         else:
             control_row = st.columns(5)
-            array_name = control_row[0].selectbox(
-                "Array", list(arrays), key="quickplot_2d_array"
-            )
+            array_name = control_row[0].selectbox("Array", list(arrays), key="quickplot_2d_array")
             cmap_2d = control_row[1].selectbox("Colormap", CMAPS, key="quickplot_2d_cmap")
-            log_2d = control_row[2].checkbox(
-                "Log intensity", value=True, key="quickplot_2d_log"
-            )
+            log_2d = control_row[2].checkbox("Log intensity", value=True, key="quickplot_2d_log")
             equal_2d = control_row[3].checkbox(
                 "Equal aspect", value=False, key="quickplot_2d_equal"
             )
