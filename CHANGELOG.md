@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+- Removed the Globus browser, transfer workflow, CLI dependency, and remote
+  selection state from the web GUI.
+- Added a cross-platform **Data Sources & Mounts** page for building proposal
+  paths, generating SFTP mount commands, validating mounts, and registering
+  remote-to-mounted path mappings.
+- Documented native Windows on-demand mounting with Mountain Duck and direct
+  SSHFS mounting on Linux and macOS, including BNL password and Duo behavior.
+- Kept filename scans and array loading on normal local/mounted filesystem
+  paths; the viewer continues to open only the selected frame.
+
 ## 0.4.3
 
 - Preserved the Globus path, collection ID, product choices, filename filters,

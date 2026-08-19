@@ -1,16 +1,41 @@
 from pathlib import Path
-from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
+APP_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app"
+PAGES_DIR = APP_DIR / "pages"
+
 
 def test_all_streamlit_pages_start_without_local_data():
-    app_dir = Path(__file__).parents[1] / "src" / "pyscattviz" / "app"
-    pages = [app_dir / "Home.py", *sorted((app_dir / "pages").glob("[1-5]_*.py"))]
+    pages = [APP_DIR / "Home.py", *sorted(PAGES_DIR.glob("[1-5]_*.py"))]
 
     for page in pages:
         app = AppTest.from_file(str(page), default_timeout=10).run()
         assert not app.exception, f"{page.name}: {[item.message for item in app.exception]}"
+
+
+def test_mount_page_generates_proposal_specific_sshfs_command():
+    app = AppTest.from_file(
+        str(PAGES_DIR / "1_Data_Sources_and_Mounts.py"), default_timeout=10
+    ).run()
+    next(item for item in app.text_input if item.label == "Six-digit proposal").set_value(
+        "319371"
+    )
+    next(item for item in app.text_input if item.label == "BNL username").set_value(
+        "yuzhang"
+    )
+    app.run()
+
+    assert not app.exception
+    mounted_path = next(
+        item for item in app.text_input if item.label == "Mounted path on this computer"
+    )
+    assert mounted_path.value.endswith("smi-pass-319371")
+    assert any(
+        "yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/"
+        in code.value
+        for code in app.code
+    )
 
 
 def test_file_selection_accepts_original_nsls2_path_through_mount_mapping(tmp_path):
@@ -21,15 +46,7 @@ def test_file_selection_accepts_original_nsls2_path_through_mount_mapping(tmp_pa
     remote_root = "/nsls2/data/smi/proposals"
     remote_result = remote_root + "/2026-2/pass-319371/Results/giwaxs"
 
-    page = (
-        Path(__file__).parents[1]
-        / "src"
-        / "pyscattviz"
-        / "app"
-        / "pages"
-        / "2_File_Selection.py"
-    )
-    app = AppTest.from_file(str(page), default_timeout=10)
+    app = AppTest.from_file(str(PAGES_DIR / "2_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_path_mappings"] = [
         {"remote_root": remote_root, "local_root": str(mounted_root)}
     ]
@@ -41,69 +58,27 @@ def test_file_selection_accepts_original_nsls2_path_through_mount_mapping(tmp_pa
     assert app.multiselect[0].options == ["q-image"]
 
 
-def test_file_selection_accepts_unmounted_globus_path_for_remote_workflow():
-    page = (
-        Path(__file__).parents[1]
-        / "src"
-        / "pyscattviz"
-        / "app"
-        / "pages"
-        / "2_File_Selection.py"
-    )
-    app = AppTest.from_file(str(page), default_timeout=10)
-    app.session_state["pyscattviz_file_root"] = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
-        "projects/microbeam_Kim/Results/giwaxs"
-    )
-    app.session_state["pyscattviz_path_mappings"] = []
-    app.run()
-
-    assert not app.exception
-    assert any(button.label == "Find remote product folders" for button in app.button)
-
-
-def test_remote_product_choice_is_copied_to_persistent_state():
-    page = (
-        Path(__file__).parents[1]
-        / "src"
-        / "pyscattviz"
-        / "app"
-        / "pages"
-        / "2_File_Selection.py"
-    )
+def test_file_selection_requires_mount_for_original_nsls2_path():
     remote_root = (
         "/nsls2/data/smi/proposals/2026-2/pass-319371/"
         "projects/microbeam_Kim/Results/giwaxs"
     )
-    app = AppTest.from_file(str(page), default_timeout=10)
+    app = AppTest.from_file(str(PAGES_DIR / "2_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_file_root"] = remote_root
     app.session_state["pyscattviz_path_mappings"] = []
-    app.session_state["pyscattviz_remote_products"] = {
-        "root": remote_root,
-        "keys": ["q_image", "cir_avg"],
-    }
     app.run()
-    app.multiselect[0].set_value(["cir_avg"]).run()
 
     assert not app.exception
-    assert app.session_state["pyscattviz_file_root"] == remote_root
-    assert app.session_state["pyscattviz_remote_selected_products"] == ["cir_avg"]
+    assert any("not mounted" in warning.value for warning in app.warning)
+    assert not any(button.label == "Scan filenames" for button in app.button)
 
 
 def test_file_selection_ignores_unavailable_saved_drive_mapping():
-    page = (
-        Path(__file__).parents[1]
-        / "src"
-        / "pyscattviz"
-        / "app"
-        / "pages"
-        / "2_File_Selection.py"
-    )
     remote_root = (
         "/nsls2/data/smi/proposals/2026-2/pass-319371/"
         "projects/microbeam_Kim/Results/giwaxs"
     )
-    app = AppTest.from_file(str(page), default_timeout=10)
+    app = AppTest.from_file(str(PAGES_DIR / "2_File_Selection.py"), default_timeout=10)
     app.session_state["pyscattviz_file_root"] = remote_root
     app.session_state["pyscattviz_path_mappings"] = [
         {
@@ -114,53 +89,11 @@ def test_file_selection_ignores_unavailable_saved_drive_mapping():
     app.run()
 
     assert not app.exception
-    assert any(button.label == "Find remote product folders" for button in app.button)
-    assert any("was ignored" in warning.value for warning in app.warning)
+    assert any("not mounted" in warning.value for warning in app.warning)
+    assert any("unavailable" in warning.value for warning in app.warning)
 
 
-def test_globus_current_folder_handoff_does_not_rewrite_widget_state():
-    page = (
-        Path(__file__).parents[1]
-        / "src"
-        / "pyscattviz"
-        / "app"
-        / "pages"
-        / "1_Globus_and_Data_Sources.py"
-    )
-    remote_root = (
-        "/nsls2/data/smi/proposals/2026-2/pass-319371/"
-        "projects/microbeam_Kim/Results/giwaxs"
-    )
-    app = AppTest.from_file(str(page), default_timeout=10)
-    app.session_state["pyscattviz_globus_path"] = remote_root
-    app.session_state["pyscattviz_globus_collection_id"] = (
-        "819379a8-47db-439d-a5ba-a2387b79add9"
-    )
-    app.session_state["pyscattviz_active_root"] = r"Z:\projects\old"
-    app.session_state["pyscattviz_selected_stems"] = ("old-frame",)
-    app.run()
-    handoff = next(
-        button
-        for button in app.button
-        if button.label == "Use current remote folder in File Selection"
-    )
-
-    # AppTest runs this page outside Home.py's multipage registry, so mock only
-    # the navigation call while still exercising Streamlit's real widget state.
-    with patch("streamlit.switch_page") as switch_page:
-        handoff.click().run()
-
-    assert not app.exception
-    assert app.session_state["pyscattviz_file_root"] == remote_root
-    assert "pyscattviz_active_root" not in app.session_state.filtered_state
-    assert "pyscattviz_selected_stems" not in app.session_state.filtered_state
-    switch_page.assert_called_once_with("pages/2_File_Selection.py")
-
-
-def test_scattering_viewers_explain_that_remote_data_need_transfer():
-    pages_dir = (
-        Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
-    )
+def test_scattering_viewers_request_mount_for_nsls2_path():
     remote_root = (
         "/nsls2/data/smi/proposals/2026-2/pass-319371/"
         "projects/microbeam_Kim/Results/giwaxs"
@@ -169,16 +102,11 @@ def test_scattering_viewers_explain_that_remote_data_need_transfer():
         "3_GISAXS_GIWAXS_Explorer.py",
         "4_Transmission_SAXS_WAXS.py",
     ):
-        app = AppTest.from_file(str(pages_dir / filename), default_timeout=10)
+        app = AppTest.from_file(str(PAGES_DIR / filename), default_timeout=10)
         app.session_state["pyscattviz_file_root"] = remote_root
-        app.session_state["pyscattviz_active_root"] = r"Z:\projects\missing"
-        app.session_state["pyscattviz_remote_selection_root"] = remote_root
-        app.session_state["pyscattviz_remote_selection_table"] = [None] * 994
+        app.session_state["pyscattviz_active_root"] = "Z:\\projects\\missing"
         app.run()
 
         assert not app.exception
-        assert any(
-            "994 remotely scanned frame names are saved" in warning.value
-            for warning in app.warning
-        )
+        assert any("not mounted" in warning.value for warning in app.warning)
         assert "pyscattviz_active_root" not in app.session_state.filtered_state

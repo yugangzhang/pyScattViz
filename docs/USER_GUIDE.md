@@ -4,8 +4,8 @@
 
 I organized the application around five pages.
 
-1. **Globus & Data Sources** builds the NSLS-II collection path, browses it
-   through an authenticated Globus CLI session, and records local folders.
+1. **Data Sources & Mounts** builds the NSLS-II SFTP path, generates
+   platform-specific mount instructions, validates mounts, and records paths.
 2. **File Selection** includes a folder navigator, scans filenames, applies
    boolean or exact-list filters, and saves canonical frame names.
 3. **GISAXS / GIWAXS Explorer** reviews grazing-incidence results.
@@ -20,11 +20,10 @@ A result root normally contains `cir_avg`, `q_image`, `qc`, and `qphi`.
 Entering one product folder, such as `.../giwaxs/q_image`, focuses the viewer on
 that product. Entering the parent `.../giwaxs` allows any available combination.
 
-Folder lists can contain local disks, external drives, institutional mounted
-storage, and completed Globus destinations. The Globus CLI browser can list a
-remote `/nsls2/data/...` path without transferring it, but that path is not a
-Windows/local filesystem path. Viewers load arrays only after the required
-files have been transferred into a local destination/cache.
+Folder lists can contain local disks, external drives, institutional network
+storage, and SFTP mounts. A remote `/nsls2/data/...` path is translated only
+after its mounted path has been tested and registered under **Data Sources &
+Mounts**. Viewers open array data on demand through that filesystem mount.
 
 File Selection supports direct path pasting and a safe command bar. Use `pwd`
 to show the current folder, `ls [path]` to list it, `cd <path>` to move through

@@ -1,10 +1,10 @@
 # pyScattViz
 
-I developed **pyScattViz** to help NSLS-II collaborators transfer and review
+We developed **pyScattViz** to help NSLS-II collaborators access and review
 GISAXS, GIWAXS, SAXS, and WAXS reduction products on their own computers. The
-application runs locally on Windows, macOS, and Linux. Globus is the recommended
-route from the NSLS2 collection to a local folder. An authenticated Globus CLI
-session can browse proposal folders without transferring the whole tree.
+application runs locally on Windows, macOS, and Linux. NSLS-II proposal storage
+is mounted over SFTP so directory entries and opened frames cross the network on
+demand; the complete proposal is not copied to the local computer.
 
 The package focuses on data review. It includes lazy filename selection, QC
 images, q-space images, q–φ maps, circular averages, interactive line cuts,
@@ -331,101 +331,165 @@ If port 8501 is already in use, start on another port by adding `--port 8502`
 to the final start command. The application listens only on the local computer
 by default.
 
-## NSLS-II Globus workflow
+## Mount NSLS-II proposal data
 
-1. Connect to the BNL campus network or VPN when required by the local setup.
-2. Install and start Globus Connect Personal.
-3. Sign in at [Globus](https://app.globus.org/file-manager) with Brookhaven
-   National Laboratory and BNL Domain credentials.
-4. Search Collections for `NSLS2`; leave all collection filters unchecked.
-5. Enter a proposal path such as:
+pyScattViz needs normal filesystem paths because NumPy, pandas, and image
+readers open the selected CSV, NPZ, and image files directly. An SFTP mount
+makes the remote proposal appear as a local folder. The bytes for an opened
+frame still cross the network, but the complete proposal is never copied.
 
-   ```text
-   /nsls2/data/cms/proposals/2026-2/pass-xxxxxx
+Open **Data Sources & Mounts** in pyScattViz first. Enter the beamline, cycle,
+proposal, and BNL username. The page generates the exact commands, tests the
+mounted path, and saves its path mapping. Password and Duo prompts must run in
+a real terminal or desktop mount client; the web GUI intentionally never
+receives or stores credentials.
+
+The example used below is:
+
+```text
+/nsls2/data/smi/proposals/2026-2/pass-319371
+```
+
+### Windows 10 or 11
+
+Windows OpenSSH can authenticate to the NSLS-II SFTP server with BNL password
+and Duo, but SSHFS-Win cannot complete this keyboard-interactive 2FA sequence.
+The practical native-Windows mount is Mountain Duck:
+
+1. Connect to the BNL VPN if the SFTP service is unavailable from the current
+   network.
+2. Test SFTP in PowerShell:
+
+   ```powershell
+   sftp yuzhang@sftp.nsls2.bnl.gov
    ```
 
-   For SMI, replace `cms` with `smi`.
-6. Transfer the required folders to the personal collection. For visualization,
-   transferring only `Results/gisaxs`, `Results/giwaxs`, `Results/tsaxs`, or
-   `Results/twaxs` is much smaller than transferring the complete raw dataset.
-7. Start pyScattViz and save the local destination on **Globus & Data Sources**.
+3. Enter the BNL password, enter `1` for Duo Push, approve it, and run:
 
-To browse NSLS-II directory names without transferring them, authenticate the
-Globus CLI once from the repository folder:
+   ```text
+   ls /nsls2/data/smi/proposals/2026-2/pass-319371
+   exit
+   ```
 
-```powershell
-.\.venv\Scripts\globus.exe login
-```
+4. Install the [Mountain Duck Windows trial](https://mountainduck.io/). It is
+   commercial software after the trial.
+5. Create an **SFTP** bookmark:
 
-On macOS or Linux, the equivalent command is:
+   ```text
+   Server:       sftp.nsls2.bnl.gov
+   Port:         22
+   Username:     your BNL username
+   Path:         /nsls2/data/smi/proposals/2026-2/pass-319371
+   Connect mode: Online
+   ```
+
+6. Verify the server's ED25519 fingerprint before accepting it:
+
+   ```text
+   SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE
+   ```
+
+7. Connect using the BNL password and Duo. **Online** mode downloads an opened
+   file through an on-demand local cache. It does not synchronize the complete
+   proposal. Disconnect the bookmark when the review is finished.
+8. In **Data Sources & Mounts**, enter the mounted location shown by File
+   Explorer, select **Test mounted path**, then **Register mount for File
+   Selection**.
+9. In File Selection, browse from the mounted proposal root to a result folder,
+   for example:
+
+   ```text
+   Z:\projects\microbeam_Kim\Results\giwaxs
+   ```
+
+   Use the actual drive or mounted location shown on the computer; it may not
+   be `Z:`.
+
+Free Windows alternatives are running pyScattViz and Linux SSHFS inside WSL, or
+asking NSLS-II support to register an SSH public key and then using SSHFS-Win
+key authentication. Do not retry `\\sshfs.r\...` with a password: that provider
+does not support the required Duo prompt.
+
+### Linux
+
+Install SSHFS:
 
 ```bash
-./.venv/bin/globus login
+# Ubuntu/Debian
+sudo apt update && sudo apt install sshfs
+
+# Fedora/RHEL alternative
+sudo dnf install fuse-sshfs
 ```
 
-After the BNL browser login and Duo verification succeed, start pyScattViz and
-open **Globus & Data Sources → Globus CLI browser**. Select **Check Globus
-login**, paste the `/nsls2/data/...` path, and select **List remote folder**.
-Navigate to a result root such as
-`projects/microbeam_Kim/Results/giwaxs`, then select **Use current remote folder
-in File Selection**. A selected subfolder can also be sent directly with **Use
-selected folder in File Selection**.
-The first listing may require one additional collection-specific consent. If
-the GUI requests it, run:
+Create a proposal-specific mount point and mount it:
 
-```powershell
-.\.venv\Scripts\globus.exe session consent "urn:globus:auth:scope:transfer.api.globus.org:all" "https://auth.globus.org/scopes/819379a8-47db-439d-a5ba-a2387b79add9/data_access"
+```bash
+mkdir -p "$HOME/NSLS_II_Link/smi-pass-319371"
+sshfs -o follow_symlinks,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 \
+  yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/ \
+  "$HOME/NSLS_II_Link/smi-pass-319371"
 ```
 
-Complete the BNL browser approval/Duo flow, return to the GUI, and select
-**Retry remote listing after consent**. The GUI does not need to be restarted,
-and this consent is normally required only once. On macOS/Linux, substitute
-`./.venv/bin/globus` for `.\.venv\Scripts\globus.exe`.
+On the first connection, accept the host only if its ED25519 fingerprint is
+`SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE`. Enter the BNL password,
+select Duo option `1`, and approve the push. Test it:
 
-The collection UUID is editable in the GUI. Select **Refresh current NSLS2
-collection ID** if NSLS-II replaces the collection in the future; the browser
-will search for the current non-retired `NSLS2` collection.
+```bash
+ls "$HOME/NSLS_II_Link/smi-pass-319371"
+```
 
-In **File Selection**, a pasted or handed-off `/nsls2/...` path now follows a
-remote workflow:
+Register that folder under **Data Sources & Mounts**. Unmount later with:
 
-1. Select **Find remote product folders**.
-2. Choose `q_image`, `qphi`, `cir_avg`, `qc`, or `stitched` and enter an
-   optional filename filter.
-3. Select **Scan remote filenames**. This lists names only; it does not open or
-   download arrays.
-4. Start Globus Connect Personal, then select **Find my Globus Connect Personal
-   collections**.
-5. Enter the destination twice: its path inside the personal Globus collection
-   and the same folder's Windows path. For example,
-   `/C/Users/yuzhang/pyScattViz-data/Kim-giwaxs` normally corresponds to
-   `C:\Users\yuzhang\pyScattViz-data\Kim-giwaxs`. Confirm this mapping in Globus
-   File Manager because personal-collection roots can differ.
-6. Select **Start selective Globus transfer**. One batch task transfers only
-   the matching frame products and preserves the product-folder layout.
-7. Select **Check transfer status**, then **Open transferred files in File
-   Selection** after it succeeds. The scattering viewers can then open the
-   selected local files.
+```bash
+fusermount3 -u "$HOME/NSLS_II_Link/smi-pass-319371" || \
+  fusermount -u "$HOME/NSLS_II_Link/smi-pass-319371"
+```
 
-The remote path, product choices, filename filters, scan table, and transfer
-settings remain saved in the running GUI when moving between pages. If a viewer
-is opened before transfer, it reports how many remotely scanned frame names are
-waiting and directs the user back to File Selection.
+The proposal SFTP server is direct; it does not require the two-hop beamline
+workstation jump used for some legacy data.
 
-Globus does not mount the NSLS2 collection as a Windows drive. Remote browsing
-and filename filtering remain online; only the selected frame files enter the
-local cache.
+### macOS
 
-If an older failed SSHFS setup left a saved `/nsls2/... → Z:\` mapping,
-pyScattViz ignores it whenever the translated `Z:` folder is unavailable and
-continues with Globus. The obsolete mapping can be removed under **Globus &
-Data Sources → Local folders**.
+Install Homebrew if needed, then install macFUSE and SSHFS:
 
-Official references:
+```bash
+brew install --cask macfuse
+brew install gromgit/fuse/sshfs-mac
+```
 
-- [NSLS-II Globus instructions](https://wiki-nsls2.bnl.gov/MX/index.php?title=Globus)
-- [BNL illustrated Globus guide](https://www.bnl.gov/cryo-em/userguide/files/globus-access.pdf)
-- [Globus Connect Personal documentation](https://docs.globus.org/globus-connect-personal/)
+macOS may require approval of the macFUSE system extension under **System
+Settings → Privacy & Security** and may request a restart. Then mount:
+
+```bash
+mkdir -p "$HOME/NSLS_II_Link/smi-pass-319371"
+sshfs -o follow_symlinks,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 \
+  yuzhang@sftp.nsls2.bnl.gov:/nsls2/data/smi/proposals/2026-2/pass-319371/ \
+  "$HOME/NSLS_II_Link/smi-pass-319371"
+```
+
+On the first connection, accept the host only if its ED25519 fingerprint is
+`SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE`. Enter the BNL password,
+select Duo option `1`, approve the push, and register the mounted folder under
+**Data Sources & Mounts**. Unmount with:
+
+```bash
+umount "$HOME/NSLS_II_Link/smi-pass-319371"
+```
+
+Mountain Duck Online mode is also available on macOS when a desktop mount is
+preferred.
+
+### Mount troubleshooting
+
+- `Permission denied` usually means the BNL password/Duo authentication failed
+  or the account is not authorized for that proposal.
+- `Connection timed out` usually means the BNL VPN or network route is needed.
+- A mount that worked earlier but is now empty may need to be unmounted and
+  reconnected after a network interruption.
+- pyScattViz never writes credentials into its configuration. It saves only
+  remote-to-mounted path mappings in `~/.pyscattviz/path_mappings.json`.
+- Never unmount while a frame is actively loading.
 
 ## File selection and lazy loading
 
@@ -502,7 +566,7 @@ ruff check .
 ```
 
 More detail is available in [the user guide](docs/USER_GUIDE.md),
-[the Globus guide](docs/GLOBUS.md), and
+[the mount guide](docs/MOUNTS.md), and
 [the plotting API guide](docs/PLOTTING_API.md).
 
 ## Contact and license
