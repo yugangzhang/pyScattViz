@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.10.0`
+- Current package version: `0.11.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -116,7 +116,13 @@ folders hold only AgBH calibration frames, which the default filter hides.
     since they reject assignment at widget-creation time.
 19. Because values now persist, a remembered choice can outlive its options. Use
     `coerce_choice`/`coerce_choices` wherever the options depend on the data.
-20. Renaming a shipped file needs the `setup.py` shim to keep working: pip
+20. Plotly takes a **log** axis range in log10 units. `axrange` does this;
+    `heatmap_fig` did not, which drew every log-q q–φ panel at 1–3 A^-1 and left
+    it blank. Any new axis-range code must go through `axrange`.
+21. Panels are packed, not slotted. Draw only what is selected *and* present, or
+    a missing product leaves a hole — transmission data has no stitched raw
+    image, so the old fixed grid always opened with an empty first cell.
+22. Renaming a shipped file needs the `setup.py` shim to keep working: pip
     builds a local directory in place and setuptools never removes files from
     `build/lib`, so a rename otherwise ships both names. For pages that is fatal
     — Streamlit rejects two pages with the same inferred URL. `cli.py` also
@@ -187,6 +193,14 @@ Core logic, all Streamlit-free:
   snippet that raises on the first line is worse than none.
 - `src/pyscattviz/console.py`: notebook-style execution of a snippet, plus
   `is_local_only`, which gates the console on a loopback bind address.
+- `src/pyscattviz/despike.py`: hot-pixel detection and removal on the *reduced*
+  2D products. Deliberately not raw-frame reduction — that is pySAXSAI's
+  `codes/hot_pixels.py`, one step earlier. Two conditions, both required:
+  significance against counting statistics, and a multiple of the local median.
+  The second is what stops a steep gradient being read as a spike; a
+  global-MAD-only version flagged a pixel sitting at 1.0x its neighbours on real
+  CMS data. Build masks from frames spanning *different samples* — a majority
+  vote over one sample's angle series flags that sample's Bragg spots.
 - `src/pyscattviz/shell.py`: the read-only terminal. Every verb is parsed and
   carried out with `pathlib`; nothing reaches a system shell. `select`/`save`
   build the same named collections Data Selection reads.
@@ -247,7 +261,7 @@ Tests:
 The `0.7.0` implementation passed:
 
 ```text
-python -m pytest -q           467 passed
+python -m pytest -q           492 passed
 python -m ruff check src tests
 git diff --check
 python -m pip wheel . --no-deps

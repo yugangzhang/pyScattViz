@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -23,8 +24,15 @@ from pyscattviz.app.components.saving import (
     output_root,
     record_saved,
 )
-from pyscattviz.app.components.scattering import BATCH_PANELS, frame_panel_figure
+from pyscattviz.app.components.scattering import (
+    BATCH_PANELS,
+    apply_mask,
+    frame_panel_figure,
+    load_qphi,
+)
 from pyscattviz.app.state import action_key, coerce_choice
+from pyscattviz.dataio import DataReadError
+from pyscattviz.despike import azimuthal_average, remove_hot_pixels
 from pyscattviz.exporting import (
     PLOTLY_FORMATS,
     ExportError,
@@ -51,6 +59,90 @@ def _target_folder(tab_name: str, subfolder: str) -> Path:
         create=True,
         date_subfolder=bool(st.session_state.get(DATE_KEY, False)),
     )
+
+
+def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> None:
+    """Re-integrate every filtered frame's q–φ map into a despiked 1D curve.
+
+    The reduction's own circular average is computed before anyone has looked at
+    the data, so a hot pixel is baked into it. Re-integrating here, after the
+    spikes are blanked, is the point of doing this in a viewer at all.
+    """
+
+    with_qphi = frames[frames["has_qphi"]] if "has_qphi" in frames else frames.iloc[0:0]
+    if with_qphi.empty:
+        st.info("No q–φ maps in this selection, so there is nothing to re-integrate.")
+        return
+
+    row = st.columns(4)
+    phi_low = row[0].number_input("φ from", -180.0, 180.0, 0.0, 5.0, key=f"{key}_curve_phi_lo")
+    phi_high = row[1].number_input("φ to", -180.0, 180.0, 180.0, 5.0, key=f"{key}_curve_phi_hi")
+    despike = row[2].checkbox("Remove hot pixels", value=True, key=f"{key}_curve_despike")
+    limit = row[3].number_input(
+        "Maximum frames",
+        1,
+        MAX_BATCH_FRAMES,
+        min(100, len(with_qphi)),
+        10,
+        key=f"{key}_curve_limit",
+    )
+
+    subfolder_key = f"{key}_curve_subfolder"
+    st.session_state.setdefault(subfolder_key, "curves_1d")
+    subfolder = st.text_input("Subfolder for this batch", key=subfolder_key)
+    st.caption(f"{len(with_qphi):,} frame(s) carry a q–φ map. Will be written to")
+    st.code(str(_target_folder(tab_name, subfolder)), language=None)
+
+    selected = with_qphi.head(int(limit))
+    if len(with_qphi) > len(selected):
+        st.info(f"Only the first {len(selected):,} of {len(with_qphi):,} will be written.")
+
+    if not st.button(
+        "Export the curves", type="primary", key=action_key(st.session_state, f"{key}_curve_run")
+    ):
+        return
+
+    try:
+        folder = _target_folder(tab_name, subfolder)
+    except ExportError as exc:
+        st.error(str(exc))
+        return
+
+    overwrite = bool(st.session_state.get(OVERWRITE_KEY, False))
+    progress = st.progress(0.0, text="Starting …")
+    written, failed, removed_total = [], [], 0
+
+    for position, (_index, frame) in enumerate(selected.iterrows(), start=1):
+        stem = str(frame["stem"])
+        progress.progress(position / len(selected), text=f"{position}/{len(selected)} · {stem}")
+        try:
+            q_axis, phi_axis, caked, mask = load_qphi(str(frame["qphi"]))
+        except (DataReadError, OSError, ValueError) as exc:
+            failed.append(f"{stem}: {exc}")
+            continue
+        usable = mask if getattr(mask, "shape", None) == getattr(caked, "shape", None) else None
+        image = apply_mask(caked, usable)
+        if despike:
+            before = int(np.isfinite(image).sum())
+            image = remove_hot_pixels(image)
+            removed_total += before - int(np.isfinite(image).sum())
+        try:
+            q_out, intensity = azimuthal_average(image, q_axis, phi_axis, (phi_low, phi_high))
+            table = pd.DataFrame({"q": q_out, "I": intensity}).dropna()
+            written.append(str(save_table(table, folder, f"{stem}_cir", overwrite=overwrite)))
+        except (ExportError, ValueError) as exc:
+            failed.append(f"{stem}: {exc}")
+            break
+
+    progress.empty()
+    if written:
+        record_saved(Path(written[-1]))
+        st.success(f"Wrote {len(written):,} curve(s) into {folder}")
+        if despike:
+            st.caption(f"{removed_total:,} hot pixel(s) blanked across the batch.")
+        st.code("\n".join(Path(item).name for item in written[:8]), language=None)
+    for message in failed[:5]:
+        st.error(message)
 
 
 def render_batch_export(
@@ -88,6 +180,21 @@ def render_batch_export(
             "as a separate file using the display settings above. Line-cut bands are "
             "not drawn on a batch."
         )
+        mode = st.radio(
+            "What to export",
+            ["Panel figure", "1D curve from q–φ (CSV)"],
+            horizontal=True,
+            key=f"{key}_batch_mode",
+            help=(
+                "The 1D option re-integrates the q–φ map over an azimuthal "
+                "window with the hot pixels removed, and writes one CSV per "
+                "frame — the reduced curve without the spikes."
+            ),
+        )
+        if mode.startswith("1D"):
+            _render_curve_batch(frames, tab_name, key=key)
+            return
+
         controls = st.columns([1.4, 1, 1, 1])
         coerce_choice(st.session_state, f"{key}_batch_panel", panels)
         panel = controls[0].selectbox(

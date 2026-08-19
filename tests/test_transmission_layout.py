@@ -1,0 +1,136 @@
+"""Transmission layout, the log-q axis range, and data-driven 1D limits.
+
+All three came from a CMS transmission SAXS folder where the q–φ panel came out
+blank and the layout left a hole where the raw image would have been.
+"""
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+from streamlit.testing.v1 import AppTest
+
+from pyscattviz.app.components.scattering import frame_axis_ranges, heatmap_fig, index_frames
+
+PAGES_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path_factory, monkeypatch):
+    monkeypatch.setenv("PYSCATTVIZ_CONFIG_DIR", str(tmp_path_factory.mktemp("pyscattviz_config")))
+    monkeypatch.setenv("PYSCATTVIZ_OUTPUT_DIR", str(tmp_path_factory.mktemp("pyscattviz_output")))
+
+
+def test_a_log_axis_range_is_given_in_log_units():
+    """Passing raw q drew the panel at 10^0.001 … 10^0.5, i.e. 1 … 3 A^-1."""
+
+    z = np.ones((4, 6))
+    q = np.linspace(0.006, 0.25, 6)
+    phi = np.linspace(-179, 179, 4)
+
+    figure = heatmap_fig("q–φ", z, q, phi, "q", "φ", xlog=True, x_range=(0.001, 0.5))
+    low, high = figure.layout.xaxis.range
+    assert 10**low == pytest.approx(0.001)
+    assert 10**high == pytest.approx(0.5)
+    # The data has to fall inside the drawn window, or the panel is empty.
+    assert 10**low <= q.min() and 10**high >= q.max()
+
+
+def test_a_linear_axis_range_is_left_alone():
+    figure = heatmap_fig(
+        "q–φ",
+        np.ones((4, 6)),
+        np.linspace(0, 3, 6),
+        np.linspace(0, 180, 4),
+        "q",
+        "φ",
+        xlog=False,
+        x_range=(0.0, 3.0),
+    )
+    assert tuple(figure.layout.xaxis.range) == pytest.approx((0.0, 3.0))
+
+
+@pytest.fixture
+def transmission(tmp_path):
+    """A CMS-like transmission folder: no stitched raw image, as is normal."""
+
+    root = tmp_path / "saxs" / "analysis"
+    (root / "cir_avg").mkdir(parents=True)
+    (root / "qphi").mkdir()
+    (root / "q_image").mkdir()
+
+    # Signal only over part of the recorded q range, as a real SAXS curve is.
+    q = np.linspace(0.0056, 0.31, 400)
+    intensity = 3000.0 * np.exp(-((q / 0.02) ** 2)) + 0.01
+    intensity[q > 0.25] = 0.0
+    pd.DataFrame({"q_ca": q, "iq_ca": intensity}).to_csv(
+        root / "cir_avg" / "Cir_Avg_sampleA.tiff.csv", index=False
+    )
+    np.savez(
+        root / "qphi" / "qphi_sampleA.tiff.npz",
+        q=np.linspace(0.0062, 0.2498, 120),
+        phi=np.linspace(-179, 179, 60),
+        qphi=np.abs(np.random.default_rng(0).normal(50, 5, (60, 120))),
+    )
+    np.savez(
+        root / "q_image" / "qimg_sampleA.tiff.npz",
+        qimg=np.abs(np.random.default_rng(1).normal(50, 5, (40, 50))),
+        qx=np.linspace(-0.2, 0.2, 50),
+        qz=np.linspace(-0.2, 0.2, 40),
+    )
+    return root
+
+
+def test_the_1d_limits_come_from_where_the_signal_is(transmission):
+    index_frames.clear()
+    row = index_frames(str(transmission)).iloc[0]
+    ranges = frame_axis_ranges(row)
+
+    # The file runs to q = 0.31 but dies at 0.25; it starts at 0.0056, not 0.001.
+    assert ranges["cir_q"][0] == pytest.approx(0.0056, abs=1e-3)
+    assert ranges["cir_q"][1] < 0.26
+    assert ranges["cir_I"][0] > 0
+
+
+def test_only_the_panels_that_exist_are_drawn(transmission):
+    """The fixed A/B/C/D grid left the first cell empty for transmission data."""
+
+    app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(transmission)
+    app.run()
+
+    assert not app.exception
+    # cir_avg, qphi and q_image are present; stitched is not, and no slot is
+    # reserved for it.
+    assert len(app.get("plotly_chart")) >= 3
+    assert not any("No raw image" in item.value for item in app.info)
+
+
+def test_a_selected_but_missing_product_is_named_not_left_blank(transmission):
+    import shutil
+
+    shutil.rmtree(transmission / "q_image")
+    app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(transmission)
+    app.run()
+    assert not app.exception
+
+
+def test_the_despike_toggle_is_on_by_default(transmission):
+    app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(transmission)
+    app.run()
+
+    assert not app.exception
+    assert app.session_state["pyscattviz_tsaxs_despike"] is True
+    assert any("Remove hot pixels" in item.label for item in app.checkbox)
+
+
+def test_the_batch_can_export_despiked_1d_curves(transmission):
+    app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(transmission)
+    app.run()
+
+    modes = next(item for item in app.radio if item.label == "What to export")
+    assert "1D curve from q–φ (CSV)" in modes.options

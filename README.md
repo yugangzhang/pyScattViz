@@ -914,13 +914,29 @@ CMS preset, point it at SMI and it uses that one. CMS GIWAXS opens on qx and qz
 over 0–3 Å⁻¹, q–φ over q 0.5–3.5 and φ over 0–180°, since the two halves of a
 q–φ map mirror each other.
 
+**Hot pixels** are removed from the 2D maps by default. Every CMS and SMI
+detector carries a few that read absurdly high whatever the sample, and because
+the azimuthal average is a mean, one 500,000-count pixel moves a whole q bin and
+the 1D curve grows a peak that is not there. A pixel is only blanked when its
+excess is significant against counting statistics *and* it is several times its
+local median, so sharp reflections — which are smooth over a few pixels — are
+kept. Turn it off in the display controls if you want to see the raw map.
+
+The explorers can also **re-integrate every filtered frame into a despiked 1D
+curve**, one CSV per frame, over an azimuthal window you choose. The reduction's
+own circular average is computed before anyone has looked at the data, so a hot
+pixel is baked into it; this is the way to get a clean batch of curves without
+re-running the reduction.
+
 **Auto-fit** handles the rest. A remeshed q-image covers only part of the qx–qz
 plane and everything outside it is NaN, so a fixed window can leave the picture
 stranded in a field of blank — SMI GISAXS on the old ±0.5 default was mostly
 empty, and its negative qz was cut off entirely. With auto-fit on, the q-image
 and q–φ q limits are measured from the pixels that actually hold data, frame by
-frame. It is on wherever there is no explicit beamline preset, and it leaves φ
-alone.
+frame, and the I(q) panel is framed on where there is signal — a CMS SAXS file
+runs to q = 0.31 Å⁻¹ but the intensity has died by 0.25, and starts at 0.0056,
+not 0.001. Auto-fit is on wherever there is no explicit beamline preset, and it
+leaves φ alone.
 
 Three buttons sit above the limit boxes: **Fit to this frame** measures the
 current frame once, the **beamline preset** restores the values in the table

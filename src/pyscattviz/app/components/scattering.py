@@ -810,7 +810,12 @@ def heatmap_fig(
             hovertemplate=f"{xlab}=%{{x:.4g}}<br>{ylab}=%{{y:.4g}}<br>I=%{{z:.3g}}<extra></extra>",
         )
     )
-    xr = list(x_range) if x_range and None not in x_range else None
+    # Plotly wants a log axis's range in log10 units. Passing raw q here drew
+    # the q–φ panel at 10^0.001 … 10^0.5, i.e. 1 … 3 A^-1, which is past the end
+    # of any SAXS dataset — so the panel came out blank on every log-q geometry
+    # (transmission SAXS and GISAXS) while GIWAXS, which is linear in q, looked
+    # fine. `axrange` has always done this correctly for the 1-D panels.
+    xr = axrange(x_range[0], x_range[1], xlog) if x_range and None not in x_range else None
     fig.update_xaxes(title_text=xlab, type="log" if xlog else "linear", range=xr)
     if y_range and None not in y_range:
         yr = list(y_range)
@@ -889,8 +894,8 @@ def _span(values):
 def frame_axis_ranges(row, b_mode: str = "qx") -> dict:
     """Measure the axis ranges one frame's own products actually cover.
 
-    Returns any of ``qx``/``qr``, ``qz``, ``qphi_q``, ``phi``, ``cir_q`` that
-    could be read, each as a ``(min, max)`` pair. For the 2D products this is
+    Returns any of ``qx``/``qr``, ``qz``, ``qphi_q``, ``phi``, ``cir_q``,
+    ``cir_I`` that could be read, each as a ``(min, max)`` pair. For the 2D products this is
     the box that actually holds data rather than the full axis extent, because a
     remeshed image covers only part of the plane and framing it on the axes
     leaves the picture stranded in a field of blank.
@@ -943,10 +948,25 @@ def frame_axis_ranges(row, b_mode: str = "qx") -> dict:
     path = _product_path(row, "cir")
     if path:
         try:
-            q_values, _intensity = load_cir(path)
+            q_values, intensity = load_cir(path)
         except DataReadError:
-            q_values = None
-        if _span(q_values):
+            q_values = intensity = None
+        if q_values is not None and intensity is not None:
+            # Only where there is signal. A CMS SAXS file runs to q = 0.31 but
+            # the intensity has fallen from 1600 to 0.01 by q = 0.25, and it
+            # starts at 0.0056 rather than the 0.001 a fixed window assumed —
+            # so a fixed range wastes most of the panel on empty decades.
+            usable = np.isfinite(q_values) & np.isfinite(intensity) & (intensity > 0)
+            if usable.any():
+                ranges["cir_q"] = (
+                    float(np.nanmin(q_values[usable])),
+                    float(np.nanmax(q_values[usable])),
+                )
+                positive = intensity[usable]
+                low, high = np.nanpercentile(positive, [0.5, 99.9])
+                if np.isfinite(low) and np.isfinite(high) and high > low > 0:
+                    ranges["cir_I"] = (float(low), float(high))
+        elif _span(q_values):
             ranges["cir_q"] = _span(q_values)
 
     return ranges

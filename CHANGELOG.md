@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.11.0
+
+- **Fixed the blank q–φ panel.** Plotly wants a log axis's range in log10 units,
+  and the heatmap builder was passing raw q. A window of 0.001–0.5 Å⁻¹ was drawn
+  at 10^0.001–10^0.5, i.e. 1–3 Å⁻¹, past the end of any SAXS dataset — so the
+  panel came out empty on every log-q geometry (transmission SAXS and GISAXS)
+  while GIWAXS, which is linear in q, looked fine.
+- **The transmission layout packs itself.** Only the panels that are selected
+  *and* present for the frame are drawn, two to a row. The old fixed A/B/C/D
+  grid always reserved four slots, so transmission data — which has no stitched
+  raw image — opened with an empty first cell. Products that are selected but
+  absent are named in a caption instead of leaving a hole.
+- **Smart 1D limits.** The q and intensity limits for I(q) are measured from
+  where there is signal. A CMS SAXS file runs to q = 0.31 Å⁻¹ but the intensity
+  has fallen from 1600 to 0.01 by q = 0.25, and it starts at 0.0056, not the
+  0.001 the fixed window assumed — so most of the panel was empty decades.
+- **Hot-pixel removal on the 2D products.** Every CMS/SMI detector has a few
+  pixels that read absurdly high whatever the sample, and since the azimuthal
+  average is a mean, one 500,000-count pixel moves a whole q bin. `despike.py`
+  blanks them, on the q-image and q–φ maps, in the line cuts, and in the batch
+  export. On by default.
+- **Batch export of despiked 1D curves.** The explorers can now re-integrate
+  every filtered frame's q–φ map over an azimuthal window with the hot pixels
+  removed, writing one CSV per frame — the reduced curve without the spikes.
+  The reduction's own circular average is computed before anyone has looked at
+  the data, so a hot pixel is baked into it.
+
 ## 0.10.0
 
 - **Settings survive switching tabs.** Streamlit discards a widget as soon as

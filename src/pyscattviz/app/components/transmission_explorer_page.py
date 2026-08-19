@@ -45,6 +45,7 @@ from pyscattviz.app.components.saving import render_output_settings, render_save
 # Shared scattering engine (aliased to the underscore names used below).
 from pyscattviz.app.components.scattering import (
     CMAPS,
+    SCATTERING_PRODUCTS,
     frame_axis_ranges,
     heatmap_fig,
     index_frames,
@@ -80,6 +81,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
+from pyscattviz.despike import remove_hot_pixels
 from pyscattviz.filters import FilterSyntaxError
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "tsaxs")
@@ -131,6 +133,7 @@ _PROFILES = {
 }
 PROFILE = _PROFILES[EXPLORER_MODE]
 STATE_PREFIX = f"pyscattviz_{PROFILE['state']}"
+AUTO_FIT_KEY = f"{STATE_PREFIX}_auto_fit"
 RAW_SUBDIR_CHOICES = PROFILE["raw_choices"]
 RAW_SUBDIR = RAW_SUBDIR_CHOICES[0]
 
@@ -292,6 +295,22 @@ logq = dc2.checkbox("log q (1D)", value=PROFILE["logq"], key=f"{STATE_PREFIX}_lo
 logiq = dc3.checkbox("log I (1D)", value=True, key=f"{STATE_PREFIX}_logiq")
 cmap = dc4.selectbox("2D colormap", CMAPS, index=0, key=f"{STATE_PREFIX}_cmap")  # default Turbo
 
+
+# One or two pixels on every CMS/SMI detector read absurdly high whatever the
+# sample. The azimuthal average is a mean, so a single 500,000-count pixel moves
+# a whole q bin and the 1-D curve grows a peak that is not there.
+despike = st.checkbox(
+    "Remove hot pixels from the 2D maps",
+    value=True,
+    key=f"{STATE_PREFIX}_despike",
+    help=(
+        "Blanks isolated pixels that are both far above their neighbours in a "
+        "counting-statistics sense and several times the local median. Applies "
+        "to the 2D panels, the line cuts, and the batch 1D export. Sharp "
+        "reflections are locally smooth over a few pixels and are kept."
+    ),
+)
+
 dc5, _ = st.columns(2)
 aspect_mode = dc5.selectbox(
     "Aspect ratio (A & B)",
@@ -357,6 +376,18 @@ def _fill_ranges(values: dict) -> None:
 
 
 with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=False):
+    auto_fit = st.checkbox(
+        "Auto-fit the q and intensity limits to each frame",
+        value=bool(st.session_state.get(AUTO_FIT_KEY, True)),
+        key=AUTO_FIT_KEY,
+        help=(
+            "A fixed window wastes the panel on decades that hold no signal — a "
+            "CMS SAXS file runs to q = 0.31 but the intensity has fallen to "
+            "nothing by 0.25, and it starts at 0.0056, not 0.001. With this on "
+            "the q–φ q axis and the I(q) panel are framed on their own data. "
+            "φ is left alone."
+        ),
+    )
     fill_left, fill_middle, fill_right = st.columns([1.2, 1.4, 2.4])
     if fill_left.button(
         "Fit to this frame", key=action_key(st.session_state, f"{STATE_PREFIX}_fit_ranges")
@@ -410,6 +441,16 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     d_style = _curve_style_controls(
         f"{STATE_PREFIX}_d_style", defaults={"color": "Crimson", "width": 2.2}
     )
+
+
+if auto_fit:
+    _measured = frame_axis_ranges(sel)
+    if _measured.get("qphi_q"):
+        c_qr = _measured["qphi_q"]
+    if _measured.get("cir_q"):
+        d_qr = _measured["cir_q"]
+    if _measured.get("cir_I"):
+        d_ir = _measured["cir_I"]
 
 
 # ===========================================================================
@@ -512,27 +553,30 @@ rendered_figures: dict[str, object] = {}
 rendered_tables: dict[str, pd.DataFrame] = {}
 rendered_arrays: dict[str, dict] = {}
 
-rowA = st.columns(2)
-rowB = st.columns(2)
+PANEL_TITLES = {
+    "stitched": "A · raw",
+    "q_image": "B · q-image",
+    "qphi": "C · q–φ map",
+    "cir_avg": "D · I(q)",
+}
 
-# A) raw image ---------------------------------------------------------------
-with rowA[0]:
-    raw = None
-    if "stitched" in active_products and sel["has_raw"]:
+
+def _render_panel(panel: str) -> None:
+    """Draw one product panel. Only called when the frame actually has it."""
+
+    if panel == "stitched":
         try:
             raw = load_raw(sel["raw"])
         except DataReadError as exc:
             st.error(str(exc))
-    if raw is not None:
+            return
         z = raw.astype(float).copy()
         z[~np.isfinite(z)] = np.nan
         z[z <= 0] = np.nan
         z = np.flipud(z)  # right-side-up, lower-left origin
-        ny0, nx0 = z.shape
-        px_x, px_y = np.arange(nx0), np.arange(ny0)
-        z, px_x, px_y = _downsample(z, px_x, px_y)
+        z, px_x, px_y = _downsample(z, np.arange(z.shape[1]), np.arange(z.shape[0]))
         fig = _heatmap_fig(
-            "A · raw",
+            PANEL_TITLES[panel],
             z,
             px_x,
             px_y,
@@ -546,27 +590,23 @@ with rowA[0]:
             aspect=_aspect_arg(),
         )
         st.plotly_chart(fig, use_container_width=True)
-        rendered_figures["A · raw"] = fig
-        rendered_arrays["A · raw"] = {"image": z}
-    elif "stitched" in active_products and not sel["has_raw"]:
-        st.info("No raw image for this frame.")
+        rendered_figures[PANEL_TITLES[panel]] = fig
+        rendered_arrays[PANEL_TITLES[panel]] = {"image": z}
 
-# B) q-image (reserved — no remesh for transmission data yet) ----------------
-with rowA[1]:
-    data = None
-    if "q_image" in active_products and sel["has_qimg"]:
+    elif panel == "q_image":
         from pyscattviz.app.components.scattering import load_qimg, resolve_qimage
 
         try:
             data = load_qimg(sel["qimg"])
         except DataReadError as exc:
             st.error(str(exc))
-    if data is not None:
+            return
         qimg, qx, qz, qmask, b_xlab = resolve_qimage(data, "qx")
         z = _apply_mask(qimg, qmask)
+        z = remove_hot_pixels(z) if despike else z
         z, xx, yy = _downsample(z, qx, qz)
         fig = _heatmap_fig(
-            "B · q-image",
+            PANEL_TITLES[panel],
             z,
             xx,
             yy,
@@ -577,32 +617,24 @@ with rowA[1]:
             aspect=_aspect_arg(),
         )
         st.plotly_chart(fig, use_container_width=True)
-        rendered_figures["B · q-image"] = fig
-        rendered_arrays["B · q-image"] = {
+        rendered_figures[PANEL_TITLES[panel]] = fig
+        rendered_arrays[PANEL_TITLES[panel]] = {
             "qimg": z,
             "qx": np.asarray(xx),
             "qz": np.asarray(yy),
         }
-    elif "q_image" in active_products and not sel["has_qimg"]:
-        st.info(
-            "🔧 **q-image** — no qx–qz remesh exists for this transmission "
-            "dataset yet. This panel is reserved: it will render "
-            "automatically once `q_image/qimg_*.npz` files are produced."
-        )
 
-# C) q–φ map -----------------------------------------------------------------
-with rowB[0]:
-    qphi = None
-    if "qphi" in active_products and sel["has_qphi"]:
+    elif panel == "qphi":
         try:
-            q, phi, qphi, pmask = load_qphi(sel["qphi"])
+            q, phi, caked, pmask = load_qphi(sel["qphi"])
         except DataReadError as exc:
             st.error(str(exc))
-    if qphi is not None:
-        pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
-        z = _apply_mask(qphi, pmask)
+            return
+        pmask = pmask if getattr(pmask, "shape", None) == getattr(caked, "shape", None) else None
+        z = _apply_mask(caked, pmask)
+        z = remove_hot_pixels(z) if despike else z
         fig = _heatmap_fig(
-            "C · q–φ map",
+            PANEL_TITLES[panel],
             z,
             q,
             phi,
@@ -616,24 +648,19 @@ with rowB[0]:
             y_range=c_phir,
         )
         st.plotly_chart(fig, use_container_width=True)
-        rendered_figures["C · q–φ map"] = fig
-        rendered_arrays["C · q–φ map"] = {
+        rendered_figures[PANEL_TITLES[panel]] = fig
+        rendered_arrays[PANEL_TITLES[panel]] = {
             "qphi": z,
             "q": np.asarray(q),
             "phi": np.asarray(phi),
         }
-    elif "qphi" in active_products and not sel["has_qphi"]:
-        st.info("No qphi map for this frame.")
 
-# D) I(q) circular average ---------------------------------------------------
-with rowB[1]:
-    qq = None
-    if "cir_avg" in active_products and sel["has_cir"]:
+    elif panel == "cir_avg":
         try:
             qq, ii = load_cir(sel["cir"])
         except DataReadError as exc:
             st.error(str(exc))
-    if qq is not None:
+            return
         tk = _apply_curve_style(
             dict(x=qq, y=ii, name="I(q)", hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>"),
             d_style,
@@ -644,16 +671,43 @@ with rowB[1]:
         fig.update_yaxes(title_text="I(q)", range=_axrange(d_ir[0], d_ir[1], logiq))
         _style_1d_axes(fig, logq, logiq)
         fig.update_layout(
-            title="D · I(q)",
+            title=PANEL_TITLES[panel],
             height=_PANEL_H,
             template="plotly_white",
             margin=dict(l=60, r=15, t=40, b=45),
         )
         st.plotly_chart(fig, use_container_width=True)
-        rendered_figures["D · I(q)"] = fig
-        rendered_tables["D · I(q)"] = pd.DataFrame({"q": qq, "I": ii})
-    elif "cir_avg" in active_products and not sel["has_cir"]:
-        st.info("No circular average for this frame.")
+        rendered_figures[PANEL_TITLES[panel]] = fig
+        rendered_tables[PANEL_TITLES[panel]] = pd.DataFrame({"q": qq, "I": ii})
+
+
+_HAS_PRODUCT = {
+    "stitched": bool(sel["has_raw"]),
+    "q_image": bool(sel["has_qimg"]),
+    "qphi": bool(sel["has_qphi"]),
+    "cir_avg": bool(sel["has_cir"]),
+}
+_selected = [p for p in ("stitched", "q_image", "qphi", "cir_avg") if p in active_products]
+_shown = [p for p in _selected if _HAS_PRODUCT[p]]
+_absent = [p for p in _selected if not _HAS_PRODUCT[p]]
+
+# Pack the panels that will actually draw. The old fixed A/B/C/D grid always
+# reserved four slots, so transmission data — which has no stitched raw image —
+# opened with an empty first cell and the rest pushed out of place.
+for _start in range(0, len(_shown), 2):
+    _batch = _shown[_start : _start + 2]
+    for _col, _panel in zip(st.columns(len(_batch)), _batch):
+        with _col:
+            _render_panel(_panel)
+
+if _absent:
+    _names = ", ".join(SCATTERING_PRODUCTS[p]["label"] for p in _absent)
+    st.caption(f"Not present for this frame: {_names}.")
+    if "q_image" in _absent:
+        st.caption(
+            "A qx–qz remesh is optional for transmission data; this panel appears "
+            "as soon as `q_image/qimg_*.npz` files exist."
+        )
 
 if rendered_figures:
     st.divider()

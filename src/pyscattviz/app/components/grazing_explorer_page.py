@@ -89,6 +89,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
+from pyscattviz.despike import remove_hot_pixels
 from pyscattviz.filters import FilterSyntaxError
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "giwaxs")
@@ -322,6 +323,22 @@ cmap = dc4.selectbox(
 )  # default Turbo (item 4)
 
 # Second row: aspect ratio (shared by A & B, item 2) + B-panel axis mode (item 3)
+
+# One or two pixels on every CMS/SMI detector read absurdly high whatever the
+# sample. The azimuthal average is a mean, so a single 500,000-count pixel moves
+# a whole q bin and the 1-D curve grows a peak that is not there.
+despike = st.checkbox(
+    "Remove hot pixels from the 2D maps",
+    value=True,
+    key=f"{STATE_PREFIX}_despike",
+    help=(
+        "Blanks isolated pixels that are both far above their neighbours in a "
+        "counting-statistics sense and several times the local median. Applies "
+        "to the 2D panels, the line cuts, and the batch 1D export. Sharp "
+        "reflections are locally smooth over a few pixels and are kept."
+    ),
+)
+
 dc5, dc6 = st.columns(2)
 aspect_mode = dc5.selectbox(
     "Aspect ratio (A & B)",
@@ -405,14 +422,16 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
         "percentiles of each panel."
     )
     auto_fit = st.checkbox(
-        "Auto-fit the q-image and q–φ q limits to each frame",
+        "Auto-fit the q and intensity limits to each frame",
         value=bool(st.session_state.get(AUTO_FIT_KEY, True)),
         key=AUTO_FIT_KEY,
         help=(
             "A remeshed q-image covers only part of the qx–qz plane and the rest "
             "is blank, so fixed limits leave the picture stranded in a field of "
-            "NaN. With this on, the boxes below are ignored for those axes and "
-            "each frame is framed on its own data. φ is left alone."
+            "NaN, and a fixed 1-D window wastes most of the panel on decades "
+            "that hold no signal. With this on, the boxes below are ignored for "
+            "the q-image, the q–φ q axis, and the I(q) panel, and each frame is "
+            "framed on its own data. φ is left alone."
         ),
     )
     fill_left, fill_middle, fill_right = st.columns([1.2, 1.4, 2.4])
@@ -485,6 +504,10 @@ if auto_fit:
         b_qzr = _measured["qz"]
     if _measured.get("qphi_q"):
         c_qr = _measured["qphi_q"]
+    if _measured.get("cir_q"):
+        d_qr = _measured["cir_q"]
+    if _measured.get("cir_I"):
+        d_ir = _measured["cir_I"]
 
 
 def _heatmap_fig(title, z, x, y, xlab, ylab, **kw):
@@ -581,6 +604,9 @@ _line_color = "crimson"
 if centers:
     if cut_source.startswith("q_image") and sel["has_qimg"] and _qimg_data is not None:
         qimg, qx, qz, qmask, _ = resolve_qimage(_qimg_data, b_mode)
+        if qimg is not None and despike:
+            qimg = remove_hot_pixels(_apply_mask(qimg, qmask))
+            qmask = None
         if qimg is not None:
             for c in centers:
                 if _is_qr:  # band in qz → profile along in-plane axis (qx/qr)
@@ -733,6 +759,7 @@ def _render_panel(panel):
         elif sel["has_qimg"] and _qimg_data is not None:
             qimg, qx, qz, qmask, b_xlab = resolve_qimage(_qimg_data, b_mode)
             z = _apply_mask(qimg, qmask)
+            z = remove_hot_pixels(z) if despike else z
             z, xx, yy = _downsample(z, qx, qz)
             fig = _heatmap_fig(
                 "B · q-image",
@@ -766,6 +793,7 @@ def _render_panel(panel):
                 return
             pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
             z = _apply_mask(qphi, pmask)
+            z = remove_hot_pixels(z) if despike else z
             fig = _heatmap_fig(
                 "C · q–φ map",
                 z,
