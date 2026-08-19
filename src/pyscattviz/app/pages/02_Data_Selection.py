@@ -17,6 +17,7 @@ import streamlit as st
 
 from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.state import (
+    keep_widget_state,
     prepare_persistent_widget,
     set_persistent_value,
     store_persistent_widget,
@@ -42,6 +43,9 @@ TAB_NAME = "Data Selection"
 BASKET_KEY = "pyscattviz_dataset_paths"
 
 st.set_page_config(page_title="Data Selection", page_icon="🎯", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("🎯 Data Selection")
 st.caption(
     "Filter folders or files with AND / OR / EXCLUDE term lists, or paste a list "
@@ -420,10 +424,13 @@ with basket_tab:
 
         save_columns = st.columns([2, 3, 1.2])
         collection_name = save_columns[0].text_input(
-            "Collection name", value="", placeholder="myproject_giwaxs"
+            "Collection name", value="", placeholder="myproject_giwaxs", key="ds_collection_name"
         )
         collection_note = save_columns[1].text_input(
-            "Note (optional)", value="", placeholder="0.10 and 0.15 deg, no calibration"
+            "Note (optional)",
+            value="",
+            placeholder="0.10 and 0.15 deg, no calibration",
+            key="ds_collection_note",
         )
         with save_columns[2]:
             st.write("")

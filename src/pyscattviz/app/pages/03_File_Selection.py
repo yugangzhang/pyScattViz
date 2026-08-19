@@ -13,6 +13,7 @@ from pyscattviz.app.components.scattering import (
     index_frames,
 )
 from pyscattviz.app.state import (
+    keep_widget_state,
     prepare_persistent_widget,
     set_persistent_value,
     store_persistent_widget,
@@ -24,6 +25,9 @@ from pyscattviz.filters import FilterSyntaxError, parse_filename_list
 TAB_NAME = "File Selection"
 
 st.set_page_config(page_title="File Selection", page_icon="🔎", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("🔎 File Selection")
 st.caption("Filter filenames first; detector and q-space arrays remain unopened.")
 
@@ -63,6 +67,7 @@ with st.expander(
             "Supported read-only commands: pwd, ls [path], cd <path>, du [path]. "
             "du is capped at 5,000 files so a large network tree cannot scan forever."
         ),
+        key="fs_command",
     )
     if st.button("Run command"):
         result = run_browser_command(
@@ -101,9 +106,7 @@ with st.expander(
         folders = [row for row in rows if row["is_dir"]]
         if folders:
             selected_folder = st.selectbox(
-                "Subfolder",
-                folders,
-                format_func=lambda row: row["name"],
+                "Subfolder", folders, format_func=lambda row: row["name"], key="fs_subfolder"
             )
             st.button(
                 "Open selected subfolder",
@@ -180,6 +183,7 @@ selected_products = st.multiselect(
     available_keys,
     default=available_keys,
     format_func=lambda key: SCATTERING_PRODUCTS[key]["label"],
+    key="fs_products",
 )
 
 left, right = st.columns(2)
@@ -191,12 +195,14 @@ with left:
             "AND, OR, NOT, parentheses, quoted phrases, and wildcards are supported. "
             "Adjacent terms imply AND."
         ),
+        key="fs_query",
     )
 with right:
     pasted = st.text_area(
         "Exact filename or stem list (optional)",
         height=110,
         placeholder="One filename per line, or a comma-separated list",
+        key="fs_pasted",
     )
     upload = st.file_uploader("Load a .txt/.csv filename list", type=["txt", "csv"])
 
@@ -214,6 +220,7 @@ max_frames = st.number_input(
     max_value=50_000,
     value=5_000,
     step=500,
+    key="fs_max_frames",
 )
 
 if st.button("Scan filenames", type="primary", disabled=not selected_products):

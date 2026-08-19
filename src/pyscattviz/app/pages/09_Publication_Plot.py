@@ -18,6 +18,7 @@ from pyscattviz.app.components.scattering import (
     index_frames,
     load_cir,
 )
+from pyscattviz.app.state import coerce_choices, keep_widget_state
 from pyscattviz.codegen import publication_code
 from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
@@ -27,6 +28,9 @@ from pyscattviz.publication import Curve, build_curve_figure
 TAB_NAME = "Publication Plot"
 
 st.set_page_config(page_title="Publication Plot", page_icon="📈", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("📈 Publication Plot")
 st.caption("Overlay selected circular averages and export PNG, SVG, or PDF.")
 
@@ -54,13 +58,17 @@ use_saved = c2.checkbox(
     f"Saved selection ({len(saved_stems):,})",
     value=saved_available,
     disabled=not saved_available,
+    key="pub_use_saved",
 )
 query = c1.text_input(
     "Boolean filename filter",
     placeholder="sample_A AND (0.10deg OR 0.15deg)",
     disabled=use_saved,
+    key="pub_query",
 )
-max_frames = c3.number_input("Maximum names", 1, 5_000, 500, 100, disabled=use_saved)
+max_frames = c3.number_input(
+    "Maximum names", 1, 5_000, 500, 100, disabled=use_saved, key="pub_max_names"
+)
 
 st.caption("Narrow the curve list")
 kw_and, kw_or, kw_not = render_term_filters(
@@ -89,9 +97,11 @@ if available.empty:
 
 st.caption(f"{len(available):,} matching curves; filename scanning does not open CSV contents.")
 options = available["stem"].tolist()
+coerce_choices(st.session_state, "pyscattviz_publication_curves", options)
 selected = st.multiselect(
     "Curves to plot (maximum 50)",
     options,
+    key="pyscattviz_publication_curves",
     default=options[: min(5, len(options))],
 )
 if not selected:
@@ -103,21 +113,23 @@ if len(selected) > 50:
 
 st.subheader("Figure controls")
 f1, f2, f3, f4 = st.columns(4)
-theme = f1.selectbox("Theme", ["science", "notebook", "present", "poster"])
-normalization = f2.selectbox("Normalization", ["none", "maximum", "integral"])
-logx = f3.checkbox("Log q", value=True)
-logy = f4.checkbox("Log intensity", value=True)
+theme = f1.selectbox("Theme", ["science", "notebook", "present", "poster"], key="pub_theme")
+normalization = f2.selectbox(
+    "Normalization", ["none", "maximum", "integral"], key="pub_normalization"
+)
+logx = f3.checkbox("Log q", value=True, key="pub_logx")
+logy = f4.checkbox("Log intensity", value=True, key="pub_logy")
 
 r1, r2, r3, r4 = st.columns(4)
-q_min = r1.number_input("q minimum (blank = auto)", value=None, format="%.5g")
-q_max = r2.number_input("q maximum (blank = auto)", value=None, format="%.5g")
-offset = r3.number_input("Vertical offset", value=0.0, format="%.5g")
-legend = r4.checkbox("Show legend", value=True)
+q_min = r1.number_input("q minimum (blank = auto)", value=None, format="%.5g", key="pub_qmin")
+q_max = r2.number_input("q maximum (blank = auto)", value=None, format="%.5g", key="pub_qmax")
+offset = r3.number_input("Vertical offset", value=0.0, format="%.5g", key="pub_offset")
+legend = r4.checkbox("Show legend", value=True, key="pub_legend")
 
 s1, s2, s3 = st.columns([2, 1, 1])
-title = s1.text_input("Title", value="")
-figure_width = s2.number_input("Width (in)", 3.0, 20.0, 7.0, 0.5)
-figure_height = s3.number_input("Height (in)", 3.0, 20.0, 5.0, 0.5)
+title = s1.text_input("Title", value="", key="pub_title")
+figure_width = s2.number_input("Width (in)", 3.0, 20.0, 7.0, 0.5, key="pub_width")
+figure_height = s3.number_input("Height (in)", 3.0, 20.0, 5.0, 0.5, key="pub_height")
 
 rows = available.set_index("stem")
 curves = []
@@ -157,8 +169,8 @@ except ValueError as exc:
 st.pyplot(figure, width="content")
 
 e1, e2, e3 = st.columns([1, 1, 2])
-export_format = e1.selectbox("Export format", ["png", "svg", "pdf"])
-dpi = e2.number_input("DPI", 72, 1200, 300, 50, disabled=export_format != "png")
+export_format = e1.selectbox("Export format", ["png", "svg", "pdf"], key="pub_export_format")
+dpi = e2.number_input("DPI", 72, 1200, 300, 50, disabled=export_format != "png", key="pub_dpi")
 mime = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}
 with e3:
     st.write("")

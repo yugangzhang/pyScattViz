@@ -14,6 +14,7 @@ from __future__ import annotations
 import streamlit as st
 
 from pyscattviz.app.components.saving import render_save_panel
+from pyscattviz.app.state import action_key
 
 __all__ = ["render_code_export"]
 
@@ -48,10 +49,14 @@ def render_code_export(
             code,
             file_name=f"{filename}.py",
             mime="text/x-python",
-            key=f"{key}_download",
+            key=action_key(st.session_state, f"{key}_download"),
             use_container_width=True,
         )
-        if actions[1].button("Open in Python Console", key=f"{key}_send", use_container_width=True):
+        if actions[1].button(
+            "Open in Python Console",
+            key=action_key(st.session_state, f"{key}_send"),
+            use_container_width=True,
+        ):
             st.session_state[HANDOFF_KEY] = code
             try:
                 st.switch_page(CONSOLE_PAGE)

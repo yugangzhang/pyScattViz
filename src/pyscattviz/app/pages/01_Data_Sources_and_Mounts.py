@@ -18,7 +18,11 @@ from pathlib import Path
 
 import streamlit as st
 
-from pyscattviz.app.state import prepare_persistent_widget, store_persistent_widget
+from pyscattviz.app.state import (
+    keep_widget_state,
+    prepare_persistent_widget,
+    store_persistent_widget,
+)
 from pyscattviz.data_sources import (
     add_path_mapping,
     load_path_mappings,
@@ -53,6 +57,9 @@ from pyscattviz.mounts import (
 )
 
 st.set_page_config(page_title="Data Sources & Mounts", page_icon="🗂️", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("🗂️ Data Sources & Mounts")
 st.caption(
     "Mount the proposal, copy a subset, or use a local disk — then register the "
@@ -513,6 +520,7 @@ with folders_tab:
         placeholder=(
             r"Z:\projects\sample\Results\giwaxs" if os.name == "nt" else "/path/to/Results/giwaxs"
         ),
+        key="mounts_folder_paths",
     )
     if st.button("Save folder list"):
         roots = []
@@ -537,6 +545,7 @@ with folders_tab:
                 if st.session_state.get("pyscattviz_active_root") in roots
                 else 0
             ),
+            key="mounts_active_folder",
         )
         st.session_state["pyscattviz_active_root"] = active
         st.session_state["pyscattviz_file_root"] = active
@@ -553,6 +562,7 @@ with folders_tab:
             "Mapping to remove",
             mappings,
             format_func=lambda item: f"{item['remote_root']}  →  {item['local_root']}",
+            key="mounts_remove_mapping",
         )
         if st.button("Remove selected mapping"):
             remaining = [item for item in mappings if item != remove_mapping]

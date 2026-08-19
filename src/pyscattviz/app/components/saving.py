@@ -17,6 +17,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from pyscattviz.app.state import action_key, coerce_choice
 from pyscattviz.exporting import (
     ARRAY_FORMATS,
     MATPLOTLIB_FORMATS,
@@ -282,9 +283,13 @@ def render_save_panel(
         )
 
         controls = st.columns([1.2, 1.2, 1, 1])
+        coerce_choice(st.session_state, f"{key}_what", list(choices))
         what = controls[0].selectbox("What to save", list(choices), key=f"{key}_what")
         kind, payload = choices[what]
         formats = list(_FORMATS[kind])
+        # A remembered format outlives its payload: pick svg for a figure, switch
+        # to the table, and "svg" is still there but no longer offered.
+        coerce_choice(st.session_state, f"{key}_format", formats)
         fmt = controls[1].selectbox("Format", formats, key=f"{key}_format")
         options: dict = {}
         if kind == "matplotlib":
@@ -325,7 +330,9 @@ def render_save_panel(
         st.caption("Will be written to")
         st.code(str(preview), language=None)
 
-        if st.button("Save to disk", type="primary", key=f"{key}_save"):
+        if st.button(
+            "Save to disk", type="primary", key=action_key(st.session_state, f"{key}_save")
+        ):
             try:
                 created = resolve_output_dir(
                     output_root(),

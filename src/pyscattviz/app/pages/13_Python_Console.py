@@ -29,6 +29,7 @@ import streamlit as st
 
 import pyscattviz.plotting as pv
 from pyscattviz.app.components.saving import output_root, render_save_panel
+from pyscattviz.app.state import keep_widget_state
 from pyscattviz.console import STARTER_SNIPPETS, is_local_only, run_snippet
 from pyscattviz.dataio import read_arrays, read_curve, read_image, read_table, stack_curves
 from pyscattviz.discovery import find_files, find_folders, ls_dir
@@ -41,6 +42,9 @@ CODE_KEY = "pyscattviz_console_code"
 NAMESPACE_KEY = "pyscattviz_console_namespace"
 
 st.set_page_config(page_title="Python Console", page_icon="🐍", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("🐍 Python Console")
 st.caption(
     "Your own code, with this session's data already loaded. A trailing "

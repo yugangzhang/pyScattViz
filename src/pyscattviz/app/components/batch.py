@@ -24,6 +24,7 @@ from pyscattviz.app.components.saving import (
     record_saved,
 )
 from pyscattviz.app.components.scattering import BATCH_PANELS, frame_panel_figure
+from pyscattviz.app.state import action_key, coerce_choice
 from pyscattviz.exporting import (
     PLOTLY_FORMATS,
     ExportError,
@@ -88,6 +89,7 @@ def render_batch_export(
             "not drawn on a batch."
         )
         controls = st.columns([1.4, 1, 1, 1])
+        coerce_choice(st.session_state, f"{key}_batch_panel", panels)
         panel = controls[0].selectbox(
             "Panel",
             panels,
@@ -135,7 +137,9 @@ def render_batch_export(
                 "written. Raise the maximum or narrow the filter."
             )
 
-        if not st.button("Export the batch", type="primary", key=f"{key}_batch_run"):
+        if not st.button(
+            "Export the batch", type="primary", key=action_key(st.session_state, f"{key}_batch_run")
+        ):
             return
 
         try:

@@ -33,6 +33,7 @@ from pyscattviz.app.components.files import (
 )
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 from pyscattviz.app.components.scattering import CMAPS, color_limits, downsample, log_scale
+from pyscattviz.app.state import coerce_choice, coerce_choices, keep_widget_state
 from pyscattviz.codegen import curve_overlay_code, image_code, stack_code
 from pyscattviz.data_sources import load_path_mappings
 from pyscattviz.dataio import (
@@ -53,6 +54,9 @@ TAB_NAME = "Quick Plot"
 BASKET_KEY = "pyscattviz_dataset_paths"
 
 st.set_page_config(page_title="Quick Plot", page_icon="⚡", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("⚡ Quick Plot")
 st.caption(
     "Give it full paths — files or folders — and it plots them. Nothing is opened "
@@ -196,6 +200,7 @@ with tab_1d:
         st.info("No table or array files in this selection.")
     else:
         default_count = min(8, len(one_d_candidates))
+        coerce_choices(st.session_state, "quickplot_1d_files", one_d_candidates)
         chosen = st.multiselect(
             "Curves",
             one_d_candidates,
@@ -213,6 +218,8 @@ with tab_1d:
                 st.error(str(exc))
                 available_columns = ["auto"]
 
+            coerce_choice(st.session_state, "quickplot_1d_x", available_columns)
+            coerce_choice(st.session_state, "quickplot_1d_y", available_columns)
             column_row = st.columns(4)
             x_column = column_row[0].selectbox("x column", available_columns, key="quickplot_1d_x")
             y_column = column_row[1].selectbox("y column", available_columns, key="quickplot_1d_y")
@@ -427,6 +434,7 @@ with tab_stack:
     if not one_d_candidates:
         st.info("No table or array files in this selection.")
     else:
+        coerce_choices(st.session_state, "quickplot_stack_files", one_d_candidates)
         stack_files = st.multiselect(
             "Curves in the stack",
             one_d_candidates,
@@ -595,6 +603,7 @@ with tab_2d:
     if not two_d_candidates:
         st.info("No image or array files in this selection.")
     else:
+        coerce_choice(st.session_state, "quickplot_2d_file", two_d_candidates)
         chosen_2d = st.selectbox(
             "File",
             two_d_candidates,
@@ -617,6 +626,7 @@ with tab_2d:
         if not arrays:
             st.warning("This file holds no two-dimensional array.")
         else:
+            coerce_choice(st.session_state, "quickplot_2d_array", list(arrays))
             control_row = st.columns(5)
             array_name = control_row[0].selectbox("Array", list(arrays), key="quickplot_2d_array")
             cmap_2d = control_row[1].selectbox("Colormap", CMAPS, key="quickplot_2d_cmap")

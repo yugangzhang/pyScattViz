@@ -19,7 +19,7 @@ import streamlit as st
 
 from pyscattviz.app.components.datasource import known_folders, remember_folder
 from pyscattviz.app.components.saving import render_save_panel
-from pyscattviz.app.state import set_persistent_value
+from pyscattviz.app.state import action_key, keep_widget_state, set_persistent_value
 from pyscattviz.data_sources import load_path_mappings
 from pyscattviz.shell import COMMAND_HELP, run_shell_command
 
@@ -29,6 +29,9 @@ CWD_KEY = "pyscattviz_shell_cwd"
 HISTORY_KEY = "pyscattviz_shell_history"
 
 st.set_page_config(page_title="Terminal", page_icon="🖥️", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("🖥️ Terminal")
 st.caption(
     "ls, cd, cat, find — and `select` to build a list that every plotting tab reads. "
@@ -100,7 +103,9 @@ for index, (label, shortcut) in enumerate(
     ]
 ):
     if quick[index].button(
-        label, key=f"pyscattviz_shell_quick_{shortcut}", use_container_width=True
+        label,
+        key=action_key(st.session_state, f"pyscattviz_shell_quick_{shortcut}"),
+        use_container_width=True,
     ):
         _run(shortcut)
 

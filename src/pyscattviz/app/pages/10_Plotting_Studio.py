@@ -16,6 +16,7 @@ import streamlit as st
 import pyscattviz.plotting as pv
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 from pyscattviz.app.components.scattering import load_qimg
+from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.dataio import DataReadError
 from pyscattviz.studio import (
     demo_curve_table,
@@ -28,6 +29,9 @@ from pyscattviz.studio import (
 TAB_NAME = "Plotting Studio"
 
 st.set_page_config(page_title="Plotting Studio", page_icon="🎨", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("🎨 Plotting Studio")
 st.markdown(
     """
@@ -51,7 +55,7 @@ def _uploaded_table(widget_key: str, fallback: pd.DataFrame) -> pd.DataFrame:
     upload = st.file_uploader(
         "Upload CSV, TXT, or DAT",
         type=["csv", "txt", "dat"],
-        key=widget_key,
+        key=action_key(st.session_state, widget_key),
     )
     if upload is None:
         return fallback
@@ -181,7 +185,7 @@ with tab_2d:
         upload_2d = st.file_uploader(
             "Upload NPY, NPZ, CSV, TXT, TIFF, PNG, or JPEG",
             type=["npy", "npz", "csv", "txt", "dat", "tif", "tiff", "png", "jpg", "jpeg"],
-            key="studio_2d_upload",
+            key=action_key(st.session_state, "studio_2d_upload"),
         )
         if upload_2d is not None:
             try:
@@ -275,7 +279,7 @@ with tab_3d:
         upload_3d = st.file_uploader(
             "Upload a 2D NPY, NPZ, CSV, TXT, or image",
             type=["npy", "npz", "csv", "txt", "dat", "tif", "tiff", "png", "jpg", "jpeg"],
-            key="studio_3d_upload",
+            key=action_key(st.session_state, "studio_3d_upload"),
         )
         uploaded_bundle = {"demo_intensity": demo_image(120)}
         if upload_3d is not None:

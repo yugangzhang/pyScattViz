@@ -77,6 +77,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.components.scattering import (
     style_1d_axes as _style_1d_axes,
 )
+from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
@@ -141,6 +142,9 @@ st.set_page_config(
     layout="wide",
 )
 
+# Streamlit forgets a page's widgets as soon as another page is opened.
+keep_widget_state(st.session_state)
+
 st.title(f"{PROFILE['icon']} {PROFILE['name']} Explorer")
 st.caption(PROFILE["description"])
 
@@ -172,6 +176,7 @@ with st.sidebar:
         accept_new_options=True,
         help="CMS: ../raw · SMI: ../../user_data/<detector>. Type any other "
         "relative path if your layout differs.",
+        key=f"{STATE_PREFIX}_raw_subdir",
     )
 
     saved_stems = st.session_state.get("pyscattviz_selected_stems", ())
@@ -181,14 +186,24 @@ with st.sidebar:
         f"Use saved File Selection ({len(saved_stems):,} frames)",
         value=saved_available,
         disabled=not saved_available,
+        key=f"{STATE_PREFIX}_use_saved",
     )
     query = st.text_input(
         "Boolean filename filter",
         value="",
         placeholder="sample AND (10s OR 30s) NOT AgBH",
         disabled=use_saved,
+        key=f"{STATE_PREFIX}_query",
     )
-    max_frames = st.number_input("Maximum frames", 1, 50_000, 5_000, 500, disabled=use_saved)
+    max_frames = st.number_input(
+        "Maximum frames",
+        1,
+        50_000,
+        5_000,
+        500,
+        disabled=use_saved,
+        key=f"{STATE_PREFIX}_max_frames",
+    )
 
     if st.button("🔄 Rescan"):
         index_frames.clear()
@@ -221,7 +236,7 @@ with st.sidebar:
         f"{int(df['has_qphi'].sum())} q–φ · {int(df['has_cir'].sum())} 1D."
     )
 
-    hide_cal = st.checkbox("Hide calibration", value=True)
+    hide_cal = st.checkbox("Hide calibration", value=True, key=f"{STATE_PREFIX}_hide_cal")
     st.caption("Narrow the frame list")
     kw_and, kw_or, kw_not = render_term_filters(STATE_PREFIX)
 
@@ -258,7 +273,11 @@ if work.empty:
 active_products = set(selected_products)
 c1, c2 = st.columns([4, 1])
 labels = work["stem"].tolist()
-chosen = c1.selectbox("Frame", options=labels, index=0) if len(labels) > 1 else labels[0]
+chosen = (
+    c1.selectbox("Frame", options=labels, index=0, key=f"{STATE_PREFIX}_frame")
+    if len(labels) > 1
+    else labels[0]
+)
 idx = labels.index(chosen)
 sel = work.iloc[int(idx)]
 c2.metric("Frame", f"{int(idx) + 1}/{len(labels)}")
@@ -268,10 +287,10 @@ st.markdown(f"**{sel['stem']}**  ·  well `{sel['well']}`  ·  t = {ts}")
 
 # --- Display controls -------------------------------------------------------
 dc1, dc2, dc3, dc4 = st.columns(4)
-logI = dc1.checkbox("log I (2D panels)", value=True)
-logq = dc2.checkbox("log q (1D)", value=PROFILE["logq"])
-logiq = dc3.checkbox("log I (1D)", value=True)
-cmap = dc4.selectbox("2D colormap", CMAPS, index=0)  # default Turbo
+logI = dc1.checkbox("log I (2D panels)", value=True, key=f"{STATE_PREFIX}_logI")
+logq = dc2.checkbox("log q (1D)", value=PROFILE["logq"], key=f"{STATE_PREFIX}_logq")
+logiq = dc3.checkbox("log I (1D)", value=True, key=f"{STATE_PREFIX}_logiq")
+cmap = dc4.selectbox("2D colormap", CMAPS, index=0, key=f"{STATE_PREFIX}_cmap")  # default Turbo
 
 dc5, _ = st.columns(2)
 aspect_mode = dc5.selectbox(
@@ -279,11 +298,18 @@ aspect_mode = dc5.selectbox(
     ["Auto", "Equal (1:1)", "Custom"],
     index=1,
     help="Equal locks y/x to 1:1 in data units; Custom sets the y:x ratio.",
+    key=f"{STATE_PREFIX}_aspect_mode",
 )
 aspect_ratio = 1.0
 if aspect_mode == "Custom":
     aspect_ratio = dc5.number_input(
-        "y:x ratio", value=1.0, min_value=0.05, max_value=20.0, step=0.1, format="%.2f"
+        "y:x ratio",
+        value=1.0,
+        min_value=0.05,
+        max_value=20.0,
+        step=0.1,
+        format="%.2f",
+        key=f"{STATE_PREFIX}_aspect_ratio",
     )
 
 _PANEL_H = 380
@@ -332,7 +358,9 @@ def _fill_ranges(values: dict) -> None:
 
 with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=False):
     fill_left, fill_middle, fill_right = st.columns([1.2, 1.4, 2.4])
-    if fill_left.button("Fit to this frame", key=f"{STATE_PREFIX}_fit_ranges"):
+    if fill_left.button(
+        "Fit to this frame", key=action_key(st.session_state, f"{STATE_PREFIX}_fit_ranges")
+    ):
         measured = frame_axis_ranges(sel)
         _fill_ranges(
             {
@@ -342,7 +370,10 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
             }
         )
         st.rerun()
-    if fill_middle.button(f"{PROFILE['short']} preset", key=f"{STATE_PREFIX}_preset_ranges"):
+    if fill_middle.button(
+        f"{PROFILE['short']} preset",
+        key=action_key(st.session_state, f"{STATE_PREFIX}_preset_ranges"),
+    ):
         _fill_ranges(
             {
                 "c_q": PROFILE["q_range"],
@@ -351,7 +382,9 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
             }
         )
         st.rerun()
-    if fill_right.button("Clear back to auto", key=f"{STATE_PREFIX}_clear_ranges"):
+    if fill_right.button(
+        "Clear back to auto", key=action_key(st.session_state, f"{STATE_PREFIX}_clear_ranges")
+    ):
         _fill_ranges({key: None for key in _RANGE_KEYS})
         st.rerun()
 
@@ -389,7 +422,10 @@ if "qphi" in active_products:
     st.subheader("✂️ Line-cuts (q–φ)")
     lc2, lc3, lc4 = st.columns([1.6, 1.3, 1])
     cut_dir = lc2.selectbox(
-        "Direction", ["q-cut  (I vs φ, fixed q band)", "φ-cut  (I vs q, fixed φ band)"], index=0
+        "Direction",
+        ["q-cut  (I vs φ, fixed q band)", "φ-cut  (I vs q, fixed φ band)"],
+        index=0,
+        key=f"{STATE_PREFIX}_cut_dir",
     )
     _is_qcut = cut_dir.startswith("q-cut")
     centers_lab = "q center(s)" if _is_qcut else "φ center(s)"
@@ -399,10 +435,18 @@ if "qphi" in active_products:
     )
 
     centers_txt = lc3.text_input(
-        centers_lab, value=def_centers, help="Comma / space separated; one profile per center."
+        centers_lab,
+        value=def_centers,
+        help="Comma / space separated; one profile per center.",
+        key=f"{STATE_PREFIX}_cut_centers",
     )
     width = lc4.number_input(
-        width_lab, value=float(def_width), min_value=0.0, step=0.01, format="%.3f"
+        width_lab,
+        value=float(def_width),
+        min_value=0.0,
+        step=0.01,
+        format="%.3f",
+        key=f"{STATE_PREFIX}_cut_width",
     )
     centers = _parse_centers(centers_txt)
 else:

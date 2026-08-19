@@ -28,6 +28,7 @@ from pyscattviz.app.components.saving import (
     set_output_root,
     target_folder,
 )
+from pyscattviz.app.state import keep_widget_state
 from pyscattviz.browser import human_size
 from pyscattviz.exporting import (
     ExportError,
@@ -50,6 +51,9 @@ PAGE_FOLDERS = (
 )
 
 st.set_page_config(page_title="Output Folder", page_icon="📂", layout="wide")
+
+# Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
+keep_widget_state(st.session_state)
 st.title("📂 Output Folder")
 st.caption("One place to choose where pyScattViz writes figures, tables, and arrays.")
 
@@ -115,6 +119,7 @@ custom_name = custom_columns[0].text_input(
     value="",
     placeholder="myproject_2026_08",
     help="Created below the output root. Use it to keep one sample's figures together.",
+    key="output_custom_subfolder",
 )
 with custom_columns[1]:
     st.write("")
