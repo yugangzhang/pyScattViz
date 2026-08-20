@@ -197,7 +197,14 @@ with st.sidebar:
         PROFILE.update(_override)
     if st.session_state.get(BEAMLINE_KEY) != (EXPLORER_MODE, BEAMLINE):
         st.session_state[BEAMLINE_KEY] = (EXPLORER_MODE, BEAMLINE)
-        st.session_state[AUTO_Q_KEY] = _override is None
+        # Auto q wins even where a beamline preset exists, because how far a
+        # frame reaches in q is a property of the detector rather than a
+        # preference. CMS GIWAXS opened on qx 0–3 by preset, but a Pilatus800
+        # whose active area starts 300 px left of the beam covers -2.18 … +1.23
+        # — so that window showed a band of blank on one side and hid most of
+        # the data on the other. The preset still fills the boxes below, so
+        # unticking "Auto q limits" gives it back in one click.
+        st.session_state[AUTO_Q_KEY] = True
         st.session_state[AUTO_I_KEY] = True
         for _key, _span in (
             ("b_qx", PROFILE["qx_range"]),
@@ -522,9 +529,29 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
         f"{STATE_PREFIX}_d_style", defaults={"color": "Crimson", "width": 2.2}
     )
 
+    # What the frame actually covers, always on screen. A q-image is a remesh
+    # of a detector that reaches where it reaches: type a window outside that
+    # and the panel is blank with nothing to say why. The numbers are measured
+    # from the frame, so they are also the fastest way to see that a detector
+    # sits off-centre — a Pilatus800 whose active area starts left of the beam
+    # covers far more negative qx than positive.
+    _coverage = frame_axis_ranges(sel, b_mode)
+    _cov_bits = [
+        f"{_name} {_span[0]:+.2f} … {_span[1]:+.2f}"
+        for _name, _key in (
+            ("qr" if b_mode == "qr" else "qx", "qr" if b_mode == "qr" else "qx"),
+            ("qz", "qz"),
+            ("q–φ q", "qphi_q"),
+            ("I(q) q", "cir_q"),
+        )
+        if (_span := _coverage.get(_key))
+    ]
+    if _cov_bits:
+        st.caption("This frame covers " + " · ".join(_cov_bits))
+
 
 if auto_q:
-    _measured = frame_axis_ranges(sel, b_mode)
+    _measured = _coverage
     _fitted = _measured.get("qr" if b_mode == "qr" else "qx")
     if _fitted:
         b_qxr = _fitted

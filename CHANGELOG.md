@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.1
+
+- **The q-image opens on what the frame actually covers.** The CMS GIWAXS
+  preset pinned qx to 0–3 Å⁻¹ and switched auto-fit off with it. On a
+  Pilatus800 whose active area starts about 300 px left of the beam centre the
+  remesh covers qx −2.18 … +1.23, so that window drew a band of blank above
+  1.23 and hid the whole negative side, where most of the data is. Auto q
+  limits now win on arrival even where a beamline preset exists — coverage is
+  the detector's business, not a preference — and the preset still fills the
+  boxes, so unticking gives it back in one click.
+- **Every frame says what it covers**, measured from the frame and shown under
+  the limit boxes: *This frame covers qx −2.18 … +1.23 · qz +0.16 … +2.78 · …*.
+  A hand-typed window that misses the data now says so rather than drawing an
+  empty panel.
+
 ## 0.12.0
 
 - **The folders you use are remembered between sessions**, in

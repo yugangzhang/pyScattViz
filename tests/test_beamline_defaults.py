@@ -7,7 +7,12 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from pyscattviz.app.components.scattering import data_extent, detect_beamline
+from pyscattviz.app.components.scattering import (
+    data_extent,
+    detect_beamline,
+    frame_axis_ranges,
+    index_frames,
+)
 
 PAGES_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
 
@@ -104,8 +109,11 @@ def test_cms_giwaxs_opens_on_the_window_yugang_reviews(tmp_path):
         0.0,
         180.0,
     )
-    # Explicit limits were asked for, so auto-fit stays out of the way.
-    assert state["pyscattviz_giwaxs_auto_q"] is False
+    # The preset fills the boxes, but auto q still wins on arrival: how far a
+    # frame reaches in q is the detector's business, not a preference. On a
+    # CMS Pilatus800 sitting left of the beam the preset's 0–3 hid most of the
+    # data. Untick "Auto q limits" and the numbers above are what you get.
+    assert state["pyscattviz_giwaxs_auto_q"] is True
 
 
 def test_a_folder_without_a_beamline_starts_on_auto_fit(tmp_path):
@@ -132,7 +140,7 @@ def test_moving_from_one_beamline_to_the_other_reapplies_the_preset(tmp_path):
 
     assert not app.exception
     assert app.session_state["pyscattviz_giwaxs_b_qx_hi"] == 3.0
-    assert app.session_state["pyscattviz_giwaxs_auto_q"] is False
+    assert app.session_state["pyscattviz_giwaxs_auto_q"] is True
 
 
 def test_auto_fit_frames_the_q_image_on_its_data(tmp_path):
@@ -153,3 +161,67 @@ def test_auto_fit_frames_the_q_image_on_its_data(tmp_path):
     # The axes run -4…4 and -2…6; the data occupies a box well inside that.
     assert -4.0 < ranges["qx"][0] and ranges["qx"][1] < 4.0
     assert -2.0 < ranges["qz"][0] and ranges["qz"][1] < 6.0
+
+
+def _offset_giwaxs(root):
+    """A CMS-like frame from a detector sitting left of the beam.
+
+    Qiang's Pilatus800: the active area starts ~300 px left of the beam centre
+    and runs 500 px right of it, so the remesh covers far more negative qx than
+    positive. The no-data region is carried in ``qimg_mask``, not as NaN in the
+    array — which is how a fixed 0–3 window came to show a band of blank.
+    """
+
+    (root / "q_image").mkdir(parents=True)
+    (root / "cir_avg").mkdir()
+    qx = np.linspace(-2.18, 2.06, 60)
+    qz = np.linspace(-1.66, 2.78, 50)
+    image = np.full((50, 60), 5.0)
+    mask = np.zeros((50, 60), dtype=bool)
+    mask[:, qx > 1.23] = True  # beyond the detector edge
+    mask[qz < 0.16, :] = True  # below the horizon
+    image[mask] = 0.0
+    np.savez(
+        root / "q_image" / "qimg_sampleA.tif.npz",
+        qimg=image,
+        qx=qx,
+        qz=qz,
+        qimg_mask=mask,
+    )
+    q = np.linspace(0.16, 3.34, 40)
+    pd.DataFrame({"q_ca": q, "iq_ca": np.exp(-q)}).to_csv(
+        root / "cir_avg" / "Cir_Avg_sampleA.tif.csv", index=False
+    )
+    return root
+
+
+def test_the_q_image_opens_on_its_real_coverage_not_the_preset(tmp_path):
+    """The preset's qx 0–3 hid everything at negative qx and blanked the rest."""
+
+    root = _offset_giwaxs(tmp_path / "cms" / "p" / "Results" / "giwaxs")
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(root)
+    app.run()
+
+    assert not app.exception
+    assert app.session_state["pyscattviz_giwaxs_auto_q"] is True
+    # The preset is still there for one click away.
+    assert app.session_state["pyscattviz_giwaxs_b_qx_hi"] == 3.0
+
+    row = index_frames(str(root)).iloc[0]
+    measured = frame_axis_ranges(row, "qx")
+    assert measured["qx"][0] < -2.0, "the negative-qx side must not be cut off"
+    assert measured["qx"][1] < 1.3, "the empty side beyond the detector must be trimmed"
+    assert measured["qz"][0] > 0.0, "the masked sub-horizon rows must be trimmed"
+
+
+def test_the_frame_says_what_it_covers(tmp_path):
+    """A window that misses the data should not just be a blank panel."""
+
+    root = _offset_giwaxs(tmp_path / "cms" / "p" / "Results" / "giwaxs")
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(root)
+    app.run()
+
+    assert not app.exception
+    assert any("This frame covers" in item.value for item in app.caption)

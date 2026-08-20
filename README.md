@@ -950,9 +950,22 @@ set of scientific defaults.
 
 Each explorer opens on the window that geometry is normally reviewed in, and the
 window follows the beamline — point the explorer at a CMS folder and it uses the
-CMS preset, point it at SMI and it uses that one. CMS GIWAXS opens on qx and qz
-over 0–3 Å⁻¹, q–φ over q 0.5–3.5 and φ over 0–180°, since the two halves of a
+CMS preset, point it at SMI and it uses that one. The CMS GIWAXS preset is qx and
+qz over 0–3 Å⁻¹, q–φ over q 0.5–3.5 and φ over 0–180°, since the two halves of a
 q–φ map mirror each other.
+
+Those values fill the limit boxes, but **auto q limits still win on arrival**,
+because how far a frame reaches in q is a property of the detector rather than a
+preference. A CMS Pilatus800 whose active area starts about 300 px left of the
+beam centre covers qx from −2.18 to +1.23, so the preset's 0–3 window put a band
+of blank on one side and hid most of the data on the other. Untick **Auto q
+limits** and the preset numbers are what you get, in one click.
+
+The line under the limit boxes always reports what the frame covers — *This
+frame covers qx −2.18 … +1.23 · qz +0.16 … +2.78 · …* — measured from the frame
+itself. It is the quickest way to see that a detector sits off-centre, and it
+means a hand-typed window that misses the data says so instead of just drawing
+an empty panel.
 
 **Hot pixels** are removed from the 2D maps by default. Every CMS and SMI
 detector carries a few that read absurdly high whatever the sample, and because
