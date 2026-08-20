@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.15.0
+
+- **The mask now reaches the 1D curve.** Panel D's re-integrated trace was gated
+  on the hot-pixel toggle, so with hot-pixel removal off a mask changed the 2D
+  panels and left I(q) exactly as it was. It is now built whenever the frame has
+  a q–φ map, and it answers to everything: the reduction's own mask, the
+  detector defects, and every region excluded by hand. Verified on CMS data —
+  a ring masked at q 1.9–2.05 turns all 19 bins inside it to NaN and leaves
+  every bin outside bit-identical, and a polygon drawn in (qx, qz) changes
+  exactly the 91 q bins it geometrically covers, q 1.134…1.836.
+- **A masked region is a gap, not a zero.** Every stage writes NaN, and the
+  average is a `nanmean` down each q column, so an excluded pixel drops out of
+  its bin rather than dragging the bin towards zero. A q column with nothing
+  left comes back NaN.
+- **Sector averages.** *Re-integrate φ min/max* under panel D narrows the
+  azimuth the curve is averaged over; blank means the whole map, which is what
+  keeps it comparable with the circular average on disk. The trace names what it
+  carries and a caption reports how many q–φ pixels were excluded and how many
+  q bins were left empty.
+- A line cut over a map whose shape matches neither axis now skips quietly
+  instead of taking the page down with an `IndexError` out of numpy.
+
 ## 0.14.2
 
 - **Fixed `StreamlitValueAssignmentNotAllowedError` on the GIWAXS explorer.** A

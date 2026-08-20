@@ -486,32 +486,61 @@ def _apply_user_mask(z, x_axis, y_axis, space: str):
     return out
 
 
-def _despiked_curve(row, mask=None):
-    """Re-integrate the frame's q–φ map into I(q) with the hot pixels blanked.
+def _reintegrated_curve(row, mask=None, phi_range=None):
+    """Average the frame's q–φ map over φ into I(q), honouring every mask.
 
     The reduction's own circular average was computed before anyone looked at
-    the data, so a hot pixel is baked into it and blanking pixels in the 2D
-    panels cannot reach it. Integrated over the full φ range, so it is
-    comparable with the circular average on disk rather than with a wedge.
+    the data: the hot pixels are in it, and so is every region later excluded by
+    hand. Nothing done in the 2D panels can reach a CSV written weeks ago, so
+    the only way to see the effect of a mask on a 1-D curve is to build the
+    curve again here.
+
+    The order is the order that makes each step meaningful — the reduction's own
+    q–φ mask, then the detector defects, then the regions the user excluded —
+    and every one of them writes NaN rather than zero. That matters: the average
+    is a ``nanmean`` down each q column, so a NaN drops out of its bin instead of
+    dragging the bin towards zero, and a q column with nothing left comes back
+    NaN rather than 0. A masked ring is then a gap in the curve, which is
+    honest, instead of a trench, which is not.
+
+    Returns ``(q, I, info)``; ``info`` reports what was excluded so the panel can
+    say so. Integrated over the full azimuth by default, so it is comparable
+    with the circular average on disk rather than with a wedge.
     """
 
-    if not hot.enabled or not row.get("has_qphi"):
-        return None, None
+    empty = {"blanked": 0, "total": 0, "empty_bins": 0, "phi_rows": 0}
+    if not row.get("has_qphi"):
+        return None, None, empty
     try:
         q_axis, phi_axis, caked, pmask = load_qphi(row["qphi"])
     except DataReadError:
-        return None, None
+        return None, None, empty
+
     usable = pmask if getattr(pmask, "shape", None) == getattr(caked, "shape", None) else None
     image = _apply_mask(caked, usable)
+    before = int(np.isfinite(image).sum())
+
     usable_defect = (
         mask if mask is not None and getattr(mask, "shape", None) == image.shape else None
     )
-    cleaned = hot.clean(image, usable_defect)
-    cleaned = _apply_user_mask(cleaned, q_axis, phi_axis, "qphi")
+    image = hot.clean(image, usable_defect)
+    image = _apply_user_mask(image, q_axis, phi_axis, "qphi")
+
     try:
-        return azimuthal_average(cleaned, q_axis, phi_axis)
+        q_out, intensity = azimuthal_average(image, q_axis, phi_axis, phi_range)
     except ValueError:
-        return None, None
+        return None, None, empty
+
+    rows = np.asarray(phi_axis, dtype=float)
+    if phi_range is not None:
+        rows = rows[(rows >= float(phi_range[0])) & (rows <= float(phi_range[1]))]
+    info = {
+        "blanked": before - int(np.isfinite(image).sum()),
+        "total": before,
+        "empty_bins": int(np.isnan(intensity).sum()),
+        "phi_rows": int(rows.size),
+    }
+    return q_out, intensity, info
 
 
 dc5, dc6 = st.columns(2)
@@ -674,6 +703,25 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     dp1, dp2 = st.columns(2)
     d_qr = _rng(dp1, "q", "d_q", *PROFILE["q_range"])
     d_ir = _rng(dp2, "I", "d_i")
+    # The azimuth the re-integrated curve averages over. Blank means the whole
+    # map, which is what makes it comparable with the circular average on disk;
+    # narrowing it turns the same control into a sector average.
+    _rp1, _rp2 = st.columns(2)
+    _re_phi_lo = _rp1.number_input(
+        "Re-integrate φ min",
+        value=None,
+        key=f"{STATE_PREFIX}_reint_phi_lo",
+        format="%.4g",
+        help="Blank = the whole azimuth. Set both for a sector average.",
+    )
+    _re_phi_hi = _rp2.number_input(
+        "Re-integrate φ max", value=None, key=f"{STATE_PREFIX}_reint_phi_hi", format="%.4g"
+    )
+    _reintegrate_phi = (
+        (float(_re_phi_lo), float(_re_phi_hi))
+        if _re_phi_lo is not None and _re_phi_hi is not None
+        else None
+    )
     st.caption("D curve style")
     d_style = _curve_style_controls(
         f"{STATE_PREFIX}_d_style", defaults={"color": "Crimson", "width": 2.2}
@@ -1074,23 +1122,38 @@ def _render_panel(panel):
                 base_color="crimson",
             )
             fig = go.Figure(go.Scatter(**tk))
-            # The reduction's circular average was computed before anyone looked
-            # at the data, so any hot pixel is baked into it and blanking pixels
-            # in the 2D panels cannot reach it. Re-integrating the q–φ map here
-            # is what actually removes them from a 1-D curve.
-            _clean_q, _clean_i = _despiked_curve(sel, _defect_mask_for("qphi"))
+            # The reduction's circular average was computed before anyone
+            # looked at the data, so the hot pixels are in it and so is every
+            # region excluded by hand afterwards. Nothing done in the 2D panels
+            # can reach a CSV written weeks ago, so the curve that answers to
+            # the masks has to be rebuilt here from the q–φ map.
+            _clean_q, _clean_i, _clean_info = _reintegrated_curve(
+                sel, _defect_mask_for("qphi"), _reintegrate_phi
+            )
             if _clean_q is not None:
+                _applied = []
+                if hot.enabled:
+                    _applied.append("hot pixels")
+                if user_mask.enabled_regions():
+                    _applied.append(f"{len(user_mask.enabled_regions())} masked region(s)")
+                if _reintegrate_phi:
+                    _applied.append(f"φ {_reintegrate_phi[0]:g}…{_reintegrate_phi[1]:g}°")
+                _trace_name = "I(q) · re-integrated"
+                if _applied:
+                    _trace_name += " − " + ", ".join(_applied)
                 fig.add_trace(
                     go.Scatter(
                         x=_clean_q,
                         y=_clean_i,
-                        name="I(q) · hot pixels removed",
+                        name=_trace_name,
                         mode="lines",
                         line=dict(color="#1f77b4", width=1.8),
                         hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>",
                     )
                 )
-                rendered_tables["D · I(q) despiked"] = pd.DataFrame({"q": _clean_q, "I": _clean_i})
+                rendered_tables["D · I(q) re-integrated"] = pd.DataFrame(
+                    {"q": _clean_q, "I": _clean_i}
+                )
             fig.update_xaxes(title_text="q (Å⁻¹)", range=_axrange(d_qr[0], d_qr[1], logq))
             fig.update_yaxes(title_text="I(q)", range=_axrange(d_ir[0], d_ir[1], logiq))
             _style_1d_axes(fig, logq, logiq)
@@ -1101,6 +1164,19 @@ def _render_panel(panel):
                 margin=dict(l=60, r=15, t=40, b=45),
             )
             st.plotly_chart(fig, use_container_width=True)
+            if _clean_q is not None:
+                _pct = 100 * _clean_info["blanked"] / max(_clean_info["total"], 1)
+                _bits = [
+                    f"re-integrated over {_clean_info['phi_rows']} φ rows",
+                    f"{_clean_info['blanked']:,} of {_clean_info['total']:,} "
+                    f"q–φ pixels excluded ({_pct:.2f}%)",
+                ]
+                if _clean_info["empty_bins"]:
+                    _bits.append(
+                        f"{_clean_info['empty_bins']:,} q bin(s) left with nothing — "
+                        "a gap in the curve, not a zero"
+                    )
+                st.caption(" · ".join(_bits))
             rendered_figures["D · circular average"] = fig
             rendered_tables["D · circular average"] = pd.DataFrame({"q": qq, "I": ii})
         else:

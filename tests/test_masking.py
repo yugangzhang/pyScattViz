@@ -261,3 +261,123 @@ def test_keep_widget_state_leaves_selection_charts_alone():
     }
     kept = keep_widget_state(state)
     assert kept == 1, "only the colormap should be re-asserted"
+
+
+def _qphi_frame(tmp_path, value=100.0):
+    root = tmp_path / "cms" / "p" / "Results" / "giwaxs"
+    (root / "qphi").mkdir(parents=True)
+    (root / "cir_avg").mkdir()
+    q = np.linspace(0.05, 3.0, 60)
+    phi = np.linspace(-179, 179, 72)
+    np.savez(root / "qphi" / "qphi_sampleA.tif.npz", q=q, phi=phi, qphi=np.full((72, 60), value))
+    import pandas as pd
+
+    pd.DataFrame({"q_ca": q, "iq_ca": np.exp(-q)}).to_csv(
+        root / "cir_avg" / "Cir_Avg_sampleA.tif.csv", index=False
+    )
+    return root, q, phi
+
+
+def _reintegrated(app):
+    """The re-integrated trace from panel D, or (None, None)."""
+
+    import streamlit as stmod
+    from streamlit.delta_generator import DeltaGenerator
+
+    captured = []
+    for obj, is_cls in ((DeltaGenerator, True), (stmod, False)):
+        original = obj.plotly_chart
+
+        def spy(*args, original=original, is_cls=is_cls, **kwargs):
+            captured.append(args[1] if is_cls else args[0])
+            return original(*args, **kwargs)
+
+        obj.plotly_chart = spy
+    try:
+        app.run()
+    finally:
+        pass
+    for figure in captured:
+        if "circular average" in str(getattr(figure.layout.title, "text", "") or ""):
+            for trace in figure.data:
+                if "re-integrated" in (trace.name or ""):
+                    return np.asarray(trace.x, float), np.asarray(trace.y, float)
+    return None, None
+
+
+def test_the_curve_is_re_integrated_even_with_hot_pixel_removal_off(tmp_path):
+    """It used to be gated on the hot-pixel toggle, so a mask alone did nothing."""
+
+    root, _q, _phi = _qphi_frame(tmp_path)
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(root)
+    app.session_state["pyscattviz_giwaxs_hot_enabled"] = False
+
+    q_axis, intensity = _reintegrated(app)
+    assert q_axis is not None, "no re-integrated curve with hot-pixel removal off"
+    assert np.isfinite(intensity).all()
+    assert np.allclose(intensity[np.isfinite(intensity)], 100.0)
+
+
+def test_a_masked_ring_is_a_gap_in_the_curve_not_a_zero(tmp_path):
+    """NaN, so the bin drops out of the mean rather than dragging it down."""
+
+    root, q, _phi = _qphi_frame(tmp_path)
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(root)
+    app.session_state["pyscattviz_giwaxs_hot_enabled"] = False
+    app.session_state["pyscattviz_giwaxs_maskset"] = MaskSet(
+        "sub", [MaskRegion("ring", coords=(1.0, 1.2))]
+    )
+
+    q_axis, intensity = _reintegrated(app)
+    assert q_axis is not None
+    inside = (q_axis >= 1.0) & (q_axis <= 1.2)
+    assert np.isnan(intensity[inside]).all(), "the masked ring must be a gap"
+    assert not np.isnan(intensity[~inside]).any(), "and nothing else may be touched"
+    assert (intensity[~inside] == 100.0).all(), "a zero here would be a trench, not a gap"
+
+
+def test_a_sector_average_uses_only_the_chosen_azimuth(tmp_path):
+    """The phi window turns the same control into a sector average."""
+
+    root = tmp_path / "cms" / "p" / "Results" / "giwaxs"
+    (root / "qphi").mkdir(parents=True)
+    (root / "cir_avg").mkdir()
+    q = np.linspace(0.05, 3.0, 60)
+    phi = np.linspace(-179, 179, 72)
+    # Broadcast explicitly: phi[:, None] alone gives an (nphi, 1) map, which
+    # is not a q–φ map at all.
+    caked = np.where(np.broadcast_to(phi[:, None], (phi.size, q.size)) >= 0, 200.0, 100.0)
+    np.savez(root / "qphi" / "qphi_sampleA.tif.npz", q=q, phi=phi, qphi=caked)
+    import pandas as pd
+
+    pd.DataFrame({"q_ca": q, "iq_ca": np.exp(-q)}).to_csv(
+        root / "cir_avg" / "Cir_Avg_sampleA.tif.csv", index=False
+    )
+
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(root)
+    app.session_state["pyscattviz_giwaxs_hot_enabled"] = False
+    app.session_state["pyscattviz_giwaxs_reint_phi_lo"] = 0.0
+    app.session_state["pyscattviz_giwaxs_reint_phi_hi"] = 179.0
+
+    _q_axis, intensity = _reintegrated(app)
+    kept = intensity[np.isfinite(intensity)]
+    assert kept.size
+    assert np.allclose(kept, 200.0), "the upper half only, not the average of both"
+
+
+def test_a_wrongly_shaped_map_skips_the_cut_instead_of_killing_the_page():
+    """A product written with the wrong shape is a real thing to meet."""
+
+    from pyscattviz.app.components.scattering import band_profile
+
+    q = np.linspace(0.05, 3.0, 60)
+    phi = np.linspace(-179, 179, 72)
+    good = np.full((phi.size, q.size), 5.0)
+    assert band_profile(good, phi, q, 1.0, 0.2) is not None
+
+    # (nphi, 1) — what an accidental broadcast produces.
+    assert band_profile(np.full((phi.size, 1), 5.0), phi, q, 1.0, 0.2) is None
+    assert band_profile(np.full(q.size, 5.0), phi, q, 1.0, 0.2) is None

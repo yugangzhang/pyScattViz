@@ -737,6 +737,12 @@ def band_profile(z, coord_along, coord_band, center, width, mask=None):
     band = (coord_band >= lo) & (coord_band <= hi)
     if not band.any():
         return None
+    # The band axis is inferred from length below, so a map whose shape matches
+    # neither axis would index out of bounds and take the page down with an
+    # IndexError from numpy. A product written with the wrong shape is a real
+    # thing to meet; skipping the cut says so quietly instead.
+    if np.ndim(zc) != 2 or len(coord_band) not in zc.shape:
+        return None
     with warnings.catch_warnings():  # all-NaN columns → nan, not a scary warning
         warnings.simplefilter("ignore", category=RuntimeWarning)
         if len(coord_band) == zc.shape[0]:  # band runs down the rows → mean over rows
