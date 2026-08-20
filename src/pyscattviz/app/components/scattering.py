@@ -611,7 +611,13 @@ def resolve_qimage(data: dict, mode: str):
                     if m is not None
                     else (mask if getattr(mask, "shape", None) == z.shape else None)
                 )
-                return z, data.get("qr"), qz, m, "qr (Å⁻¹)"
+                # The qr remesh does not land on quite the same grid as the qx
+                # one — on a CMS GIWAXS frame the two qz axes start at -2.77829
+                # and -2.77582 — so use its own axis when the reduction wrote
+                # one, and only fall back to the shared qz when it did not.
+                own_qz = data.get(zk + "_qz")
+                axis = own_qz if getattr(own_qz, "shape", None) == (z.shape[0],) else qz
+                return z, data.get("qr"), axis, m, "qr (Å⁻¹)"
         qr, qimg = data.get("qr"), data.get("qimg")  # 1D qr axis reusing qimg
         if (
             qr is not None

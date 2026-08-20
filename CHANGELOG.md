@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.1
+
+- **The qr–qz view uses its own qz.** A q_image NPZ can now carry two remeshes
+  of the same frame — pySAXSAI's `qimg_x_axis` takes a list, so `['Qx', 'Qr']`
+  writes `qimg`/`qx` alongside `qrimg`/`qr`. The two do not land on the same
+  grid (on a CMS GIWAXS frame the qz axes start at −2.77582 and −2.77829 Å⁻¹),
+  so the **B x-axis** control now reads `qrimg_qz` when the reduction wrote one
+  and only falls back to the shared `qz` when it did not.
+
 ## 0.14.0
 
 - **Exclusion masks.** A substrate Bragg peak or a specular rod is real signal,
