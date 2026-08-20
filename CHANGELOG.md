@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.14.0
+
+- **Exclusion masks.** A substrate Bragg peak or a specular rod is real signal,
+  not a defect, and often still needs to be out of an average — so masks are now
+  authored rather than detected. Add a **ring** (|q| band), a **wedge** (φ band)
+  or a **box** by number, or **box/lasso-select straight on the q-image or the
+  q–φ map** and press *Add to mask*: Streamlit hands the selection back in data
+  coordinates, so the shape is stored in q and survives a change of frame or
+  zoom.
+- **One definition, every product.** A polygon drawn in (qx, qz) is converted
+  for the (q, φ) map, so the same region excludes the spot on the picture, in
+  the line cuts, in the re-integrated 1D curve and in the batch export.
+- Masks are JSON in `~/.pyscattviz/masks/`, so they reload next session and
+  apply across a batch. Regions can be suspended without being deleted, and
+  *Keep only these regions* inverts the set.
+
 ## 0.13.0
 
 - **Finding hot pixels now does something to the 1-D curve.** The toggle blanked

@@ -838,6 +838,39 @@ typing it at a Python prompt, which is the point. It refuses to run at all if th
 server has been bound to an address other people can reach; pyScattViz listens
 on `127.0.0.1` by default.
 
+## Excluding regions you do not want averaged
+
+Hot-pixel removal answers "is this a detector defect?". A substrate Bragg peak,
+the specular rod, the Yoneda streak are none of those — they are real signal,
+and you may still want them out of an azimuthal average before comparing one
+sample against another. That is a judgement, so **🎭 Exclusion mask** is
+authored rather than detected.
+
+Two ways in, because a region is sometimes easier to name than to draw:
+
+- **Numerically** — a **ring** (a |q| band, for a substrate powder ring), a
+  **wedge** (a φ band), or a **box** in either product's own axes. This is what
+  you want for "drop the ring at 1.9–2.05 Å⁻¹", and it is reproducible across a
+  beamtime because it is a number.
+- **By drawing** — box- or lasso-select directly on the q-image or the q–φ map
+  and press **Add to mask**. The selection comes back in data coordinates, so
+  the shape is stored in q rather than in pixels and stays correct when the
+  frame or the zoom changes.
+
+A region is defined once and applies to **both** products. A polygon drawn on
+the q-image is in (qx, qz) and a caked map is in (q, φ); pyScattViz converts
+between them, so a spot excluded on the picture is excluded from the q–φ map,
+from the line cuts, and therefore from the 1D curve integrated out of it. Draw
+it where you can see it; it acts where it matters.
+
+Regions can be suspended individually without deleting them, and **Keep only
+these regions** inverts the whole set for when the part you want is easier to
+draw than the part you do not.
+
+A mask is a small JSON file in `~/.pyscattviz/masks/`, so the same exclusions
+reload next session and apply to a whole **batch export** rather than being
+re-drawn per frame — the batch panel names the mask it is applying.
+
 ## The folders you use are remembered
 
 pyScattViz keeps a list of every data folder you have opened in

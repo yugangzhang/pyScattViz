@@ -42,6 +42,7 @@ from pyscattviz.exporting import (
     save_plotly_figure,
     save_table,
 )
+from pyscattviz.masking import build_mask
 
 __all__ = ["render_batch_export"]
 
@@ -92,7 +93,7 @@ def _build_defect_mask(frames: pd.DataFrame, hot, sample_size: int):
     return mask, info
 
 
-def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> None:
+def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str, user_mask=None) -> None:
     """Re-integrate every filtered frame's q–φ map into a despiked 1D curve.
 
     The reduction's own circular average is computed before anyone has looked at
@@ -117,6 +118,11 @@ def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> Non
         key=f"{key}_curve_limit",
     )
 
+    if user_mask is not None and user_mask.enabled_regions():
+        st.caption(
+            f"The exclusion mask “{user_mask.name}” "
+            f"({len(user_mask.enabled_regions())} region(s)) is applied to every frame."
+        )
     hot = render_hot_pixel_controls(
         f"{key}_curve_hot",
         show_persistence=True,
@@ -197,6 +203,10 @@ def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> Non
             continue
         usable = mask if getattr(mask, "shape", None) == getattr(caked, "shape", None) else None
         image = apply_mask(caked, usable)
+        flags = build_mask(user_mask, q_axis, phi_axis, "qphi")
+        if flags is not None and flags.shape == image.shape:
+            image = np.asarray(image, dtype=float).copy()
+            image[flags] = np.nan
         if despike:
             usable_mask = (
                 defect_mask
@@ -233,6 +243,7 @@ def render_batch_export(
     key: str,
     panel_options: dict,
     expanded: bool = False,
+    user_mask=None,
 ) -> None:
     """Render the batch-export controls for the currently filtered frames.
 
@@ -272,7 +283,7 @@ def render_batch_export(
             ),
         )
         if mode.startswith("1D"):
-            _render_curve_batch(frames, tab_name, key=key)
+            _render_curve_batch(frames, tab_name, key=key, user_mask=user_mask)
             return
 
         controls = st.columns([1.4, 1, 1, 1])

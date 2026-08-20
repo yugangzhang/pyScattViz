@@ -45,6 +45,10 @@ from pyscattviz.app.components.datasource import (
     render_term_filters,
 )
 from pyscattviz.app.components.hotpixels import render_hot_pixel_controls
+from pyscattviz.app.components.maskeditor import (
+    render_mask_editor,
+    render_selection_capture,
+)
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 
 # Shared scattering engine — indexing, loaders, array/plot helpers, styling.
@@ -94,6 +98,7 @@ from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
 from pyscattviz.despike import azimuthal_average, find_hot_pixels_stack
 from pyscattviz.filters import FilterSyntaxError
+from pyscattviz.masking import build_mask
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "giwaxs")
 _PROFILES = {
@@ -462,6 +467,22 @@ def _defect_mask_for(product: str):
     return mask
 
 
+user_mask = render_mask_editor(STATE_PREFIX)
+
+
+def _apply_user_mask(z, x_axis, y_axis, space: str):
+    """Blank the regions the user chose to exclude. NaN, so averages drop them."""
+
+    if z is None:
+        return z
+    flags = build_mask(user_mask, x_axis, y_axis, space)
+    if flags is None or flags.shape != np.asarray(z).shape:
+        return z
+    out = np.asarray(z, dtype=float).copy()
+    out[flags] = np.nan
+    return out
+
+
 def _despiked_curve(row, mask=None):
     """Re-integrate the frame's q–φ map into I(q) with the hot pixels blanked.
 
@@ -483,6 +504,7 @@ def _despiked_curve(row, mask=None):
         mask if mask is not None and getattr(mask, "shape", None) == image.shape else None
     )
     cleaned = hot.clean(image, usable_defect)
+    cleaned = _apply_user_mask(cleaned, q_axis, phi_axis, "qphi")
     try:
         return azimuthal_average(cleaned, q_axis, phi_axis)
     except ValueError:
@@ -794,6 +816,7 @@ if centers:
         qimg, qx, qz, qmask, _ = resolve_qimage(_qimg_data, b_mode)
         if qimg is not None and despike:
             qimg = hot.clean(_apply_mask(qimg, qmask), _defect_mask_for("qimg"))
+            qimg = _apply_user_mask(qimg, qx, qz, "qimage")
             qmask = None
         if qimg is not None:
             for c in centers:
@@ -948,6 +971,7 @@ def _render_panel(panel):
             qimg, qx, qz, qmask, b_xlab = resolve_qimage(_qimg_data, b_mode)
             z = _apply_mask(qimg, qmask)
             z = hot.clean(z, _defect_mask_for("qimg"))
+            z = _apply_user_mask(z, qx, qz, "qimage")
             z, xx, yy = _downsample(z, qx, qz)
             fig = _heatmap_fig(
                 "B · q-image",
@@ -963,7 +987,17 @@ def _render_panel(panel):
                 y_range=b_qzr,
                 aspect=_aspect_arg(),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            # Box- or lasso-select on the picture to define a mask region.
+            # The selection comes back in data coordinates, so the shape is
+            # stored in q and stays right when the frame or the zoom changes.
+            _event = st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=f"{STATE_PREFIX}_qimg_chart",
+                on_select="rerun",
+                selection_mode=("box", "lasso"),
+            )
+            render_selection_capture(STATE_PREFIX, _event, "qimage")
             rendered_figures["B · q-image"] = fig
             rendered_arrays["B · q-image"] = {
                 "qimg": z,
@@ -982,6 +1016,7 @@ def _render_panel(panel):
             pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
             z = _apply_mask(qphi, pmask)
             z = hot.clean(z, _defect_mask_for("qphi"))
+            z = _apply_user_mask(z, q, phi, "qphi")
             fig = _heatmap_fig(
                 "C · q–φ map",
                 z,
@@ -996,7 +1031,14 @@ def _render_panel(panel):
                 x_range=c_qr,
                 y_range=c_phir,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            _event = st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=f"{STATE_PREFIX}_qphi_chart",
+                on_select="rerun",
+                selection_mode=("box", "lasso"),
+            )
+            render_selection_capture(STATE_PREFIX, _event, "qphi")
             rendered_figures["C · q–φ map"] = fig
             rendered_arrays["C · q–φ map"] = {
                 "qphi": z,
@@ -1108,6 +1150,7 @@ if rendered_figures:
         panel_order,
         f"{PROFILE['name']} Explorer",
         key=STATE_PREFIX,
+        user_mask=user_mask,
         panel_options=dict(
             cmap=cmap,
             logI=logI,
