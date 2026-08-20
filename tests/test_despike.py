@@ -5,6 +5,8 @@ reflections that an oriented substrate produces. These tests encode the two
 cases that a naive threshold gets wrong.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -233,3 +235,63 @@ def test_the_settings_object_reports_what_it_removed():
     untouched, count = HotPixelSettings(enabled=False).clean_and_count(image)
     assert count == 0
     assert untouched[7, 7] == 80_000.0
+
+
+def test_a_bragg_peak_is_not_a_hot_pixel_when_frames_vote():
+    """The case from a real CMS MAXS frame: a smooth peak reading 38,035.
+
+    These are the measured counts around (551, 110) of
+    ``ACDM_SiWafer_100nm_s3_pos2_x0.000_th0.080`` -- a reflection rising
+    smoothly from ~300 background over about 8x6 pixels. A single frame flags
+    its core, and nothing about one frame can say otherwise: the peak really is
+    far above its neighbourhood. Only voting across frames from different
+    samples tells it apart from a stuck pixel.
+    """
+
+    peak = np.array(
+        [
+            [339, 618, 1355, 2527, 2853, 1858, 807, 361, 257],
+            [322, 856, 4373, 13320, 18429, 11809, 3427, 558, 261],
+            [323, 1464, 9257, 27212, 34850, 19703, 4440, 575, 262],
+            [346, 1409, 7588, 19593, 22689, 11586, 2412, 519, 286],
+            [357, 878, 3356, 8826, 12138, 8661, 3178, 719, 300],
+            [314, 839, 4904, 18685, 31181, 22320, 6193, 813, 308],
+            [260, 800, 7028, 26679, 38035, 22578, 5324, 676, 333],
+            [236, 515, 4419, 15934, 18862, 8803, 2835, 2171, 1425],
+            [223, 286, 1052, 3426, 4258, 2757, 2978, 3765, 2213],
+            [223, 235, 304, 551, 849, 1369, 2537, 2642, 1269],
+        ],
+        dtype=float,
+    )
+    rng = np.random.default_rng(3)
+
+    def frame(row, col):
+        base = rng.normal(300, 15, (80, 80))
+        base[row : row + peak.shape[0], col : col + peak.shape[1]] = peak
+        base[70, 70] = 90_000  # the stuck pixel: same place every frame
+        return base
+
+    single = find_hot_pixels(frame(20, 30))
+    # (20+6, 30+4) is the 38,035 pixel.
+    assert single[26, 34], "a single frame flags the peak core"
+    assert single.sum() > 3, "and takes neighbours of a real reflection with it"
+
+    # Frames from different samples put the reflection somewhere else each time.
+    mask, info = find_hot_pixels_stack(
+        (frame(20 + i * 5, 30 - i * 3) for i in range(8)), persist_frac=0.9
+    )
+    assert info["frames"] == 8
+    assert mask[70, 70], "the stuck pixel survives the vote"
+    assert mask.sum() == 1, f"and nothing else does (got {mask.sum()})"
+
+
+def test_an_all_masked_q_column_averages_quietly():
+    """A fully blanked column is NaN, not a warning on the user's screen."""
+
+    caked = np.full((10, 6), 5.0)
+    caked[:, 2] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _q, intensity = azimuthal_average(caked, np.linspace(0.1, 1.0, 6))
+    assert np.isnan(intensity[2])
+    assert intensity[0] == 5.0

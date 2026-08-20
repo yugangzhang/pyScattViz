@@ -92,6 +92,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
+from pyscattviz.despike import azimuthal_average, find_hot_pixels_stack
 from pyscattviz.filters import FilterSyntaxError
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "giwaxs")
@@ -363,6 +364,130 @@ hot = render_hot_pixel_controls(
     preview_image=_preview_frame(),
 )
 despike = hot.enabled
+
+# A single frame cannot tell a stuck pixel from a sharp reflection, and on this
+# data it mostly gets it wrong: on one CMS MAXS frame the per-frame test flags 36
+# pixels, of which only 4 recur across the beamtime — the brightest six are a
+# contiguous 8x6 Bragg peak rising smoothly from 300 to 38,000 counts. Voting
+# across frames is what separates the two, so offer it here and not only in
+# batch.
+_defect_columns = st.columns([2.2, 1])
+use_defect_mask = _defect_columns[0].checkbox(
+    "Blank only pixels that recur across the selection",
+    value=bool(st.session_state.get(f"{STATE_PREFIX}_use_defect_mask", False)),
+    key=f"{STATE_PREFIX}_use_defect_mask",
+    disabled=not hot.enabled,
+    help=(
+        "One pass over an evenly spread sample of the filtered frames, keeping "
+        "only the pixels that are hot in nearly all of them. A detector defect "
+        "is; a reflection from one sample is not."
+    ),
+)
+_defect_frames = int(
+    _defect_columns[1].number_input(
+        "frames sampled",
+        2,
+        200,
+        int(st.session_state.get(f"{STATE_PREFIX}_defect_frames", 24)),
+        1,
+        key=f"{STATE_PREFIX}_defect_frames",
+        disabled=not (hot.enabled and use_defect_mask),
+    )
+)
+
+
+@st.cache_data(show_spinner="Voting for the persistent hot pixels…")
+def _build_defect_mask(paths, product, count, window, zmax, ratio, absmin, persist):
+    """Pixels hot in ``persist`` of an evenly spread sample of ``paths``.
+
+    Sampled across the selection rather than taken from the front: the first
+    frames of a folder are usually one sample at several angles, and a vote over
+    one sample flags that sample's own peaks.
+    """
+
+    chosen = list(paths)
+    if len(chosen) < 2:
+        return None, {}
+    take = max(2, min(int(count), len(chosen)))
+    picks = np.unique(np.linspace(0, len(chosen) - 1, take).round().astype(int))
+
+    def _frames():
+        for index in picks:
+            path = chosen[int(index)]
+            try:
+                if product == "qphi":
+                    yield load_qphi(path)[2]
+                else:
+                    yield resolve_qimage(load_qimg(path), "qx")[0]
+            except (DataReadError, KeyError, TypeError, ValueError):
+                continue
+
+    return find_hot_pixels_stack(
+        _frames(),
+        window=window,
+        zmax=zmax,
+        ratio_min=ratio,
+        abs_min=absmin,
+        persist_frac=persist,
+    )
+
+
+def _defect_mask_for(product: str):
+    """The persistence mask for one product, or None when it is switched off."""
+
+    if not (hot.enabled and use_defect_mask):
+        return None
+    column = "qphi" if product == "qphi" else "qimg"
+    have = f"has_{'qphi' if product == 'qphi' else 'qimg'}"
+    if have not in work:
+        return None
+    paths = tuple(str(item) for item in work[work[have]][column].tolist() if item)
+    if len(paths) < 2:
+        return None
+    mask, info = _build_defect_mask(
+        paths,
+        product,
+        _defect_frames,
+        hot.window,
+        hot.zmax,
+        hot.ratio_min,
+        hot.abs_min,
+        hot.persist_frac,
+    )
+    if mask is not None and info.get("frames"):
+        st.caption(
+            f"{product}: {info['n_hot']:,} pixel(s) hot in at least "
+            f"{info['needed']} of {info['frames']} sampled frames."
+        )
+    return mask
+
+
+def _despiked_curve(row, mask=None):
+    """Re-integrate the frame's q–φ map into I(q) with the hot pixels blanked.
+
+    The reduction's own circular average was computed before anyone looked at
+    the data, so a hot pixel is baked into it and blanking pixels in the 2D
+    panels cannot reach it. Integrated over the full φ range, so it is
+    comparable with the circular average on disk rather than with a wedge.
+    """
+
+    if not hot.enabled or not row.get("has_qphi"):
+        return None, None
+    try:
+        q_axis, phi_axis, caked, pmask = load_qphi(row["qphi"])
+    except DataReadError:
+        return None, None
+    usable = pmask if getattr(pmask, "shape", None) == getattr(caked, "shape", None) else None
+    image = _apply_mask(caked, usable)
+    usable_defect = (
+        mask if mask is not None and getattr(mask, "shape", None) == image.shape else None
+    )
+    cleaned = hot.clean(image, usable_defect)
+    try:
+        return azimuthal_average(cleaned, q_axis, phi_axis)
+    except ValueError:
+        return None, None
+
 
 dc5, dc6 = st.columns(2)
 aspect_mode = dc5.selectbox(
@@ -668,7 +793,7 @@ if centers:
     if cut_source.startswith("q_image") and sel["has_qimg"] and _qimg_data is not None:
         qimg, qx, qz, qmask, _ = resolve_qimage(_qimg_data, b_mode)
         if qimg is not None and despike:
-            qimg = hot.clean(_apply_mask(qimg, qmask))
+            qimg = hot.clean(_apply_mask(qimg, qmask), _defect_mask_for("qimg"))
             qmask = None
         if qimg is not None:
             for c in centers:
@@ -822,7 +947,7 @@ def _render_panel(panel):
         elif sel["has_qimg"] and _qimg_data is not None:
             qimg, qx, qz, qmask, b_xlab = resolve_qimage(_qimg_data, b_mode)
             z = _apply_mask(qimg, qmask)
-            z = hot.clean(z)
+            z = hot.clean(z, _defect_mask_for("qimg"))
             z, xx, yy = _downsample(z, qx, qz)
             fig = _heatmap_fig(
                 "B · q-image",
@@ -856,7 +981,7 @@ def _render_panel(panel):
                 return
             pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
             z = _apply_mask(qphi, pmask)
-            z = hot.clean(z)
+            z = hot.clean(z, _defect_mask_for("qphi"))
             fig = _heatmap_fig(
                 "C · q–φ map",
                 z,
@@ -889,12 +1014,32 @@ def _render_panel(panel):
                 return
             tk = _apply_curve_style(
                 dict(
-                    x=qq, y=ii, name="I(q)", hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>"
+                    x=qq,
+                    y=ii,
+                    name="I(q) · reduction",
+                    hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>",
                 ),
                 d_style,
                 base_color="crimson",
             )
             fig = go.Figure(go.Scatter(**tk))
+            # The reduction's circular average was computed before anyone looked
+            # at the data, so any hot pixel is baked into it and blanking pixels
+            # in the 2D panels cannot reach it. Re-integrating the q–φ map here
+            # is what actually removes them from a 1-D curve.
+            _clean_q, _clean_i = _despiked_curve(sel, _defect_mask_for("qphi"))
+            if _clean_q is not None:
+                fig.add_trace(
+                    go.Scatter(
+                        x=_clean_q,
+                        y=_clean_i,
+                        name="I(q) · hot pixels removed",
+                        mode="lines",
+                        line=dict(color="#1f77b4", width=1.8),
+                        hovertemplate="q=%{x:.4f}<br>I=%{y:.3g}<extra></extra>",
+                    )
+                )
+                rendered_tables["D · I(q) despiked"] = pd.DataFrame({"q": _clean_q, "I": _clean_i})
             fig.update_xaxes(title_text="q (Å⁻¹)", range=_axrange(d_qr[0], d_qr[1], logq))
             fig.update_yaxes(title_text="I(q)", range=_axrange(d_ir[0], d_ir[1], logiq))
             _style_1d_axes(fig, logq, logiq)

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.13.0
+
+- **Finding hot pixels now does something to the 1-D curve.** The toggle blanked
+  them in the 2D panels and the line cuts, but panel D showed the reduction's
+  own `Cir_Avg` CSV read from disk — computed before anyone looked at the data,
+  with every hot pixel baked in — so removal appeared to do nothing. The panel
+  now overlays **I(q) with the hot pixels removed**, re-integrated from the q–φ
+  map over the full azimuth so it is comparable with the curve on disk, and the
+  despiked table is offered in the save panel. On one CMS MAXS frame the real
+  defects move I(q) by up to **19%** at q = 3.87.
+- **Vote across frames, from the explorer.** The persistence test was only in
+  batch export. "Blank only pixels that recur across the selection" builds a
+  defect mask from an evenly spread sample of the filtered frames and uses it
+  for the 2D panels, the line cuts and the re-integrated curve. It matters: on
+  `ACDM_SiWafer_100nm_s3 th0.080` the single-frame test flags 36 pixels and only
+  4 recur. The brightest six are a contiguous 8×6 Bragg peak rising smoothly
+  from 300 to 38,035 counts — blanking those deletes the measurement.
+- A fully masked q column no longer prints a *Mean of empty slice* warning into
+  the page; it was always NaN by construction.
+
 ## 0.12.1
 
 - **The q-image opens on what the frame actually covers.** The CMS GIWAXS

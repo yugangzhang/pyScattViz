@@ -28,6 +28,8 @@ requiring a candidate to recur across frames separates them, so prefer
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 __all__ = [
@@ -248,7 +250,12 @@ def azimuthal_average(caked, q, phi=None, phi_range=None) -> tuple[np.ndarray, n
                 rows = np.ones(array.shape[0], dtype=bool)
 
     selected = array[rows, :]
-    with np.errstate(invalid="ignore"):
+    # A q column can be entirely masked — beyond the detector, or with its only
+    # pixels blanked as hot — and nanmean warns about the empty slice it is
+    # being asked for. The `np.where` already answers NaN for those columns, so
+    # the warning is noise, and in a Streamlit page it is noise on screen.
+    with np.errstate(invalid="ignore"), warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "Mean of empty slice", RuntimeWarning)
         intensity = np.where(
             np.isfinite(selected).any(axis=0),
             np.nanmean(np.where(np.isfinite(selected), selected, np.nan), axis=0),
