@@ -46,6 +46,8 @@ from pyscattviz.app.components.datasource import (
 )
 from pyscattviz.app.components.hotpixels import render_hot_pixel_controls
 from pyscattviz.app.components.maskeditor import (
+    add_selection_grid,
+    draw_mode,
     render_mask_editor,
     render_selection_capture,
 )
@@ -468,6 +470,7 @@ def _defect_mask_for(product: str):
 
 
 user_mask = render_mask_editor(STATE_PREFIX)
+_drawing = draw_mode(STATE_PREFIX)
 
 
 def _apply_user_mask(z, x_axis, y_axis, space: str):
@@ -990,12 +993,15 @@ def _render_panel(panel):
             # Box- or lasso-select on the picture to define a mask region.
             # The selection comes back in data coordinates, so the shape is
             # stored in q and stays right when the frame or the zoom changes.
+            fig.update_layout(dragmode="select" if _drawing else "zoom")
+            if _drawing:
+                add_selection_grid(fig, xx, yy)
             _event = st.plotly_chart(
                 fig,
                 use_container_width=True,
-                key=f"{STATE_PREFIX}_qimg_chart",
+                key=action_key(st.session_state, f"{STATE_PREFIX}_qimg_chart"),
                 on_select="rerun",
-                selection_mode=("box", "lasso"),
+                selection_mode=("points", "box", "lasso"),
             )
             render_selection_capture(STATE_PREFIX, _event, "qimage")
             rendered_figures["B · q-image"] = fig
@@ -1031,12 +1037,15 @@ def _render_panel(panel):
                 x_range=c_qr,
                 y_range=c_phir,
             )
+            fig.update_layout(dragmode="select" if _drawing else "zoom")
+            if _drawing:
+                add_selection_grid(fig, q, phi)
             _event = st.plotly_chart(
                 fig,
                 use_container_width=True,
-                key=f"{STATE_PREFIX}_qphi_chart",
+                key=action_key(st.session_state, f"{STATE_PREFIX}_qphi_chart"),
                 on_select="rerun",
-                selection_mode=("box", "lasso"),
+                selection_mode=("points", "box", "lasso"),
             )
             render_selection_capture(STATE_PREFIX, _event, "qphi")
             rendered_figures["C · q–φ map"] = fig

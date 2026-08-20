@@ -22,6 +22,16 @@ from __future__ import annotations
 # recomputed or consumed rather than restored.
 _TRANSIENT_PREFIXES = ("pyscattviz_console_result", "pyscattviz_console_handoff")
 
+# A chart created with `on_select` is a widget, and like a button it refuses
+# assignment through session_state — at *widget creation*, so a try/except
+# around the assignment cannot catch it. `action_key` cannot help either: it
+# registers when the chart is drawn, which is long after this function has run
+# at the top of the page. A suffix rule is what makes it order-independent, and
+# it protects the next selection chart somebody adds without their having to
+# know any of this. Its value is a fresh selection each run and holds nothing
+# worth restoring.
+_WIDGET_SUFFIXES = ("_chart",)
+
 # Buttons, download buttons, and file uploaders refuse assignment through
 # session_state, and refuse it when the *widget* is created rather than when the
 # value is set — so a try/except around the assignment cannot catch it. They also
@@ -44,7 +54,11 @@ def action_key(session_state, key: str) -> str:
     """Register and return the key of a button, download, or uploader.
 
     Those widgets must be left out of :func:`keep_widget_state`; registering
-    them here is how it knows. Returns ``key`` so it reads naturally inline::
+    them here is how it knows. A selection-enabled chart is the same kind of
+    widget but is handled by the ``_chart`` suffix rule instead, because it is
+    drawn too late in the page to register itself in time.
+
+    Returns ``key`` so it reads naturally inline::
 
         st.button("Save", key=action_key(st.session_state, f"{prefix}_save"))
     """
@@ -65,7 +79,12 @@ def keep_widget_state(session_state) -> int:
     kept = 0
     for key in list(session_state.keys()):
         name = str(key)
-        if name.startswith(_TRANSIENT_PREFIXES) or name in actions or name == ACTION_KEYS:
+        if (
+            name.startswith(_TRANSIENT_PREFIXES)
+            or name.endswith(_WIDGET_SUFFIXES)
+            or name in actions
+            or name == ACTION_KEYS
+        ):
             continue
         try:
             session_state[key] = session_state[key]

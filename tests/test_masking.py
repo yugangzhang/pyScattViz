@@ -198,3 +198,66 @@ def test_the_mask_reaches_the_re_integrated_curve(tmp_path):
     assert not app.exception
     kept = app.session_state["pyscattviz_giwaxs_maskset"]
     assert len(kept.enabled_regions()) == 1
+
+
+def test_a_selection_chart_survives_a_second_run(tmp_path):
+    """The crash Yugang hit: a chart with on_select is a widget like a button.
+
+    `keep_widget_state` assigns every key back to itself so widget values
+    survive a page change. A selection chart refuses that, and it refuses it at
+    *widget creation*, so the page dies on the second render with
+    StreamlitValueAssignmentNotAllowedError. `action_key` cannot save it either
+    -- the chart registers itself far too late in the page -- which is why the
+    skip is a suffix rule.
+
+    AppTest does not populate the chart key by itself, so the state a real
+    browser leaves behind after one render is seeded here by hand.
+    """
+
+    import pandas as pd
+
+    root = tmp_path / "cms" / "p" / "Results" / "giwaxs"
+    (root / "q_image").mkdir(parents=True)
+    (root / "qphi").mkdir()
+    (root / "cir_avg").mkdir()
+    np.savez(
+        root / "q_image" / "qimg_s.tif.npz",
+        qimg=np.full((30, 40), 5.0),
+        qx=np.linspace(-2, 2, 40),
+        qz=np.linspace(-1, 3, 30),
+        qimg_mask=np.zeros((30, 40), bool),
+    )
+    np.savez(
+        root / "qphi" / "qphi_s.tif.npz",
+        q=np.linspace(0.1, 3, 50),
+        phi=np.linspace(-179, 179, 40),
+        qphi=np.full((40, 50), 5.0),
+    )
+    q = np.linspace(0.1, 3, 50)
+    pd.DataFrame({"q_ca": q, "iq_ca": np.exp(-q)}).to_csv(
+        root / "cir_avg" / "Cir_Avg_s.tif.csv", index=False
+    )
+
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(root)
+    empty = {"selection": {"points": [], "box": [], "lasso": []}}
+    app.session_state["pyscattviz_giwaxs_qimg_chart"] = empty
+    app.session_state["pyscattviz_giwaxs_qphi_chart"] = empty
+
+    for _ in range(3):
+        app.run()
+        assert not app.exception, [str(item.value) for item in app.exception]
+
+
+def test_keep_widget_state_leaves_selection_charts_alone():
+    """The rule itself, without a page around it."""
+
+    from pyscattviz.app.state import keep_widget_state
+
+    state = {
+        "pyscattviz_giwaxs_cmap": "Turbo",
+        "pyscattviz_giwaxs_qimg_chart": {"selection": {}},
+        "pyscattviz_giwaxs_qphi_chart": {"selection": {}},
+    }
+    kept = keep_widget_state(state)
+    assert kept == 1, "only the colormap should be re-asserted"

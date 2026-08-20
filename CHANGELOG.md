@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.2
+
+- **Fixed `StreamlitValueAssignmentNotAllowedError` on the GIWAXS explorer.** A
+  chart created with `on_select` is a widget like a button: it refuses
+  assignment through `st.session_state`, and it refuses it at *widget creation*,
+  so `keep_widget_state` re-asserting the key killed the page on its second
+  render. `action_key` could not help — the chart registers itself far too late
+  in the script — so keys ending `_chart` are now skipped by rule, which is
+  order-independent and covers the next selection chart somebody adds.
+- Drawing a mask region is now an explicit **✏️ Draw on the panels** toggle
+  rather than a hidden modebar tool; it swaps the two 2D panels from
+  drag-to-zoom to drag-to-select and lays an invisible point grid over the
+  heatmap for the selection to latch onto. Note the numeric ring/wedge/box form
+  is the reliable route — see the note in the panel.
+
 ## 0.14.1
 
 - **The qr–qz view uses its own qz.** A q_image NPZ can now carry two remeshes

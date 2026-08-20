@@ -39,7 +39,9 @@ from pyscattviz.masking import (
 )
 
 __all__ = [
+    "add_selection_grid",
     "current_mask",
+    "draw_mode",
     "render_mask_editor",
     "render_selection_capture",
     "selection_to_region",
@@ -63,6 +65,18 @@ def current_mask(prefix: str) -> MaskSet:
 
 def _set_mask(prefix: str, mask_set: MaskSet) -> None:
     st.session_state[_state_key(prefix)] = mask_set
+
+
+def draw_mode(prefix: str) -> bool:
+    """Is the user currently drawing regions rather than zooming?
+
+    Plotly gives a chart one drag behaviour at a time, and dragging to zoom is
+    what people expect by default — so select mode is a switch rather than the
+    standing state. The alternative, leaving it on the modebar to be discovered,
+    hides the feature behind an icon.
+    """
+
+    return bool(st.session_state.get(f"{prefix}_mask_draw", False))
 
 
 def selection_to_region(event, space: str) -> MaskRegion | None:
@@ -123,6 +137,41 @@ def render_selection_capture(prefix: str, event, space: str, container=None) -> 
         _set_mask(prefix, mask_set)
         st.rerun()
     return False
+
+
+def add_selection_grid(fig, x_axis, y_axis, max_points: int = 120) -> None:
+    """Lay an invisible point grid over a heatmap so it can be selected on.
+
+    Plotly emits a selection for *points*, and a heatmap has none — box- and
+    lasso-select over one return nothing at all, which is why the panel needs
+    this. A transparent scatter on a coarse grid gives the selection something
+    to latch onto; the coordinates that come back are the data coordinates,
+    which is all the mask needs.
+
+    Only added while draw mode is on, so the usual render pays nothing for it.
+    """
+
+    import numpy as np
+    import plotly.graph_objects as go
+
+    x = np.asarray(x_axis, dtype=float)
+    y = np.asarray(y_axis, dtype=float)
+    if x.ndim != 1 or y.ndim != 1 or not x.size or not y.size:
+        return
+    xs = x[:: max(1, int(np.ceil(x.size / max_points)))]
+    ys = y[:: max(1, int(np.ceil(y.size / max_points)))]
+    grid_x, grid_y = np.meshgrid(xs, ys)
+    fig.add_trace(
+        go.Scattergl(
+            x=grid_x.ravel(),
+            y=grid_y.ravel(),
+            mode="markers",
+            marker=dict(size=2, opacity=0.0),
+            hoverinfo="skip",
+            showlegend=False,
+            name="select grid",
+        )
+    )
 
 
 def _render_add_form(prefix: str, mask_set: MaskSet) -> None:
@@ -294,6 +343,24 @@ def render_mask_editor(prefix: str, container=None, expanded: bool = False) -> M
             "so it applies to the q-image, the q–φ map, the line cuts and the "
             "1-D curve alike, and to every frame in a batch."
         )
+        st.checkbox(
+            "✏️ Draw on the panels",
+            value=bool(st.session_state.get(f"{prefix}_mask_draw", False)),
+            key=f"{prefix}_mask_draw",
+            help=(
+                "Switches the q-image and q–φ panels from drag-to-zoom to "
+                "drag-to-select. Drag a box, or pick the lasso in the chart "
+                "toolbar for a free shape, then press Add to mask. Untick to "
+                "get zooming back."
+            ),
+        )
+        if st.session_state.get(f"{prefix}_mask_draw"):
+            st.caption(
+                "Drag a box on the q-image or q–φ panel, or take the lasso from "
+                "the chart toolbar. If a drag does not register — a heatmap has "
+                "no points of its own to select, so this rides on an invisible "
+                "grid — use the numeric shapes below, which do the same job."
+            )
         keep_only = st.checkbox(
             "Keep only these regions (invert)",
             value=bool(mask_set.keep_only),
