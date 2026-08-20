@@ -6,6 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from pyscattviz.app.components.datasource import ensure_remembered_folders, remember_folder
 from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.components.scattering import (
     SCATTERING_PRODUCTS,
@@ -28,6 +29,7 @@ st.set_page_config(page_title="File Selection", page_icon="🔎", layout="wide")
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+ensure_remembered_folders()
 st.title("🔎 File Selection")
 st.caption("Filter filenames first; detector and q-space arrays remain unopened.")
 
@@ -155,6 +157,7 @@ if root_input and not unmounted_remote:
     st.session_state["pyscattviz_active_root"] = str(
         Path(effective_root).expanduser().resolve(strict=False)
     )
+    remember_folder(st.session_state["pyscattviz_active_root"])
 if active_mapping and effective_path_available:
     st.info(f"Remote path mapped through `{active_mapping['remote_root']}` to `{effective_root}`.")
 elif unmounted_remote:

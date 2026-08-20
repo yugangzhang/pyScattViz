@@ -17,7 +17,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from pyscattviz.app.components.datasource import known_folders, remember_folder
+from pyscattviz.app.components.datasource import (
+    ensure_remembered_folders,
+    known_folders,
+    remember_folder,
+)
 from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.state import action_key, keep_widget_state, set_persistent_value
 from pyscattviz.data_sources import load_path_mappings
@@ -32,6 +36,7 @@ st.set_page_config(page_title="Terminal", page_icon="🖥️", layout="wide")
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+ensure_remembered_folders()
 st.title("🖥️ Terminal")
 st.caption(
     "ls, cd, cat, find — and `select` to build a list that every plotting tab reads. "
@@ -77,6 +82,7 @@ if folder_row[1].button("Use as data folder", use_container_width=True):
     folder = st.session_state[CWD_KEY]
     set_persistent_value(st.session_state, "pyscattviz_file_root", folder)
     st.session_state["pyscattviz_active_root"] = folder
+    remember_folder(folder)
     remember_folder(folder)
     st.success(f"`{folder}` is now the active folder for the explorers.")
 

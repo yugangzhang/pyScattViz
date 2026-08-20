@@ -18,6 +18,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from pyscattviz.app.components.datasource import ensure_remembered_folders, remember_folder
 from pyscattviz.app.state import (
     keep_widget_state,
     prepare_persistent_widget,
@@ -60,6 +61,7 @@ st.set_page_config(page_title="Data Sources & Mounts", page_icon="🗂️", layo
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+ensure_remembered_folders()
 st.title("🗂️ Data Sources & Mounts")
 st.caption(
     "Mount the proposal, copy a subset, or use a local disk — then register the "
@@ -496,6 +498,7 @@ which is exactly what pyScattViz needs. Copy that path into the box below.
                     st.success(f"Registered `{remote_root}` → `{resolved}`.")
             st.session_state["pyscattviz_file_root"] = resolved
             st.session_state["pyscattviz_active_root"] = resolved
+            remember_folder(resolved)
             roots = st.session_state.setdefault("pyscattviz_roots", [])
             if resolved not in roots:
                 roots.append(resolved)
@@ -532,6 +535,7 @@ with folders_tab:
         st.session_state["pyscattviz_roots"] = roots
         if roots:
             st.session_state["pyscattviz_active_root"] = roots[0]
+            remember_folder(roots[0])
             st.session_state["pyscattviz_file_root"] = roots[0]
         st.success(f"Saved {len(roots)} folder(s).")
 

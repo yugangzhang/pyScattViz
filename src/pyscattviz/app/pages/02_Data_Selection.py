@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.components.datasource import ensure_remembered_folders, remember_folder
 from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.state import (
     keep_widget_state,
@@ -46,6 +47,7 @@ st.set_page_config(page_title="Data Selection", page_icon="🎯", layout="wide")
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+ensure_remembered_folders()
 st.title("🎯 Data Selection")
 st.caption(
     "Filter folders or files with AND / OR / EXCLUDE term lists, or paste a list "
@@ -305,6 +307,7 @@ with search_tab:
                 folder = first if Path(first).is_dir() else str(Path(first).parent)
                 set_persistent_value(st.session_state, "pyscattviz_file_root", folder)
                 st.session_state["pyscattviz_active_root"] = folder
+                remember_folder(folder)
                 st.success(f"`{folder}` is now the active folder for the scattering explorers.")
             action_columns[3].caption(
                 "Tick the ✔ column to choose rows, or add every result at once."
@@ -405,6 +408,7 @@ with basket_tab:
         if row[2].button("Send first folder to explorers", disabled=not folders):
             set_persistent_value(st.session_state, "pyscattviz_file_root", folders[0])
             st.session_state["pyscattviz_active_root"] = folders[0]
+            remember_folder(folders[0])
             st.success(f"`{folders[0]}` is now the active folder for the explorers.")
         row[3].caption("Quick Plot and Publication Plot read this basket directly.")
 

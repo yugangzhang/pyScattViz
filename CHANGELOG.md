@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.12.0
+
+- **The folders you use are remembered between sessions**, in
+  `~/.pyscattviz/data_folders.md`. Open a folder once and it is already in the
+  box the next time you start the application; every folder you have opened is
+  in the menu. It is markdown rather than JSON on purpose — a list of data
+  folders is something you want to read, annotate and paste into an email, so
+  each line carries an optional note of your own and the date it was last used.
+  Edit the file by hand and pyScattViz reads the change; the parser accepts what
+  a person would actually type, with or without backticks, notes and dates.
+- Folders can be **pinned** (offered first, never aged out), **annotated**, or
+  **forgotten**, from the "Remembered folders" panel under the folder box. A
+  remembered folder whose mount has gone is kept in the file but is not opened.
+- The file lives in the per-user configuration folder, never inside a
+  repository, so a path to an embargoed proposal cannot be committed by
+  accident.
+
 ## 0.11.1
 
 - **Auto-fit is two switches, not one.** "Auto q limits" and "Auto intensity

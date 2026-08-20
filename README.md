@@ -838,6 +838,46 @@ typing it at a Python prompt, which is the point. It refuses to run at all if th
 server has been bound to an address other people can reach; pyScattViz listens
 on `127.0.0.1` by default.
 
+## The folders you use are remembered
+
+pyScattViz keeps a list of every data folder you have opened in
+`~/.pyscattviz/data_folders.md`, so a new session starts where the last one
+left off: the folder you used last is already in the box, and every folder you
+have opened is in the **Known folders** menu above it. Nothing to set up — it
+happens the first time you open a folder.
+
+It is markdown rather than a configuration format on purpose. A list of data
+folders is something you want to read, tidy up, annotate, and paste into an
+email, and a long path such as
+`…/2026-2/pass-xxxxxx/experiments/0_Static/maxs/analysis` tells you nothing at a
+glance three weeks later. So each line carries a note of your own and the date
+it was last used:
+
+```markdown
+## Pinned
+
+- `/mnt/data32/.../0_Static/maxs/analysis` — PVDF on MXene <!-- used 2026-08-19 -->
+
+## Recent
+
+- `/mnt/data32/.../1_Static/saxs/analysis` — the transmission run
+```
+
+Open the file in any editor and add, remove or reorder folders by hand;
+pyScattViz reads the change next time it starts. The parser takes what a person
+would actually type, so the backticks, the note and the date are all optional
+and `- /some/folder` on its own is read correctly.
+
+Under the folder box, **📁 Remembered folders** lets you do the same from
+inside the application: write the note, **pin** a folder so it is offered first
+and never ages out of the list, or forget one. A folder whose mount has gone is
+kept in the file — mounts come back — but it is not opened, and it is marked
+*not mounted* in the list.
+
+The file lives in your own configuration folder, never inside a repository, so
+a path to an embargoed proposal cannot be committed by accident.
+`PYSCATTVIZ_CONFIG_DIR` moves it, which is useful if you keep several profiles.
+
 ## Saving figures to your own folder
 
 pyScattViz runs on your computer, so it writes where you tell it to. Every page
