@@ -139,24 +139,30 @@ def find_hot_pixels_stack(
     per-pixel count), ``n_hot``, and ``per_frame``.
     """
 
-    stack = [np.asarray(item, dtype=float) for item in images]
-    stack = [item for item in stack if item.ndim == 2 and item.size]
-    if not stack:
-        return np.zeros((0, 0), dtype=bool), {"frames": 0, "n_hot": 0, "per_frame": []}
-    shape = stack[0].shape
-    stack = [item for item in stack if item.shape == shape]
-
-    votes = np.zeros(shape, dtype=int)
+    # Consume the frames one at a time and keep only the vote count. A batch can
+    # be a thousand 1000x1000 maps, and holding them all to count votes would
+    # cost gigabytes for an answer that is one integer per pixel.
+    votes = None
     per_frame = []
-    for frame in stack:
+    for item in images:
+        frame = np.asarray(item, dtype=float)
+        if frame.ndim != 2 or not frame.size:
+            continue
+        if votes is None:
+            votes = np.zeros(frame.shape, dtype=int)
+        elif frame.shape != votes.shape:
+            continue
         hot = find_hot_pixels(frame, window=window, zmax=zmax, ratio_min=ratio_min, abs_min=abs_min)
         votes += hot
         per_frame.append(int(hot.sum()))
 
-    needed = max(1, int(np.ceil(float(persist_frac) * len(stack))))
+    if votes is None:
+        return np.zeros((0, 0), dtype=bool), {"frames": 0, "n_hot": 0, "per_frame": []}
+
+    needed = max(1, int(np.ceil(float(persist_frac) * len(per_frame))))
     mask = votes >= needed
     return mask, {
-        "frames": len(stack),
+        "frames": len(per_frame),
         "votes": votes,
         "n_hot": int(mask.sum()),
         "per_frame": per_frame,

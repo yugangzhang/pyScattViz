@@ -44,6 +44,7 @@ from pyscattviz.app.components.datasource import (
     render_folder_picker,
     render_term_filters,
 )
+from pyscattviz.app.components.hotpixels import render_hot_pixel_controls
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 
 # Shared scattering engine — indexing, loaders, array/plot helpers, styling.
@@ -52,8 +53,10 @@ from pyscattviz.app.components.scattering import (
     CMAPS,
     detect_beamline,
     frame_axis_ranges,
+    frame_curve,
     heatmap_fig,
     index_frames,
+    intensity_limits_in_window,
     load_cir,
     load_qimg,
     load_qphi,
@@ -89,7 +92,6 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
-from pyscattviz.despike import remove_hot_pixels
 from pyscattviz.filters import FilterSyntaxError
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "giwaxs")
@@ -139,7 +141,7 @@ _PROFILES = {
 }
 # CMS and SMI put different detectors at different distances, so the window
 # worth opening on differs. These are the values Yugang reviews CMS GIWAXS in;
-# anything without an entry here starts on auto-fit instead (see AUTO_FIT_KEY).
+# anything without an entry here starts on auto-fit instead (see AUTO_Q_KEY).
 _BEAMLINE_PROFILES = {
     ("giwaxs", "cms"): {
         "qx_range": (0.0, 3.0),
@@ -151,7 +153,8 @@ _BEAMLINE_PROFILES = {
 
 PROFILE = dict(_PROFILES[EXPLORER_MODE])
 STATE_PREFIX = f"pyscattviz_{PROFILE['state']}"
-AUTO_FIT_KEY = f"{STATE_PREFIX}_auto_fit"
+AUTO_Q_KEY = f"{STATE_PREFIX}_auto_q"
+AUTO_I_KEY = f"{STATE_PREFIX}_auto_i"
 BEAMLINE_KEY = f"{STATE_PREFIX}_last_beamline"
 
 # ===========================================================================
@@ -194,7 +197,8 @@ with st.sidebar:
         PROFILE.update(_override)
     if st.session_state.get(BEAMLINE_KEY) != (EXPLORER_MODE, BEAMLINE):
         st.session_state[BEAMLINE_KEY] = (EXPLORER_MODE, BEAMLINE)
-        st.session_state[AUTO_FIT_KEY] = _override is None
+        st.session_state[AUTO_Q_KEY] = _override is None
+        st.session_state[AUTO_I_KEY] = True
         for _key, _span in (
             ("b_qx", PROFILE["qx_range"]),
             ("b_qz", PROFILE["qz_range"]),
@@ -324,20 +328,34 @@ cmap = dc4.selectbox(
 
 # Second row: aspect ratio (shared by A & B, item 2) + B-panel axis mode (item 3)
 
+
 # One or two pixels on every CMS/SMI detector read absurdly high whatever the
 # sample. The azimuthal average is a mean, so a single 500,000-count pixel moves
 # a whole q bin and the 1-D curve grows a peak that is not there.
-despike = st.checkbox(
-    "Remove hot pixels from the 2D maps",
-    value=True,
-    key=f"{STATE_PREFIX}_despike",
-    help=(
-        "Blanks isolated pixels that are both far above their neighbours in a "
-        "counting-statistics sense and several times the local median. Applies "
-        "to the 2D panels, the line cuts, and the batch 1D export. Sharp "
-        "reflections are locally smooth over a few pixels and are kept."
-    ),
+def _preview_frame():
+    """The 2D product the hot-pixel thresholds are judged against.
+
+    Every loader is cached, so reading a product here costs nothing the page was
+    not about to spend a few lines further down anyway.
+    """
+
+    try:
+        if sel.get("has_qimg"):
+            return resolve_qimage(load_qimg(sel["qimg"]), "qx")[0]
+        if sel.get("has_qphi"):
+            return load_qphi(sel["qphi"])[2]
+    except (DataReadError, KeyError, TypeError, ValueError):
+        return None
+    return None
+
+
+# Every threshold is on screen: what counts as "hot" depends on the detector and
+# on how oriented the sample is, and that is the user's call, not a constant.
+hot = render_hot_pixel_controls(
+    f"{STATE_PREFIX}_hot",
+    preview_image=_preview_frame(),
 )
+despike = hot.enabled
 
 dc5, dc6 = st.columns(2)
 aspect_mode = dc5.selectbox(
@@ -421,17 +439,27 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
         "are in **intensity** units (pre-log); auto colour uses robust "
         "percentiles of each panel."
     )
-    auto_fit = st.checkbox(
-        "Auto-fit the q and intensity limits to each frame",
-        value=bool(st.session_state.get(AUTO_FIT_KEY, True)),
-        key=AUTO_FIT_KEY,
+    _auto_columns = st.columns(2)
+    auto_q = _auto_columns[0].checkbox(
+        "Auto q limits",
+        value=bool(st.session_state.get(AUTO_Q_KEY, True)),
+        key=AUTO_Q_KEY,
         help=(
-            "A remeshed q-image covers only part of the qx–qz plane and the rest "
-            "is blank, so fixed limits leave the picture stranded in a field of "
-            "NaN, and a fixed 1-D window wastes most of the panel on decades "
-            "that hold no signal. With this on, the boxes below are ignored for "
-            "the q-image, the q–φ q axis, and the I(q) panel, and each frame is "
-            "framed on its own data. φ is left alone."
+            "Frame the q-image, the q–φ q axis and I(q) on the data itself. A "
+            "remeshed q-image covers only part of the qx–qz plane and the rest is "
+            "blank, so a fixed window leaves the picture stranded in NaN. φ is "
+            "left alone. Turn this off to pin your own q range."
+        ),
+    )
+    auto_i = _auto_columns[1].checkbox(
+        "Auto intensity limits",
+        value=bool(st.session_state.get(AUTO_I_KEY, True)),
+        key=AUTO_I_KEY,
+        help=(
+            "Set the I(q) limits from the points inside the q window that is "
+            "actually shown — so choosing a q range by hand rescales the "
+            "intensity to match, instead of leaving a flat line at the top of a "
+            "panel scaled to the full four decades."
         ),
     )
     fill_left, fill_middle, fill_right = st.columns([1.2, 1.4, 2.4])
@@ -495,7 +523,7 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
     )
 
 
-if auto_fit:
+if auto_q:
     _measured = frame_axis_ranges(sel, b_mode)
     _fitted = _measured.get("qr" if b_mode == "qr" else "qx")
     if _fitted:
@@ -506,8 +534,16 @@ if auto_fit:
         c_qr = _measured["qphi_q"]
     if _measured.get("cir_q"):
         d_qr = _measured["cir_q"]
-    if _measured.get("cir_I"):
-        d_ir = _measured["cir_I"]
+
+if auto_i:
+    # Deliberately after the q block: `d_qr` is by now the window actually on
+    # screen, whether that came from auto-fit or from the boxes, and the
+    # intensity is scaled to the points inside it.
+    _curve_q, _curve_i = frame_curve(sel)
+    if _curve_q is not None:
+        _limits = intensity_limits_in_window(_curve_q, _curve_i, d_qr)
+        if _limits:
+            d_ir = _limits
 
 
 def _heatmap_fig(title, z, x, y, xlab, ylab, **kw):
@@ -605,7 +641,7 @@ if centers:
     if cut_source.startswith("q_image") and sel["has_qimg"] and _qimg_data is not None:
         qimg, qx, qz, qmask, _ = resolve_qimage(_qimg_data, b_mode)
         if qimg is not None and despike:
-            qimg = remove_hot_pixels(_apply_mask(qimg, qmask))
+            qimg = hot.clean(_apply_mask(qimg, qmask))
             qmask = None
         if qimg is not None:
             for c in centers:
@@ -759,7 +795,7 @@ def _render_panel(panel):
         elif sel["has_qimg"] and _qimg_data is not None:
             qimg, qx, qz, qmask, b_xlab = resolve_qimage(_qimg_data, b_mode)
             z = _apply_mask(qimg, qmask)
-            z = remove_hot_pixels(z) if despike else z
+            z = hot.clean(z)
             z, xx, yy = _downsample(z, qx, qz)
             fig = _heatmap_fig(
                 "B · q-image",
@@ -793,7 +829,7 @@ def _render_panel(panel):
                 return
             pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
             z = _apply_mask(qphi, pmask)
-            z = remove_hot_pixels(z) if despike else z
+            z = hot.clean(z)
             fig = _heatmap_fig(
                 "C · q–φ map",
                 z,

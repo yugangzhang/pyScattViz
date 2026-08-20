@@ -922,21 +922,38 @@ excess is significant against counting statistics *and* it is several times its
 local median, so sharp reflections — which are smooth over a few pixels — are
 kept. Turn it off in the display controls if you want to see the raw map.
 
+Whether a given pixel is a defect or the tip of a sharp reflection is a
+judgement, not a fact, so every threshold is on screen under **Hot-pixel
+thresholds**: the neighbourhood size, the significance in σ, the multiple of the
+local median it must exceed, and an optional counts floor, with Default, Strict
+and Loose presets. The panel reports how many pixels the current settings would
+blank on the frame in front of you and how bright the worst of them was, which
+is the only way to tell a good threshold from a bad one. On one CMS GIWAXS frame
+the same map gives 57, 25 or 7 removed pixels as the thresholds tighten.
+
 The explorers can also **re-integrate every filtered frame into a despiked 1D
 curve**, one CSV per frame, over an azimuthal window you choose. The reduction's
 own circular average is computed before anyone has looked at the data, so a hot
 pixel is baked into it; this is the way to get a clean batch of curves without
-re-running the reduction.
+re-running the reduction. For a batch, tick **Build one defect mask from the
+whole selection**: a first pass over an evenly spread sample of the frames keeps
+only the pixels that recur, and that mask is applied to every frame. This is the
+test that separates a detector defect from a Bragg spot — a defect is hot in
+every frame, an oriented sample's reflection is hot in one — so sample frames
+from *different* samples. Over one sample's own angle series a majority vote
+flags that sample's peaks as defects.
 
-**Auto-fit** handles the rest. A remeshed q-image covers only part of the qx–qz
-plane and everything outside it is NaN, so a fixed window can leave the picture
-stranded in a field of blank — SMI GISAXS on the old ±0.5 default was mostly
-empty, and its negative qz was cut off entirely. With auto-fit on, the q-image
-and q–φ q limits are measured from the pixels that actually hold data, frame by
-frame, and the I(q) panel is framed on where there is signal — a CMS SAXS file
-runs to q = 0.31 Å⁻¹ but the intensity has died by 0.25, and starts at 0.0056,
-not 0.001. Auto-fit is on wherever there is no explicit beamline preset, and it
-leaves φ alone.
+**Auto-fit** handles the rest, as two independent switches. *Auto q limits*
+frames the q-image and the q–φ q axis on the pixels that actually hold data: a
+remeshed q-image covers only part of the qx–qz plane and everything outside it
+is NaN, so a fixed window can leave the picture stranded in a field of blank —
+SMI GISAXS on the old ±0.5 default was mostly empty, and its negative qz was cut
+off entirely. *Auto intensity limits* frames I(q) on the points **inside the q
+window currently shown**, so the common case works: pin a q range by hand and
+the intensity rescales to match it. Zoom a CMS SAXS frame to 0.05–0.15 Å⁻¹ and
+I goes from 0.0013–3246 to 1.3–95, instead of leaving the decade you asked for
+as a flat line along the top of the panel. Both are on wherever there is no
+explicit beamline preset, and both leave φ alone.
 
 Three buttons sit above the limit boxes: **Fit to this frame** measures the
 current frame once, the **beamline preset** restores the values in the table

@@ -11,7 +11,13 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from pyscattviz.app.components.scattering import frame_axis_ranges, heatmap_fig, index_frames
+from pyscattviz.app.components.scattering import (
+    frame_axis_ranges,
+    heatmap_fig,
+    index_frames,
+    intensity_limits_in_window,
+)
+from pyscattviz.despike import DEFAULT_RATIO, DEFAULT_WINDOW, DEFAULT_ZMAX
 
 PAGES_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
 
@@ -123,8 +129,29 @@ def test_the_despike_toggle_is_on_by_default(transmission):
     app.run()
 
     assert not app.exception
-    assert app.session_state["pyscattviz_tsaxs_despike"] is True
+    assert app.session_state["pyscattviz_tsaxs_hot_enabled"] is True
     assert any("Remove hot pixels" in item.label for item in app.checkbox)
+
+
+def test_the_hot_pixel_thresholds_are_on_screen(transmission):
+    """The thresholds must be adjustable, not baked into the checkbox."""
+
+    app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(transmission)
+    app.run()
+
+    assert not app.exception
+    prefix = "pyscattviz_tsaxs_hot"
+    assert app.session_state[f"{prefix}_window"] == DEFAULT_WINDOW
+    assert app.session_state[f"{prefix}_zmax"] == DEFAULT_ZMAX
+    assert app.session_state[f"{prefix}_ratio"] == DEFAULT_RATIO
+
+    # And changing one must survive into the settings the page acts on.
+    app.session_state[f"{prefix}_zmax"] = 20.0
+    app.session_state[f"{prefix}_ratio"] = 12.0
+    app.run()
+    assert not app.exception
+    assert app.session_state[f"{prefix}_zmax"] == 20.0
 
 
 def test_the_batch_can_export_despiked_1d_curves(transmission):
@@ -134,3 +161,42 @@ def test_the_batch_can_export_despiked_1d_curves(transmission):
 
     modes = next(item for item in app.radio if item.label == "What to export")
     assert "1D curve from q–φ (CSV)" in modes.options
+
+
+def test_the_intensity_limits_follow_the_chosen_q_window():
+    """Choosing a q range by hand must rescale I, or the zoom is a flat line."""
+
+    q = np.linspace(0.006, 0.31, 400)
+    intensity = 3000.0 * np.exp(-((q / 0.02) ** 2)) + 0.01
+
+    whole = intensity_limits_in_window(q, intensity)
+    zoomed = intensity_limits_in_window(q, intensity, (0.05, 0.15))
+
+    assert whole[1] > 1000  # the beam-centre decade dominates the full curve
+    assert zoomed[1] < 100  # the window holds nothing like it
+    assert zoomed[1] < whole[1] / 10
+
+
+def test_an_empty_q_window_leaves_the_limits_alone():
+    q = np.linspace(0.006, 0.31, 50)
+    assert intensity_limits_in_window(q, np.ones_like(q), (5.0, 6.0)) is None
+
+
+def test_auto_q_and_auto_intensity_are_separate_toggles(transmission):
+    app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(transmission)
+    app.run()
+
+    assert not app.exception
+    assert app.session_state["pyscattviz_tsaxs_auto_q"] is True
+    assert app.session_state["pyscattviz_tsaxs_auto_i"] is True
+
+    # Pin q by hand, keep the intensity automatic: the pinned window must stand.
+    app.session_state["pyscattviz_tsaxs_auto_q"] = False
+    app.session_state["pyscattviz_tsaxs_d_q_lo"] = 0.05
+    app.session_state["pyscattviz_tsaxs_d_q_hi"] = 0.15
+    app.run()
+
+    assert not app.exception
+    assert app.session_state["pyscattviz_tsaxs_d_q_lo"] == 0.05
+    assert app.session_state["pyscattviz_tsaxs_d_q_hi"] == 0.15

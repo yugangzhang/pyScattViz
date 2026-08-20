@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.11.1
+
+- **Auto-fit is two switches, not one.** "Auto q limits" and "Auto intensity
+  limits" are now independent, because the useful combination is the mixed one:
+  pick a q range by hand and let the intensity follow it. The intensity limits
+  are measured from the points *inside the q window actually on screen*, so
+  zooming into 0.05–0.15 Å⁻¹ on a CMS SAXS frame rescales I from 0.0013–3246 to
+  1.3–95 instead of leaving the part you asked for as a flat line along the top
+  of a panel scaled to the full four decades.
+- **The hot-pixel thresholds are on screen.** A hot pixel is not a well-defined
+  object — whether a pixel is a detector defect or the brightest point of a
+  sharp reflection depends on a threshold, and that is the user's call. The
+  neighbourhood size, the significance in σ, the multiple of the local median
+  and an optional counts floor are all adjustable, with Default / Strict /
+  Loose presets, and the panel reports how many pixels the present settings
+  would blank on the frame on display and how bright the worst of them was. On
+  Jiaen's GIWAXS frame the same frame gives 57, 25 or 7 removed pixels as the
+  thresholds tighten; the count is the only honest way to judge a setting.
+- **Batch export can build one defect mask from the whole selection.** A first
+  pass over an evenly spread sample of the frames keeps only the pixels that
+  recur, and that single mask is then applied to every frame. This is the test
+  that separates a detector defect from a Bragg spot, so it is the honest way
+  to despike a batch. On 756 q–φ maps from one CMS beamtime it converges on the
+  same 16 pixels whether the sample is 6 frames or 24.
+- The stack finder streams its frames instead of materializing them, so a
+  thousand-frame mask costs one vote array rather than gigabytes.
+
 ## 0.11.0
 
 - **Fixed the blank q–φ panel.** Plotly wants a log axis's range in log10 units,

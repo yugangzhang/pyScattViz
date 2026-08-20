@@ -105,7 +105,7 @@ def test_cms_giwaxs_opens_on_the_window_yugang_reviews(tmp_path):
         180.0,
     )
     # Explicit limits were asked for, so auto-fit stays out of the way.
-    assert state["pyscattviz_giwaxs_auto_fit"] is False
+    assert state["pyscattviz_giwaxs_auto_q"] is False
 
 
 def test_a_folder_without_a_beamline_starts_on_auto_fit(tmp_path):
@@ -115,7 +115,7 @@ def test_a_folder_without_a_beamline_starts_on_auto_fit(tmp_path):
     app.run()
 
     assert not app.exception
-    assert app.session_state["pyscattviz_giwaxs_auto_fit"] is True
+    assert app.session_state["pyscattviz_giwaxs_auto_q"] is True
 
 
 def test_moving_from_one_beamline_to_the_other_reapplies_the_preset(tmp_path):
@@ -125,14 +125,14 @@ def test_moving_from_one_beamline_to_the_other_reapplies_the_preset(tmp_path):
     app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=120)
     app.session_state["pyscattviz_active_root"] = str(smi)
     app.run()
-    assert app.session_state["pyscattviz_giwaxs_auto_fit"] is True
+    assert app.session_state["pyscattviz_giwaxs_auto_q"] is True
 
     next(item for item in app.text_input if item.label.startswith("Data path")).set_value(str(cms))
     app.run()
 
     assert not app.exception
     assert app.session_state["pyscattviz_giwaxs_b_qx_hi"] == 3.0
-    assert app.session_state["pyscattviz_giwaxs_auto_fit"] is False
+    assert app.session_state["pyscattviz_giwaxs_auto_q"] is False
 
 
 def test_auto_fit_frames_the_q_image_on_its_data(tmp_path):
@@ -143,7 +143,7 @@ def test_auto_fit_frames_the_q_image_on_its_data(tmp_path):
     app.session_state["pyscattviz_active_root"] = str(root)
     app.run()
     assert not app.exception
-    assert app.session_state["pyscattviz_giwaxs_auto_fit"] is True
+    assert app.session_state["pyscattviz_giwaxs_auto_q"] is True
 
     from pyscattviz.app.components.scattering import frame_axis_ranges, index_frames
 

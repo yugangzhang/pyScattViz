@@ -972,6 +972,57 @@ def frame_axis_ranges(row, b_mode: str = "qx") -> dict:
     return ranges
 
 
+def intensity_limits_in_window(
+    q_values,
+    intensity,
+    q_range=None,
+    percentiles: tuple[float, float] = (0.5, 99.9),
+):
+    """Robust intensity limits over the q window that is actually on screen.
+
+    Fitting the intensity to the *whole* curve is the wrong answer once a q
+    range has been chosen: a SAXS curve falls four decades, so limits taken from
+    the full range leave a zoomed-in window as a flat line at the top of the
+    panel. Taking them from the points inside the window is what makes zooming
+    in useful.
+
+    Returns ``(low, high)``, or None when the window holds no positive points.
+    """
+
+    q_axis = np.asarray(q_values, dtype=float)
+    values = np.asarray(intensity, dtype=float)
+    if q_axis.shape != values.shape or not q_axis.size:
+        return None
+
+    keep = np.isfinite(q_axis) & np.isfinite(values) & (values > 0)
+    if q_range is not None:
+        low, high = q_range
+        if low is not None:
+            keep &= q_axis >= float(low)
+        if high is not None:
+            keep &= q_axis <= float(high)
+    if not keep.any():
+        return None
+
+    inside = values[keep]
+    low, high = np.nanpercentile(inside, list(percentiles))
+    if not (np.isfinite(low) and np.isfinite(high)) or high <= low:
+        return None
+    return float(low), float(high)
+
+
+def frame_curve(row):
+    """Return the frame's circular average, or ``(None, None)`` if unreadable."""
+
+    path = _product_path(row, "cir")
+    if not path:
+        return None, None
+    try:
+        return load_cir(path)
+    except DataReadError:
+        return None, None
+
+
 def frame_panel_figure(
     row,
     panel: str,

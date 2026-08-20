@@ -176,3 +176,60 @@ def test_an_empty_window_falls_back_to_every_row():
 def test_a_mismatched_q_axis_is_refused():
     with pytest.raises(ValueError):
         azimuthal_average(np.zeros((4, 5)), np.arange(3.0))
+
+
+def test_the_stack_finder_accepts_a_generator():
+    """Batch export streams frames rather than holding a thousand maps at once."""
+
+    rng = np.random.default_rng(0)
+    base = rng.normal(100, 5, (40, 50))
+
+    def frames():
+        for index in range(6):
+            frame = base.copy()
+            frame[10, 10] = 90_000  # the defect: every frame
+            frame[20, index] = 90_000  # a different pixel each time
+            yield frame
+
+    mask, info = find_hot_pixels_stack(frames(), persist_frac=0.9)
+    assert info["frames"] == 6
+    assert mask[10, 10]
+    assert not mask[20, :].any()
+
+
+def test_frames_of_the_wrong_shape_are_skipped_not_fatal():
+    good = np.full((20, 20), 100.0)
+    good[5, 5] = 50_000
+    mask, info = find_hot_pixels_stack([good, np.zeros((3, 3)), good], persist_frac=0.9)
+    assert info["frames"] == 2
+    assert mask[5, 5]
+
+
+def test_the_thresholds_change_what_is_removed():
+    """The point of exposing them: a stricter ratio keeps a sharp reflection."""
+
+    rng = np.random.default_rng(1)
+    image = rng.normal(100, 5, (40, 40))
+    image[10, 10] = 600.0  # 6x the background: a modest spike
+    image[30, 30] = 50_000.0  # unmistakable
+
+    loose = find_hot_pixels(image, zmax=8.0, ratio_min=3.0)
+    strict = find_hot_pixels(image, zmax=8.0, ratio_min=20.0)
+
+    assert loose[10, 10] and loose[30, 30]
+    assert not strict[10, 10] and strict[30, 30]
+
+
+def test_the_settings_object_reports_what_it_removed():
+    from pyscattviz.app.components.hotpixels import HotPixelSettings
+
+    image = np.full((20, 20), 100.0)
+    image[7, 7] = 80_000.0
+
+    cleaned, count = HotPixelSettings().clean_and_count(image)
+    assert count == 1
+    assert np.isnan(cleaned[7, 7])
+
+    untouched, count = HotPixelSettings(enabled=False).clean_and_count(image)
+    assert count == 0
+    assert untouched[7, 7] == 80_000.0

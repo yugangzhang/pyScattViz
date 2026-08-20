@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.components.hotpixels import render_hot_pixel_controls
 from pyscattviz.app.components.saving import (
     DATE_KEY,
     OVERWRITE_KEY,
@@ -32,7 +33,7 @@ from pyscattviz.app.components.scattering import (
 )
 from pyscattviz.app.state import action_key, coerce_choice
 from pyscattviz.dataio import DataReadError
-from pyscattviz.despike import azimuthal_average, remove_hot_pixels
+from pyscattviz.despike import azimuthal_average, find_hot_pixels_stack
 from pyscattviz.exporting import (
     PLOTLY_FORMATS,
     ExportError,
@@ -61,6 +62,36 @@ def _target_folder(tab_name: str, subfolder: str) -> Path:
     )
 
 
+def _build_defect_mask(frames: pd.DataFrame, hot, sample_size: int):
+    """Vote for the pixels that are hot across a spread of the selection.
+
+    The frames are sampled evenly rather than taken from the front: the first
+    24 files of a folder are usually one sample at six incident angles, and a
+    vote over one sample flags that sample's own Bragg spots as defects.
+    """
+
+    total = len(frames)
+    if total < 2:
+        return None, {}
+    count = max(2, min(int(sample_size), total))
+    positions = np.unique(np.linspace(0, total - 1, count).round().astype(int))
+
+    def _images():
+        for position in positions:
+            row = frames.iloc[int(position)]
+            try:
+                _q, _phi, caked, mask = load_qphi(str(row["qphi"]))
+            except (DataReadError, OSError, ValueError):
+                continue
+            usable = mask if getattr(mask, "shape", None) == getattr(caked, "shape", None) else None
+            yield apply_mask(caked, usable)
+
+    mask, info = find_hot_pixels_stack(_images(), persist_frac=hot.persist_frac, **hot.kwargs)
+    if not info.get("frames"):
+        return None, {}
+    return mask, info
+
+
 def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> None:
     """Re-integrate every filtered frame's q–φ map into a despiked 1D curve.
 
@@ -74,11 +105,10 @@ def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> Non
         st.info("No q–φ maps in this selection, so there is nothing to re-integrate.")
         return
 
-    row = st.columns(4)
+    row = st.columns(3)
     phi_low = row[0].number_input("φ from", -180.0, 180.0, 0.0, 5.0, key=f"{key}_curve_phi_lo")
     phi_high = row[1].number_input("φ to", -180.0, 180.0, 180.0, 5.0, key=f"{key}_curve_phi_hi")
-    despike = row[2].checkbox("Remove hot pixels", value=True, key=f"{key}_curve_despike")
-    limit = row[3].number_input(
+    limit = row[2].number_input(
         "Maximum frames",
         1,
         MAX_BATCH_FRAMES,
@@ -86,6 +116,39 @@ def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> Non
         10,
         key=f"{key}_curve_limit",
     )
+
+    hot = render_hot_pixel_controls(
+        f"{key}_curve_hot",
+        show_persistence=True,
+        label="Remove hot pixels before integrating",
+    )
+    despike = hot.enabled
+    shared_mask = st.checkbox(
+        "Build one defect mask from the whole selection",
+        value=bool(st.session_state.get(f"{key}_curve_shared_mask", False)),
+        key=f"{key}_curve_shared_mask",
+        disabled=not despike,
+        help=(
+            "A first pass over a sample of the frames keeps only the pixels that "
+            "recur, then that one mask is applied to every frame. This is the "
+            "test that separates a detector defect from a sharp reflection, so "
+            "it is the honest way to do a batch — at the cost of reading a "
+            "sample of the frames twice. Sample frames from *different* samples."
+        ),
+    )
+    mask_frames = 0
+    if despike and shared_mask:
+        mask_frames = int(
+            st.number_input(
+                "Frames sampled to build the mask",
+                2,
+                200,
+                int(st.session_state.get(f"{key}_curve_mask_frames", 24)),
+                1,
+                key=f"{key}_curve_mask_frames",
+                help="Spread evenly across the selection, so the sample spans it.",
+            )
+        )
 
     subfolder_key = f"{key}_curve_subfolder"
     st.session_state.setdefault(subfolder_key, "curves_1d")
@@ -109,6 +172,18 @@ def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> Non
         return
 
     overwrite = bool(st.session_state.get(OVERWRITE_KEY, False))
+
+    defect_mask = None
+    if despike and shared_mask:
+        defect_mask, mask_info = _build_defect_mask(with_qphi, hot, mask_frames)
+        if defect_mask is None:
+            st.warning("Could not read enough frames to build a shared mask; using per-frame.")
+        else:
+            st.info(
+                f"Shared mask: {mask_info['n_hot']:,} pixel(s) hot in at least "
+                f"{mask_info['needed']} of {mask_info['frames']} sampled frames."
+            )
+
     progress = st.progress(0.0, text="Starting …")
     written, failed, removed_total = [], [], 0
 
@@ -123,9 +198,14 @@ def _render_curve_batch(frames: pd.DataFrame, tab_name: str, *, key: str) -> Non
         usable = mask if getattr(mask, "shape", None) == getattr(caked, "shape", None) else None
         image = apply_mask(caked, usable)
         if despike:
-            before = int(np.isfinite(image).sum())
-            image = remove_hot_pixels(image)
-            removed_total += before - int(np.isfinite(image).sum())
+            usable_mask = (
+                defect_mask
+                if defect_mask is not None
+                and getattr(defect_mask, "shape", None) == getattr(image, "shape", None)
+                else None
+            )
+            image, removed = hot.clean_and_count(image, usable_mask)
+            removed_total += removed
         try:
             q_out, intensity = azimuthal_average(image, q_axis, phi_axis, (phi_low, phi_high))
             table = pd.DataFrame({"q": q_out, "I": intensity}).dropna()
