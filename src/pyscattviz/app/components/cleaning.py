@@ -28,7 +28,12 @@ import streamlit as st
 
 from pyscattviz.app.components.hotpixels import HotPixelSettings, render_hot_pixel_controls
 from pyscattviz.app.components.maskeditor import draw_mode, render_mask_editor
-from pyscattviz.app.components.scattering import load_qimg, load_qphi, resolve_qimage
+from pyscattviz.app.components.scattering import (
+    apply_mask,
+    load_qimg,
+    load_qphi,
+    resolve_qimage,
+)
 from pyscattviz.dataio import DataReadError
 from pyscattviz.despike import find_hot_pixels_stack
 from pyscattviz.masking import MaskSet, build_mask
@@ -175,36 +180,21 @@ class Cleaning:
 
 
 def _apply(z, mask):
-    """The reduction's own "no data" → NaN, so it drops out of every average.
+    """The reduction's "no data" → NaN, so it drops out of every average.
 
-    Two things mark it, and both have to be honoured:
+    Delegates to :func:`pyscattviz.app.components.scattering.apply_mask`, which
+    already knows the two ways a reduction marks it and — importantly — infers
+    which way round a boolean mask is written, from its overlap with the
+    positive pixels. Some products use True for *valid*; assuming True meant
+    *masked* would blank the data and keep the gaps.
 
-    The **mask array**, where one is supplied and fits. The q-image ships a
-    usable ``qimg_mask``; the q–φ npz ships ``qphi_mask`` on the *detector*
-    grid, which does not fit its own map, so for a caked map there is nothing to
-    use.
-
-    **Exact zeros.** This is the one that matters, and it is the reduction's own
-    convention — `_ensure_qimg` in pySAXSAI defines ``qimg_mask = (qimg == 0)``,
-    and on a real CMS q-image the two agree pixel for pixel. A caked map is 64%
-    zeros where the detector never reached, so averaging them in as real
-    intensity halves the curve: measured against the reduction's own circular
-    average, including them gives 0.43x and excluding them gives 0.995x.
-
-    A bin that genuinely counted zero photons is lost to this too. That is the
-    same trade the reduction already made, and it is the right way round —
-    dropping a handful of true zeros moves an average far less than averaging in
-    tens of thousands of false ones.
+    It also blanks exact zeros, which is the convention that matters most here:
+    a caked map marks the (q, φ) bins the detector never reached with 0, and on
+    a real CMS GIWAXS map that is 64% of it. Averaging those in as intensity
+    put the re-integrated curve at 0.43x the reduction's own.
     """
 
-    array = np.asarray(z, dtype=float)
-    out = array.copy()
-    if mask is not None:
-        flags = np.asarray(mask, dtype=bool)
-        if flags.shape == array.shape:
-            out[flags] = np.nan
-    out[out == 0] = np.nan
-    return out
+    return apply_mask(z, mask)
 
 
 def _in_range(axis, span):

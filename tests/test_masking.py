@@ -492,3 +492,99 @@ def test_a_fully_uncovered_q_column_is_still_a_gap():
 
     assert np.isnan(intensity[3]), "a gap, not a zero"
     assert np.allclose(intensity[np.arange(10) != 3], 100.0)
+
+
+def _curve_with(caked, cleaning, q, phi, phi_range=None):
+    """Run a cleaning over a synthetic map without touching the disk."""
+
+    import pyscattviz.app.components.cleaning as module
+
+    original = module.load_qphi
+    module.load_qphi = lambda _path: (q, phi, caked.copy(), None)
+    try:
+        return cleaning.curve({"qphi": "unused", "has_qphi": True}, phi_range)
+    finally:
+        module.load_qphi = original
+
+
+def test_masking_never_counts_a_masked_pixel_as_zero():
+    """The contract: a masked pixel is *not used*, it does not contribute 0.
+
+    On a uniform map every one of these must come back at exactly the same
+    level. Any answer below it means masked pixels leaked into the mean as
+    zeros, which would look like the sample got dimmer wherever it was cleaned.
+    """
+
+    from pyscattviz.app.components.cleaning import Cleaning
+    from pyscattviz.app.components.hotpixels import HotPixelSettings
+
+    q = np.linspace(0.05, 3.0, 40)
+    phi = np.linspace(-179, 179, 36)
+    level = 100.0
+    flat = np.full((phi.size, q.size), level)
+    spiky = flat.copy()
+    spiky[10, 20] = 90_000.0
+
+    wedge = MaskSet("w", [MaskRegion("wedge", coords=(0.0, 179.0))])
+    cases = {
+        "no cleaning": (flat, Cleaning(hot=HotPixelSettings(enabled=False), mask=MaskSet("e"))),
+        "half the azimuth masked": (
+            flat,
+            Cleaning(hot=HotPixelSettings(enabled=False), mask=wedge),
+        ),
+        "a hot pixel removed": (
+            spiky,
+            Cleaning(hot=HotPixelSettings(enabled=True), mask=MaskSet("e")),
+        ),
+        "both together": (spiky, Cleaning(hot=HotPixelSettings(enabled=True), mask=wedge)),
+    }
+    for name, (caked, cleaning) in cases.items():
+        _q, intensity, _info = _curve_with(caked, cleaning, q, phi)
+        kept = intensity[np.isfinite(intensity)]
+        assert kept.size
+        assert np.allclose(kept, level), f"{name}: got {kept.mean():.3f}, expected {level}"
+
+    # And leaving the spike in really does inflate a bin, so the test above is
+    # measuring something.
+    _q, dirty, _info = _curve_with(
+        spiky, Cleaning(hot=HotPixelSettings(enabled=False), mask=MaskSet("e")), q, phi
+    )
+    assert dirty[np.isfinite(dirty)].mean() > level * 1.2
+
+
+def test_a_masked_bin_reaches_the_csv_as_a_gap_not_a_zero(tmp_path):
+    """NaN has to survive the write, or the exclusion is undone on disk."""
+
+    import pandas as pd
+
+    from pyscattviz.app.components.cleaning import Cleaning
+    from pyscattviz.app.components.hotpixels import HotPixelSettings
+    from pyscattviz.exporting import save_arrays, save_table
+
+    q = np.linspace(0.05, 3.0, 40)
+    phi = np.linspace(-179, 179, 36)
+    caked = np.full((phi.size, q.size), 100.0)
+    cleaning = Cleaning(
+        hot=HotPixelSettings(enabled=False),
+        mask=MaskSet("r", [MaskRegion("ring", coords=(1.0, 1.2))]),
+    )
+    _q, intensity, _info = _curve_with(caked, cleaning, q, phi)
+    inside = (q >= 1.0) & (q <= 1.2)
+    assert inside.any()
+
+    path = save_table(pd.DataFrame({"q": q, "I": intensity}), tmp_path, "curve")
+    back = pd.read_csv(path)
+    assert back.loc[inside, "I"].isna().all(), "the gap must still be a gap"
+    assert not (back["I"] == 0).any(), "a zero here would be a trench in the data"
+
+    import pyscattviz.app.components.cleaning as module
+
+    original = module.load_qphi
+    module.load_qphi = lambda _path: (q, phi, caked.copy(), None)
+    try:
+        _q2, _phi2, cleaned, _info2 = cleaning.clean_qphi({"qphi": "x", "has_qphi": True})
+    finally:
+        module.load_qphi = original
+    array = np.load(save_arrays({"qphi": cleaned}, tmp_path, "map"))["qphi"]
+    assert np.isnan(array[:, inside]).all()
+    assert not (np.nan_to_num(array, nan=-1.0) == 0).any()

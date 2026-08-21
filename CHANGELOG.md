@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.2
+
+- **Confirmed and pinned the masking contract**: a masked pixel is *not used*,
+  it never contributes a zero. Verified on a uniform map through every path —
+  user mask, hot-pixel removal, both together, and the reduction's own no-data
+  zeros — each comes back at exactly the original level rather than a fraction
+  of it, and the gaps reach the CSV as empty cells and the NPZ as NaN.
+- The cleaning path now shares `apply_mask` with the panels rather than keeping
+  its own copy. That matters beyond tidiness: `apply_mask` *infers* which way
+  round a boolean mask is written from its overlap with the positive pixels, and
+  some products use True for *valid*. The private copy assumed True meant
+  masked, which on such a file would have blanked the data and kept the gaps.
+
 ## 0.16.1
 
 - **Fixed the re-integrated I(q) reading low.** A reduced q–φ map marks the
