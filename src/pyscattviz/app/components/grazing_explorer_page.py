@@ -423,6 +423,10 @@ b_axis_mode = dc6.selectbox(
 b_mode = "qr" if b_axis_mode.startswith("qr") else "qx"
 if b_mode == "qr" and not _has_qr:
     dc6.caption("⚠️ No qr key in this npz yet — showing qx–qz.")
+elif _has_qr:
+    # A reduction run with `qimg_x_axis = ['Qx', 'Qr']` puts both remeshes in
+    # one npz. Nothing on screen said so, so the second one went unnoticed.
+    dc6.caption("✅ This npz carries both remeshes — switch them here.")
 
 _PANEL_H = 380
 
@@ -862,7 +866,9 @@ def _render_panel(panel):
             z = _apply_user_mask(z, qx, qz, "qimage")
             z, xx, yy = _downsample(z, qx, qz)
             fig = _heatmap_fig(
-                "B · q-image",
+                f"B · q-image ({'qr–qz' if b_mode == 'qr' else 'qx–qz'})"
+                if _has_qr
+                else "B · q-image",
                 z,
                 xx,
                 yy,

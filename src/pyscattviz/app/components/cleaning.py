@@ -175,16 +175,35 @@ class Cleaning:
 
 
 def _apply(z, mask):
-    """The reduction's own mask → NaN, so it drops out of every average."""
+    """The reduction's own "no data" → NaN, so it drops out of every average.
+
+    Two things mark it, and both have to be honoured:
+
+    The **mask array**, where one is supplied and fits. The q-image ships a
+    usable ``qimg_mask``; the q–φ npz ships ``qphi_mask`` on the *detector*
+    grid, which does not fit its own map, so for a caked map there is nothing to
+    use.
+
+    **Exact zeros.** This is the one that matters, and it is the reduction's own
+    convention — `_ensure_qimg` in pySAXSAI defines ``qimg_mask = (qimg == 0)``,
+    and on a real CMS q-image the two agree pixel for pixel. A caked map is 64%
+    zeros where the detector never reached, so averaging them in as real
+    intensity halves the curve: measured against the reduction's own circular
+    average, including them gives 0.43x and excluding them gives 0.995x.
+
+    A bin that genuinely counted zero photons is lost to this too. That is the
+    same trade the reduction already made, and it is the right way round —
+    dropping a handful of true zeros moves an average far less than averaging in
+    tens of thousands of false ones.
+    """
 
     array = np.asarray(z, dtype=float)
-    if mask is None:
-        return array
-    flags = np.asarray(mask, dtype=bool)
-    if flags.shape != array.shape:
-        return array
     out = array.copy()
-    out[flags] = np.nan
+    if mask is not None:
+        flags = np.asarray(mask, dtype=bool)
+        if flags.shape == array.shape:
+            out[flags] = np.nan
+    out[out == 0] = np.nan
     return out
 
 

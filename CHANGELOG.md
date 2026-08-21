@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.16.1
+
+- **Fixed the re-integrated I(q) reading low.** A reduced q–φ map marks the
+  (q, φ) bins the detector never reached with **0**, not NaN — 64% of a real CMS
+  GIWAXS map — and those zeros were being averaged in as real intensity. The
+  curve came out at **0.43×** the reduction's own circular average. Zeros are now
+  treated as no data, which is the reduction's own convention (pySAXSAI defines
+  `qimg_mask = (qimg == 0)`, and on a q-image the two agree pixel for pixel).
+  The two traces in panel D now sit on each other to **0.3%**.
+- **The qr–qz remesh is easier to find.** A reduction run with
+  `qimg_x_axis = ['Qx', 'Qr']` puts both remeshes in one npz, but nothing said
+  so. Panel B's title now names the remesh on screen — *B · q-image (qx–qz)* —
+  and a note beside the **B x-axis** control says when the file carries both.
+
 ## 0.16.0
 
 - **Batch process in all four explorers.** Set the cleaning up on one frame —

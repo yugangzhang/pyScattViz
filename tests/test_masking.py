@@ -434,3 +434,61 @@ def test_iphi_averages_across_q_and_iq_averages_across_phi():
     assert phi_axis.size == phi.size
     assert np.allclose(iphi[phi >= 0], 200.0) and np.allclose(iphi[phi < 0], 100.0)
     assert upper is not None
+
+
+def test_a_zero_in_a_reduced_product_means_no_data():
+    """A caked map marks uncovered (q, φ) bins with 0, not NaN.
+
+    On a real CMS q–φ map 64% of the bins are zeros where the detector never
+    reached. Averaging them in as real intensity halves the curve — measured
+    against the reduction's own circular average, including them gives 0.43x
+    and excluding them 0.995x. It is also the reduction's own convention:
+    pySAXSAI defines ``qimg_mask = (qimg == 0)``.
+    """
+
+    from pyscattviz.app.components.cleaning import Cleaning
+    from pyscattviz.app.components.hotpixels import HotPixelSettings
+
+    q = np.linspace(0.05, 3.0, 10)
+    phi = np.linspace(-179, 179, 8)
+    caked = np.full((phi.size, q.size), 100.0)
+    caked[:4, :] = 0.0  # half the azimuth never covered
+
+    cleaning = Cleaning(hot=HotPixelSettings(enabled=False), mask=MaskSet("e"))
+    row = {"qphi": "unused", "has_qphi": True}
+
+    import pyscattviz.app.components.cleaning as module
+
+    original = module.load_qphi
+    module.load_qphi = lambda _path: (q, phi, caked.copy(), None)
+    try:
+        _q, intensity, _info = cleaning.curve(row)
+    finally:
+        module.load_qphi = original
+
+    assert np.allclose(intensity, 100.0), "the uncovered half must drop out, not halve the curve"
+
+
+def test_a_fully_uncovered_q_column_is_still_a_gap():
+    from pyscattviz.app.components.cleaning import Cleaning
+    from pyscattviz.app.components.hotpixels import HotPixelSettings
+
+    q = np.linspace(0.05, 3.0, 10)
+    phi = np.linspace(-179, 179, 8)
+    caked = np.full((phi.size, q.size), 100.0)
+    caked[:, 3] = 0.0  # nothing anywhere at this q
+
+    cleaning = Cleaning(hot=HotPixelSettings(enabled=False), mask=MaskSet("e"))
+    row = {"qphi": "unused", "has_qphi": True}
+
+    import pyscattviz.app.components.cleaning as module
+
+    original = module.load_qphi
+    module.load_qphi = lambda _path: (q, phi, caked.copy(), None)
+    try:
+        _q, intensity, _info = cleaning.curve(row)
+    finally:
+        module.load_qphi = original
+
+    assert np.isnan(intensity[3]), "a gap, not a zero"
+    assert np.allclose(intensity[np.arange(10) != 3], 100.0)
