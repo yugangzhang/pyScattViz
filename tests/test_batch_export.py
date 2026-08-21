@@ -109,76 +109,86 @@ def test_frame_panel_figure_honours_the_display_settings(giwaxs):
     assert figure.data[0].colorbar.title.text == "I"
 
 
-def test_batch_export_writes_one_file_per_frame(giwaxs, output_root):
+def _tick(app, key, value=True):
+    app.session_state[key] = value
+    app.run()
+    return app
+
+
+def test_the_batch_writes_the_panels_that_were_ticked(giwaxs, output_root):
     app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.run()
     assert not app.exception
 
-    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel").set_value(
-        "cir_avg"
-    )
+    app.session_state["pyscattviz_giwaxs_bp_iq"] = False
+    app.session_state["pyscattviz_giwaxs_bp_manifest"] = False
+    app.session_state["pyscattviz_giwaxs_bp_panels"] = True
     app.run()
-    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_format").set_value(
-        "html"
-    )
-    app.run()
-    next(item for item in app.button if item.key == "pyscattviz_giwaxs_batch_run").click().run()
-
-    assert not app.exception
-    folder = output_root / "GIWAXS_Explorer" / "batch_cir_avg"
-    written = sorted(path.name for path in folder.glob("*.html"))
-    assert len(written) == 3
-    assert all("th0." in name for name in written)
-    assert any("Wrote 3 file(s)" in item.value for item in app.success)
-
-
-def test_batch_export_reports_frames_without_that_product(giwaxs, output_root):
-    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
-    app.session_state["pyscattviz_active_root"] = str(giwaxs)
-    app.run()
-    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_format").set_value(
-        "html"
-    )
-    app.run()
-    next(item for item in app.button if item.key == "pyscattviz_giwaxs_batch_run").click().run()
-
-    assert not app.exception
-    assert any("were skipped" in item.value for item in app.info)
-
-
-def test_batch_subfolder_follows_the_panel_until_the_user_renames_it(giwaxs, output_root):
-    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
-    app.session_state["pyscattviz_active_root"] = str(giwaxs)
-    app.run()
-
-    box = next(item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder")
-    assert box.value.startswith("batch_")
-    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel").set_value(
-        "cir_avg"
-    )
-    app.run()
-    assert (
-        next(
-            item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder"
-        ).value
-        == "batch_cir_avg"
-    )
-
     next(
-        item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder"
-    ).set_value("angle_series")
-    app.run()
-    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_batch_panel").set_value(
-        "q_image"
+        item for item in app.multiselect if item.key == "pyscattviz_giwaxs_bp_panel_list"
+    ).set_value(["cir_avg"]).run()
+    next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_bp_panel_fmt").set_value(
+        "html"
+    ).run()
+    next(item for item in app.button if item.key == "pyscattviz_giwaxs_bp_run").click().run()
+
+    assert not app.exception
+    folder = output_root / "GIWAXS_Explorer" / "batch"
+    written = sorted(path.name for path in folder.glob("*.html"))
+    assert len(written) == 3, f"one per frame, got {written}"
+    assert all("th0." in name for name in written)
+
+
+def test_the_batch_applies_the_mask_to_every_frame(giwaxs, output_root):
+    """The point of the panel: set the cleaning up once, apply it to the rest."""
+
+    from pyscattviz.masking import MaskRegion, MaskSet
+
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
+    app.session_state["pyscattviz_active_root"] = str(giwaxs)
+    app.session_state["pyscattviz_giwaxs_maskset"] = MaskSet(
+        "sub", [MaskRegion("ring", coords=(0.5, 0.7))]
     )
     app.run()
-    assert (
-        next(
-            item for item in app.text_input if item.key == "pyscattviz_giwaxs_batch_subfolder"
-        ).value
-        == "angle_series"
-    )
+    assert not app.exception
+
+    app.session_state["pyscattviz_giwaxs_bp_iq"] = True
+    app.session_state["pyscattviz_giwaxs_bp_manifest"] = True
+    app.run()
+    next(item for item in app.button if item.key == "pyscattviz_giwaxs_bp_run").click().run()
+    assert not app.exception
+
+    folder = output_root / "GIWAXS_Explorer" / "batch"
+    curves = sorted(folder.glob("*_Iq.csv"))
+    # Only the first frame of this fixture carries a q–φ map, and I(q) is built
+    # from that map — a frame without one is passed over rather than faked.
+    assert len(curves) == 1, f"expected the one frame with a q–φ map, got {curves}"
+
+    # Every curve must carry the gap the mask cut, not a zero.
+    for path in curves:
+        table = pd.read_csv(path)
+        inside = (table["q"] >= 0.5) & (table["q"] <= 0.7)
+        assert inside.any()
+        assert table.loc[inside, "I"].isna().all(), f"{path.name} kept the masked ring"
+        assert table.loc[~inside, "I"].notna().any()
+
+    manifest = pd.read_csv(folder / "batch_manifest.csv")
+    assert len(manifest) == 3, "the manifest records every frame, written or not"
+    assert "masked region" in manifest["cleaning"].iloc[0]
+    assert manifest["mask"].iloc[0] == "sub"
+
+
+def test_nothing_ticked_writes_nothing(giwaxs, output_root):
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
+    app.session_state["pyscattviz_active_root"] = str(giwaxs)
+    app.run()
+    for name in ("iq", "iphi", "panels", "arrays", "manifest"):
+        app.session_state[f"pyscattviz_giwaxs_bp_{name}"] = False
+    app.run()
+
+    assert not app.exception
+    assert not any(item.key == "pyscattviz_giwaxs_bp_run" for item in app.button)
 
 
 def test_the_dataset_basket_offers_folders_in_the_explorer_sidebar(giwaxs):

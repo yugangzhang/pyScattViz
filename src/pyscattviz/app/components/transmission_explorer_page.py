@@ -33,14 +33,14 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from pyscattviz.app.components.batch import render_batch_export
+from pyscattviz.app.components.batchprocess import render_batch_process
+from pyscattviz.app.components.cleaning import render_cleaning_controls
 from pyscattviz.app.components.codeview import render_code_export
 from pyscattviz.app.components.datasource import (
     apply_term_filters,
     render_folder_picker,
     render_term_filters,
 )
-from pyscattviz.app.components.hotpixels import render_hot_pixel_controls
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 
 # Shared scattering engine (aliased to the underscore names used below).
@@ -323,11 +323,14 @@ def _preview_frame():
 
 # Every threshold is on screen: what counts as "hot" depends on the detector and
 # on how oriented the sample is, and that is the user's call, not a constant.
-hot = render_hot_pixel_controls(
-    f"{STATE_PREFIX}_hot",
-    preview_image=_preview_frame(),
-)
+# Hot pixels, the across-frames vote, and the exclusion mask, in one place —
+# the same object the batch below uses, so a batch cannot drift from what the
+# panels are showing.
+cleaning = render_cleaning_controls(STATE_PREFIX, work, preview_image=_preview_frame())
+hot = cleaning.hot
+user_mask = cleaning.mask
 despike = hot.enabled
+_drawing = cleaning.drawing
 
 dc5, _ = st.columns(2)
 aspect_mode = dc5.selectbox(
@@ -641,7 +644,7 @@ def _render_panel(panel: str) -> None:
             return
         qimg, qx, qz, qmask, b_xlab = resolve_qimage(data, "qx")
         z = _apply_mask(qimg, qmask)
-        z = hot.clean(z)
+        z = cleaning.clean(z, qx, qz, "qimage", "qimg")
         z, xx, yy = _downsample(z, qx, qz)
         fig = _heatmap_fig(
             PANEL_TITLES[panel],
@@ -670,7 +673,7 @@ def _render_panel(panel: str) -> None:
             return
         pmask = pmask if getattr(pmask, "shape", None) == getattr(caked, "shape", None) else None
         z = _apply_mask(caked, pmask)
-        z = hot.clean(z)
+        z = cleaning.clean(z, q, phi, "qphi", "qphi")
         fig = _heatmap_fig(
             PANEL_TITLES[panel],
             z,
@@ -787,7 +790,7 @@ if rendered_figures:
         tab_name=f"{PROFILE['name']} Explorer",
         filename=f"{sel['stem']}_panel",
     )
-    render_batch_export(
+    render_batch_process(
         work,
         [
             item
@@ -805,6 +808,8 @@ if rendered_figures:
             logq=logq,
             logiq=logiq,
         ),
+        cleaning=cleaning,
+        defaults={"iq": True, "iphi": True, "manifest": True},
     )
 
 if "qc" in active_products:

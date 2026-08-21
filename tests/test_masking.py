@@ -381,3 +381,56 @@ def test_a_wrongly_shaped_map_skips_the_cut_instead_of_killing_the_page():
     # (nphi, 1) — what an accidental broadcast produces.
     assert band_profile(np.full((phi.size, 1), 5.0), phi, q, 1.0, 0.2) is None
     assert band_profile(np.full(q.size, 5.0), phi, q, 1.0, 0.2) is None
+
+
+def test_the_batch_uses_the_same_cleaning_as_the_panels():
+    """One implementation, so a batch cannot drift from what was on screen."""
+
+    from pyscattviz.app.components.cleaning import Cleaning
+    from pyscattviz.app.components.hotpixels import HotPixelSettings
+
+    q = np.linspace(0.05, 3.0, 60)
+    phi = np.linspace(-179, 179, 72)
+    caked = np.full((phi.size, q.size), 100.0)
+
+    cleaning = Cleaning(
+        hot=HotPixelSettings(enabled=False),
+        mask=MaskSet("s", [MaskRegion("ring", coords=(1.0, 1.2))]),
+    )
+    cleaned = cleaning.clean(caked, q, phi, "qphi")
+    inside = (q >= 1.0) & (q <= 1.2)
+    assert np.isnan(cleaned[:, inside]).all()
+    assert (cleaned[:, ~inside] == 100.0).all()
+
+
+def test_iphi_averages_across_q_and_iq_averages_across_phi():
+    """The two reductions the four techniques between them ask for."""
+
+    from pyscattviz.app.components.cleaning import Cleaning
+    from pyscattviz.app.components.hotpixels import HotPixelSettings
+
+    q = np.linspace(0.05, 3.0, 60)
+    phi = np.linspace(-179, 179, 72)
+    # Intensity that depends only on phi, so the two reductions are tellable.
+    caked = np.broadcast_to(np.where(phi[:, None] >= 0, 200.0, 100.0), (phi.size, q.size))
+
+    cleaning = Cleaning(hot=HotPixelSettings(enabled=False), mask=MaskSet("e"))
+    row = {"qphi": "unused", "has_qphi": True}
+
+    # Patch the loader so this stays a unit test.
+    import pyscattviz.app.components.cleaning as module
+
+    original = module.load_qphi
+    module.load_qphi = lambda _path: (q, phi, np.array(caked), None)
+    try:
+        q_axis, iq, _info = cleaning.curve(row)
+        phi_axis, iphi, _info2 = cleaning.profile(row)
+        upper, _iq_upper, _i = cleaning.curve(row, (0.0, 179.0))
+    finally:
+        module.load_qphi = original
+
+    assert q_axis.size == q.size
+    assert np.allclose(iq, 150.0), "averaging over the whole azimuth mixes both halves"
+    assert phi_axis.size == phi.size
+    assert np.allclose(iphi[phi >= 0], 200.0) and np.allclose(iphi[phi < 0], 100.0)
+    assert upper is not None

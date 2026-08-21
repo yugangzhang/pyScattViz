@@ -37,18 +37,16 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from pyscattviz.app.components.batch import render_batch_export
+from pyscattviz.app.components.batchprocess import render_batch_process
+from pyscattviz.app.components.cleaning import render_cleaning_controls
 from pyscattviz.app.components.codeview import render_code_export
 from pyscattviz.app.components.datasource import (
     apply_term_filters,
     render_folder_picker,
     render_term_filters,
 )
-from pyscattviz.app.components.hotpixels import render_hot_pixel_controls
 from pyscattviz.app.components.maskeditor import (
     add_selection_grid,
-    draw_mode,
-    render_mask_editor,
     render_selection_capture,
 )
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
@@ -98,9 +96,7 @@ from pyscattviz.app.components.scattering import (
 from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
-from pyscattviz.despike import azimuthal_average, find_hot_pixels_stack
 from pyscattviz.filters import FilterSyntaxError
-from pyscattviz.masking import build_mask
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "giwaxs")
 _PROFILES = {
@@ -364,183 +360,24 @@ def _preview_frame():
     return None
 
 
-# Every threshold is on screen: what counts as "hot" depends on the detector and
-# on how oriented the sample is, and that is the user's call, not a constant.
-hot = render_hot_pixel_controls(
-    f"{STATE_PREFIX}_hot",
-    preview_image=_preview_frame(),
-)
+# Hot pixels, the across-frames vote, and the exclusion mask, in one place —
+# the same object the batch below uses, so a batch cannot drift from what the
+# panels are showing.
+cleaning = render_cleaning_controls(STATE_PREFIX, work, preview_image=_preview_frame())
+hot = cleaning.hot
+user_mask = cleaning.mask
 despike = hot.enabled
-
-# A single frame cannot tell a stuck pixel from a sharp reflection, and on this
-# data it mostly gets it wrong: on one CMS MAXS frame the per-frame test flags 36
-# pixels, of which only 4 recur across the beamtime — the brightest six are a
-# contiguous 8x6 Bragg peak rising smoothly from 300 to 38,000 counts. Voting
-# across frames is what separates the two, so offer it here and not only in
-# batch.
-_defect_columns = st.columns([2.2, 1])
-use_defect_mask = _defect_columns[0].checkbox(
-    "Blank only pixels that recur across the selection",
-    value=bool(st.session_state.get(f"{STATE_PREFIX}_use_defect_mask", False)),
-    key=f"{STATE_PREFIX}_use_defect_mask",
-    disabled=not hot.enabled,
-    help=(
-        "One pass over an evenly spread sample of the filtered frames, keeping "
-        "only the pixels that are hot in nearly all of them. A detector defect "
-        "is; a reflection from one sample is not."
-    ),
-)
-_defect_frames = int(
-    _defect_columns[1].number_input(
-        "frames sampled",
-        2,
-        200,
-        int(st.session_state.get(f"{STATE_PREFIX}_defect_frames", 24)),
-        1,
-        key=f"{STATE_PREFIX}_defect_frames",
-        disabled=not (hot.enabled and use_defect_mask),
-    )
-)
-
-
-@st.cache_data(show_spinner="Voting for the persistent hot pixels…")
-def _build_defect_mask(paths, product, count, window, zmax, ratio, absmin, persist):
-    """Pixels hot in ``persist`` of an evenly spread sample of ``paths``.
-
-    Sampled across the selection rather than taken from the front: the first
-    frames of a folder are usually one sample at several angles, and a vote over
-    one sample flags that sample's own peaks.
-    """
-
-    chosen = list(paths)
-    if len(chosen) < 2:
-        return None, {}
-    take = max(2, min(int(count), len(chosen)))
-    picks = np.unique(np.linspace(0, len(chosen) - 1, take).round().astype(int))
-
-    def _frames():
-        for index in picks:
-            path = chosen[int(index)]
-            try:
-                if product == "qphi":
-                    yield load_qphi(path)[2]
-                else:
-                    yield resolve_qimage(load_qimg(path), "qx")[0]
-            except (DataReadError, KeyError, TypeError, ValueError):
-                continue
-
-    return find_hot_pixels_stack(
-        _frames(),
-        window=window,
-        zmax=zmax,
-        ratio_min=ratio,
-        abs_min=absmin,
-        persist_frac=persist,
-    )
+_drawing = cleaning.drawing
 
 
 def _defect_mask_for(product: str):
-    """The persistence mask for one product, or None when it is switched off."""
-
-    if not (hot.enabled and use_defect_mask):
-        return None
-    column = "qphi" if product == "qphi" else "qimg"
-    have = f"has_{'qphi' if product == 'qphi' else 'qimg'}"
-    if have not in work:
-        return None
-    paths = tuple(str(item) for item in work[work[have]][column].tolist() if item)
-    if len(paths) < 2:
-        return None
-    mask, info = _build_defect_mask(
-        paths,
-        product,
-        _defect_frames,
-        hot.window,
-        hot.zmax,
-        hot.ratio_min,
-        hot.abs_min,
-        hot.persist_frac,
-    )
-    if mask is not None and info.get("frames"):
-        st.caption(
-            f"{product}: {info['n_hot']:,} pixel(s) hot in at least "
-            f"{info['needed']} of {info['frames']} sampled frames."
-        )
-    return mask
-
-
-user_mask = render_mask_editor(STATE_PREFIX)
-_drawing = draw_mode(STATE_PREFIX)
+    return cleaning.defect_mask(product)
 
 
 def _apply_user_mask(z, x_axis, y_axis, space: str):
-    """Blank the regions the user chose to exclude. NaN, so averages drop them."""
+    """Kept for the call sites that clean an array they already hold."""
 
-    if z is None:
-        return z
-    flags = build_mask(user_mask, x_axis, y_axis, space)
-    if flags is None or flags.shape != np.asarray(z).shape:
-        return z
-    out = np.asarray(z, dtype=float).copy()
-    out[flags] = np.nan
-    return out
-
-
-def _reintegrated_curve(row, mask=None, phi_range=None):
-    """Average the frame's q–φ map over φ into I(q), honouring every mask.
-
-    The reduction's own circular average was computed before anyone looked at
-    the data: the hot pixels are in it, and so is every region later excluded by
-    hand. Nothing done in the 2D panels can reach a CSV written weeks ago, so
-    the only way to see the effect of a mask on a 1-D curve is to build the
-    curve again here.
-
-    The order is the order that makes each step meaningful — the reduction's own
-    q–φ mask, then the detector defects, then the regions the user excluded —
-    and every one of them writes NaN rather than zero. That matters: the average
-    is a ``nanmean`` down each q column, so a NaN drops out of its bin instead of
-    dragging the bin towards zero, and a q column with nothing left comes back
-    NaN rather than 0. A masked ring is then a gap in the curve, which is
-    honest, instead of a trench, which is not.
-
-    Returns ``(q, I, info)``; ``info`` reports what was excluded so the panel can
-    say so. Integrated over the full azimuth by default, so it is comparable
-    with the circular average on disk rather than with a wedge.
-    """
-
-    empty = {"blanked": 0, "total": 0, "empty_bins": 0, "phi_rows": 0}
-    if not row.get("has_qphi"):
-        return None, None, empty
-    try:
-        q_axis, phi_axis, caked, pmask = load_qphi(row["qphi"])
-    except DataReadError:
-        return None, None, empty
-
-    usable = pmask if getattr(pmask, "shape", None) == getattr(caked, "shape", None) else None
-    image = _apply_mask(caked, usable)
-    before = int(np.isfinite(image).sum())
-
-    usable_defect = (
-        mask if mask is not None and getattr(mask, "shape", None) == image.shape else None
-    )
-    image = hot.clean(image, usable_defect)
-    image = _apply_user_mask(image, q_axis, phi_axis, "qphi")
-
-    try:
-        q_out, intensity = azimuthal_average(image, q_axis, phi_axis, phi_range)
-    except ValueError:
-        return None, None, empty
-
-    rows = np.asarray(phi_axis, dtype=float)
-    if phi_range is not None:
-        rows = rows[(rows >= float(phi_range[0])) & (rows <= float(phi_range[1]))]
-    info = {
-        "blanked": before - int(np.isfinite(image).sum()),
-        "total": before,
-        "empty_bins": int(np.isnan(intensity).sum()),
-        "phi_rows": int(rows.size),
-    }
-    return q_out, intensity, info
+    return cleaning.clean(z, x_axis, y_axis, space, product=None)
 
 
 dc5, dc6 = st.columns(2)
@@ -1127,9 +964,7 @@ def _render_panel(panel):
             # region excluded by hand afterwards. Nothing done in the 2D panels
             # can reach a CSV written weeks ago, so the curve that answers to
             # the masks has to be rebuilt here from the q–φ map.
-            _clean_q, _clean_i, _clean_info = _reintegrated_curve(
-                sel, _defect_mask_for("qphi"), _reintegrate_phi
-            )
+            _clean_q, _clean_i, _clean_info = cleaning.curve(sel, _reintegrate_phi)
             if _clean_q is not None:
                 _applied = []
                 if hot.enabled:
@@ -1165,15 +1000,15 @@ def _render_panel(panel):
             )
             st.plotly_chart(fig, use_container_width=True)
             if _clean_q is not None:
-                _pct = 100 * _clean_info["blanked"] / max(_clean_info["total"], 1)
+                _pct = 100 * _clean_info.get("blanked", 0) / max(_clean_info.get("total", 1), 1)
                 _bits = [
-                    f"re-integrated over {_clean_info['phi_rows']} φ rows",
-                    f"{_clean_info['blanked']:,} of {_clean_info['total']:,} "
+                    f"re-integrated over {_clean_info.get('bins', 0)} φ rows",
+                    f"{_clean_info.get('blanked', 0):,} of {_clean_info.get('total', 0):,} "
                     f"q–φ pixels excluded ({_pct:.2f}%)",
                 ]
-                if _clean_info["empty_bins"]:
+                if _clean_info.get("empty"):
                     _bits.append(
-                        f"{_clean_info['empty_bins']:,} q bin(s) left with nothing — "
+                        f"{_clean_info['empty']:,} q bin(s) left with nothing — "
                         "a gap in the curve, not a zero"
                     )
                 st.caption(" · ".join(_bits))
@@ -1230,12 +1065,11 @@ if rendered_figures:
         tab_name=f"{PROFILE['name']} Explorer",
         filename=f"{sel['stem']}_panel",
     )
-    render_batch_export(
+    render_batch_process(
         work,
         panel_order,
         f"{PROFILE['name']} Explorer",
         key=STATE_PREFIX,
-        user_mask=user_mask,
         panel_options=dict(
             cmap=cmap,
             logI=logI,
@@ -1245,6 +1079,8 @@ if rendered_figures:
             logq=logq,
             logiq=logiq,
         ),
+        cleaning=cleaning,
+        defaults={"iq": True, "manifest": True},
     )
 
 # ===========================================================================

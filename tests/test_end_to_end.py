@@ -138,13 +138,17 @@ def test_the_basket_folder_opens_directly_in_an_explorer(proposal, output_root):
     assert len(frame.options) == 3
     assert all("AgBH" not in option for option in frame.options)
 
-    next(
-        item for item in explorer.selectbox if item.key == "pyscattviz_giwaxs_batch_format"
-    ).set_value("html")
+    explorer.session_state["pyscattviz_giwaxs_bp_iq"] = False
+    explorer.session_state["pyscattviz_giwaxs_bp_manifest"] = False
+    explorer.session_state["pyscattviz_giwaxs_bp_panels"] = True
     explorer.run()
     next(
-        item for item in explorer.button if item.key == "pyscattviz_giwaxs_batch_run"
-    ).click().run()
+        item for item in explorer.multiselect if item.key == "pyscattviz_giwaxs_bp_panel_list"
+    ).set_value(["cir_avg"]).run()
+    next(
+        item for item in explorer.selectbox if item.key == "pyscattviz_giwaxs_bp_panel_fmt"
+    ).set_value("html").run()
+    next(item for item in explorer.button if item.key == "pyscattviz_giwaxs_bp_run").click().run()
 
     assert not explorer.exception
     written = list((output_root / "GIWAXS_Explorer").rglob("*.html"))

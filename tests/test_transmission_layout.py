@@ -154,13 +154,20 @@ def test_the_hot_pixel_thresholds_are_on_screen(transmission):
     assert app.session_state[f"{prefix}_zmax"] == 20.0
 
 
-def test_the_batch_can_export_despiked_1d_curves(transmission):
+def test_the_batch_offers_both_q_phi_reductions(transmission):
+    """Transmission wants I(q) and I(φ): the average over φ and the one over q."""
+
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(transmission)
     app.run()
 
-    modes = next(item for item in app.radio if item.label == "What to export")
-    assert "1D curve from q–φ (CSV)" in modes.options
+    assert not app.exception
+    keys = {item.key for item in app.checkbox if item.key}
+    assert "pyscattviz_tsaxs_bp_iq" in keys
+    assert "pyscattviz_tsaxs_bp_iphi" in keys
+    # And a transmission page opens with both ticked, since both are the point.
+    assert app.session_state["pyscattviz_tsaxs_bp_iq"] is True
+    assert app.session_state["pyscattviz_tsaxs_bp_iphi"] is True
 
 
 def test_the_intensity_limits_follow_the_chosen_q_window():

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.16.0
+
+- **Batch process in all four explorers.** Set the cleaning up on one frame —
+  hot pixels, an exclusion mask — then apply exactly that to every frame that
+  passed the filter and write what you tick: **I(q)** (q–φ averaged over φ),
+  **I(φ)** (averaged over q), **panels**, **cleaned arrays**, and a **manifest**
+  recording what was done to what. Band centres turn either reduction into a
+  series of sector cuts.
+- **One cleaning, used everywhere.** The hot-pixel settings, the across-frames
+  defect vote and the exclusion mask now live in a single `Cleaning` object that
+  the 2D panels, the line cuts, the 1D curve and the batch all share — so a
+  batch cannot quietly stop matching what was on screen when it was set up.
+- **Transmission SAXS and WAXS gained the exclusion mask**, the defect vote and
+  the re-integrated curve, which until now only the grazing pages had.
+- Verified on 756 real CMS frames: a ring masked at q 1.9–2.05 comes out as 19
+  of 19 NaN bins in every written I(q), with the manifest naming the mask.
+
 ## 0.15.0
 
 - **The mask now reaches the 1D curve.** Panel D's re-integrated trace was gated

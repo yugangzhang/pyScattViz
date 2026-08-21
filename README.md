@@ -838,6 +838,40 @@ typing it at a Python prompt, which is the point. It refuses to run at all if th
 server has been bound to an address other people can reach; pyScattViz listens
 on `127.0.0.1` by default.
 
+## Batch: set it up on one frame, run it over the rest
+
+Every explorer has **⚙️ Batch process**. The workflow it exists for: point at a
+folder, filter it to the frames you care about, open one of them, get the
+cleaning right — mask out the hot pixels, draw over the substrate peak — then
+apply exactly that to the other 755 and write what you need.
+
+*Exactly that* is the point. The batch takes the same cleaning object the panels
+are using, so there is no second implementation to drift out of step: if the
+curve on screen has a gap where the mask is, so does every curve in the batch.
+The panel says what it will apply before you run it.
+
+What gets written is tick boxes rather than a mode, because these are not
+alternatives — a run usually wants the curves *and* a picture *and* a record:
+
+| | what it writes |
+|---|---|
+| **I(q)** | the q–φ map averaged down φ. One CSV per frame, or one per φ band if you give band centres — which is a sector average |
+| **I(φ)** | the same map averaged across q — the orientation profile. Whole q range, or one CSV per q band |
+| **Panels** | the figures as they appear on screen, one file per frame per panel, as PNG/SVG/PDF/HTML |
+| **Arrays** | the cleaned 2D products as NPZ, to carry on in your own code |
+| **Manifest** | one CSV describing the run: every frame, what was written, how much was masked away, and which mask was used |
+
+Those two reductions cover what the four geometries ask for: a GIWAXS I(q) with
+the substrate ring masked out, a GISAXS line cut as a φ or q band, a
+transmission SAXS anisotropy as I(φ), a transmission WAXS mask-then-average
+either way. Grazing pages open with **I(q)** ticked, transmission pages with
+**I(q)** and **I(φ)**.
+
+A masked region is a **gap** in the written curve — NaN, not zero — because
+every average is a `nanmean` and an excluded pixel should drop out of its bin
+rather than drag it towards zero. Progress, rate and an ETA are shown while it
+runs.
+
 ## Excluding regions you do not want averaged
 
 Hot-pixel removal answers "is this a detector defect?". A substrate Bragg peak,
