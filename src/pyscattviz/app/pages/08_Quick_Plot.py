@@ -24,6 +24,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from pyscattviz.app.components.codeview import render_code_export
+from pyscattviz.app.components.curvecontrols import (
+    render_curve_styles,
+    render_figure_controls,
+)
 from pyscattviz.app.components.datasource import ensure_remembered_folders
 from pyscattviz.app.components.files import (
     cached_arrays,
@@ -375,20 +379,22 @@ with tab_1d:
                 )
 
                 with st.expander("📐 Publication figure (matplotlib themes)", expanded=False):
-                    theme_row = st.columns(4)
-                    theme = theme_row[0].selectbox(
-                        "Theme",
-                        ["science", "notebook", "present", "poster"],
-                        key="quickplot_1d_theme",
+                    st.caption(
+                        "The same controls as the Publication Plot page — axis "
+                        "limits, per-curve line and marker style, legend "
+                        "placement, fonts, ticks and figure size."
                     )
-                    width = theme_row[1].number_input(
-                        "Width (in)", 3.0, 20.0, 7.0, 0.5, key="quickplot_1d_w"
+                    figure_settings = render_figure_controls(
+                        "quickplot_pub",
+                        show_normalization=False,
+                        default_xlabel=curves[0]["x_name"],
                     )
-                    height = theme_row[2].number_input(
-                        "Height (in)", 3.0, 20.0, 5.0, 0.5, key="quickplot_1d_h"
+                    curve_styles = render_curve_styles(
+                        "quickplot_pub", [curve["plot_label"] for curve in plotted]
                     )
-                    xlabel = theme_row[3].text_input(
-                        "x label", value=curves[0]["x_name"], key="quickplot_1d_xlabel"
+                    figure_settings.setdefault(
+                        "ylabel",
+                        "Normalized intensity" if normalization != "none" else curves[0]["y_name"],
                     )
                     try:
                         static = build_curve_figure(
@@ -396,19 +402,9 @@ with tab_1d:
                                 Curve(curve["plot_label"], curve["plot_x"], curve["plot_y"])
                                 for curve in plotted
                             ],
-                            theme=theme,
                             normalization="none",
-                            logx=log_x,
-                            logy=log_y,
-                            title=title,
-                            xlabel=xlabel,
-                            ylabel=(
-                                "Normalized intensity"
-                                if normalization != "none"
-                                else curves[0]["y_name"]
-                            ),
-                            figsize=(float(width), float(height)),
-                            legend=legend,
+                            styles=curve_styles,
+                            **figure_settings,
                         )
                     except ValueError as exc:
                         st.error(str(exc))

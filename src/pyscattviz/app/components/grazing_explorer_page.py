@@ -45,6 +45,7 @@ from pyscattviz.app.components.datasource import (
     render_folder_picker,
     render_term_filters,
 )
+from pyscattviz.app.components.frames import apply_pending_step, render_frame_stepper
 from pyscattviz.app.components.maskeditor import (
     add_selection_grid,
     render_selection_capture,
@@ -315,6 +316,9 @@ if work.empty:
 active_products = set(selected_products)
 c1, c2 = st.columns([4, 1])
 labels = work["stem"].tolist()
+# Consume a step queued by the arrows under the panels. Must happen before the
+# dropdown is created: Streamlit refuses to change a widget after instantiation.
+apply_pending_step(STATE_PREFIX, labels)
 chosen = (
     c1.selectbox("Frame", options=labels, index=0, key=f"{STATE_PREFIX}_frame")
     if len(labels) > 1
@@ -1030,6 +1034,10 @@ for start in range(0, len(panel_order), 2):
     for col, panel in zip(row, panel_order[start : start + 2]):
         with col:
             _render_panel(panel)
+
+# Arrows under the panels: an angle series is browsed, not picked out of a
+# dropdown one label at a time.
+render_frame_stepper(STATE_PREFIX, labels, int(idx))
 
 if rendered_figures:
     st.divider()

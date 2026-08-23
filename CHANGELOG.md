@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.17.0
+
+- **The QC image panel works on the transmission pages.** It was offered as a
+  product checkbox but had no panel behind it, so ticking it did nothing and the
+  layout looked as though the selection had been ignored. It is now drawn as the
+  PNG it is, rather than false-coloured through the heatmap renderer.
+- **Panel B has limits on the transmission pages.** There were none — colour
+  scaling, qx and qz windows — because transmission never used to carry a
+  q-image. It does now.
+- **Arrows under the panels** step through the filtered frames: ⏮ ◀ ▶ ⏭ with the
+  position between them. An angle series or a flow-cell run is browsed, not
+  picked out of a dropdown one label at a time.
+- **Quick Plot's 1D figure gained every control Publication Plot has** — y
+  limits, per-curve line and marker style, legend placement and size, fonts,
+  ticks, frame width, figure size. Both pages now share one control block, so
+  the two cannot drift apart again.
+
 ## 0.16.2
 
 - **Confirmed and pinned the masking contract**: a masked pixel is *not used*,

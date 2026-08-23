@@ -130,7 +130,7 @@ def render_selection_capture(prefix: str, event, space: str, container=None) -> 
     if columns[1].button(
         "Add to mask",
         key=action_key(st.session_state, f"{prefix}_add_drawn_{space}"),
-        use_container_width=True,
+        width="stretch",
     ):
         mask_set = current_mask(prefix)
         mask_set.regions.append(region)
@@ -234,7 +234,7 @@ def _render_add_form(prefix: str, mask_set: MaskSet) -> None:
         "Add region",
         key=action_key(st.session_state, f"{prefix}_mask_add"),
         disabled=not ready,
-        use_container_width=True,
+        width="stretch",
     ):
         mask_set.regions.append(MaskRegion(kind=kind, space=space, coords=coords))
         _set_mask(prefix, mask_set)
@@ -288,7 +288,7 @@ def _render_files(prefix: str, mask_set: MaskSet) -> None:
     if columns[1].button(
         "Save",
         key=action_key(st.session_state, f"{prefix}_mask_save"),
-        use_container_width=True,
+        width="stretch",
         disabled=not mask_set.regions,
     ):
         written = save_mask(mask_set)
@@ -305,7 +305,7 @@ def _render_files(prefix: str, mask_set: MaskSet) -> None:
         if columns[3].button(
             "Load",
             key=action_key(st.session_state, f"{prefix}_mask_load"),
-            use_container_width=True,
+            width="stretch",
         ):
             loaded = load_mask(chosen)
             if loaded is None:

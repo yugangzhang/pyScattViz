@@ -41,6 +41,7 @@ from pyscattviz.app.components.datasource import (
     render_folder_picker,
     render_term_filters,
 )
+from pyscattviz.app.components.frames import apply_pending_step, render_frame_stepper
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 
 # Shared scattering engine (aliased to the underscore names used below).
@@ -281,6 +282,9 @@ if work.empty:
 active_products = set(selected_products)
 c1, c2 = st.columns([4, 1])
 labels = work["stem"].tolist()
+# Consume a step queued by the arrows under the panels. Must happen before the
+# dropdown is created: Streamlit refuses to change a widget after instantiation.
+apply_pending_step(STATE_PREFIX, labels)
 chosen = (
     c1.selectbox("Frame", options=labels, index=0, key=f"{STATE_PREFIX}_frame")
     if len(labels) > 1
@@ -456,11 +460,15 @@ with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=Fals
         "Colour limits are in **intensity** units (pre-log). "
         "Auto colour uses robust percentiles of each panel."
     )
-    ap, cp, dp = st.columns(3)
+    ap, bp, cp, dp = st.columns(4)
     ap.markdown("**A · raw**")
     a_vmin, a_vmax = _rng(ap, "I", "a_v")
     a_xr = _rng(ap, "x (px)", "a_x")
     a_yr = _rng(ap, "y (px)", "a_y")
+    bp.markdown("**B · q-image**")
+    b_vmin, b_vmax = _rng(bp, "I", "b_v")
+    b_qxr = _rng(bp, "qx", "b_qx")
+    b_qzr = _rng(bp, "qz", "b_qz")
     cp.markdown("**C · q–φ**")
     c_vmin, c_vmax = _rng(cp, "I", "c_v")
     c_qr = _rng(cp, "q", "c_q", *PROFILE["q_range"])
@@ -596,6 +604,7 @@ rendered_arrays: dict[str, dict] = {}
 
 PANEL_TITLES = {
     "stitched": "A · raw",
+    "qc": "QC image",
     "q_image": "B · q-image",
     "qphi": "C · q–φ map",
     "cir_avg": "D · I(q)",
@@ -634,6 +643,20 @@ def _render_panel(panel: str) -> None:
         rendered_figures[PANEL_TITLES[panel]] = fig
         rendered_arrays[PANEL_TITLES[panel]] = {"image": z}
 
+    elif panel == "qc":
+        # The reduction's own diagnostic picture, shown as the PNG it is —
+        # there is nothing here to mask or rescale, and false-colouring a
+        # figure that already has its own colour bars only confuses it.
+        if not sel["has_qc"]:
+            st.info("No QC image for this frame.")
+            return
+        st.markdown(f"**{PANEL_TITLES[panel]}**")
+        try:
+            # st.image decodes the file itself, so a truncated PNG raises out
+            # of Pillow here rather than at load time.
+            st.image(str(sel["qc"]), use_container_width=True)
+        except Exception as exc:  # noqa: BLE001 - Pillow raises several types
+            st.error(f"The QC image could not be read: {exc}")
     elif panel == "q_image":
         from pyscattviz.app.components.scattering import load_qimg, resolve_qimage
 
@@ -653,8 +676,10 @@ def _render_panel(panel: str) -> None:
             yy,
             b_xlab,
             "qz (Å⁻¹)",
-            vmin_I=None,
-            vmax_I=None,
+            vmin_I=b_vmin,
+            vmax_I=b_vmax,
+            x_range=b_qxr,
+            y_range=b_qzr,
             aspect=_aspect_arg(),
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -724,11 +749,12 @@ def _render_panel(panel: str) -> None:
 
 _HAS_PRODUCT = {
     "stitched": bool(sel["has_raw"]),
+    "qc": bool(sel["has_qc"]),
     "q_image": bool(sel["has_qimg"]),
     "qphi": bool(sel["has_qphi"]),
     "cir_avg": bool(sel["has_cir"]),
 }
-_selected = [p for p in ("stitched", "q_image", "qphi", "cir_avg") if p in active_products]
+_selected = [p for p in ("stitched", "qc", "q_image", "qphi", "cir_avg") if p in active_products]
 _shown = [p for p in _selected if _HAS_PRODUCT[p]]
 _absent = [p for p in _selected if not _HAS_PRODUCT[p]]
 
@@ -740,6 +766,10 @@ for _start in range(0, len(_shown), 2):
     for _col, _panel in zip(st.columns(len(_batch)), _batch):
         with _col:
             _render_panel(_panel)
+
+# Arrows under the panels: a flow-cell run is browsed, not picked out of a
+# dropdown one label at a time.
+render_frame_stepper(STATE_PREFIX, labels, int(idx))
 
 if _absent:
     _names = ", ".join(SCATTERING_PRODUCTS[p]["label"] for p in _absent)

@@ -151,7 +151,7 @@ def render_hot_pixel_controls(
             if column.button(
                 name,
                 key=action_key(st.session_state, f"{prefix}_preset_{index}"),
-                use_container_width=True,
+                width="stretch",
             ):
                 _preset_defaults(prefix, name)
                 st.rerun()
