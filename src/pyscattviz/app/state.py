@@ -22,15 +22,30 @@ from __future__ import annotations
 # recomputed or consumed rather than restored.
 _TRANSIENT_PREFIXES = ("pyscattviz_console_result", "pyscattviz_console_handoff")
 
-# A chart created with `on_select` is a widget, and like a button it refuses
-# assignment through session_state — at *widget creation*, so a try/except
-# around the assignment cannot catch it. `action_key` cannot help either: it
-# registers when the chart is drawn, which is long after this function has run
-# at the top of the page. A suffix rule is what makes it order-independent, and
-# it protects the next selection chart somebody adds without their having to
-# know any of this. Its value is a fresh selection each run and holds nothing
-# worth restoring.
-_WIDGET_SUFFIXES = ("_chart",)
+# Some widgets refuse assignment through session_state, and refuse it at *widget
+# creation* — so a try/except around the assignment cannot catch it, and
+# `action_key` cannot help either because it registers when the widget is drawn,
+# long after this function has run at the top of the page. Buttons and uploaders
+# are the well-known ones; a chart with `on_select` and `st.data_editor` behave
+# the same way.
+#
+# A suffix rule is what makes this order-independent. Components register their
+# own suffix at import time, which is always before a page calls
+# `keep_widget_state`, so the registration cannot arrive too late.
+_WIDGET_SUFFIXES = {"_chart"}
+
+
+def register_widget_suffix(suffix: str) -> str:
+    """Exclude every key ending in ``suffix`` from :func:`keep_widget_state`.
+
+    For widgets that reject `st.session_state` assignment. Call it at module
+    import, beside the component that creates the widget, so the rule is next to
+    the reason for it.
+    """
+
+    _WIDGET_SUFFIXES.add(str(suffix))
+    return suffix
+
 
 # Buttons, download buttons, and file uploaders refuse assignment through
 # session_state, and refuse it when the *widget* is created rather than when the
@@ -81,7 +96,7 @@ def keep_widget_state(session_state) -> int:
         name = str(key)
         if (
             name.startswith(_TRANSIENT_PREFIXES)
-            or name.endswith(_WIDGET_SUFFIXES)
+            or name.endswith(tuple(_WIDGET_SUFFIXES))
             or name in actions
             or name == ACTION_KEYS
         ):

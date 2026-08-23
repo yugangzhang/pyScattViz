@@ -17,6 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.state import register_widget_suffix
 from pyscattviz.publication import (
     LEGEND_LOCATIONS,
     LINE_STYLES,
@@ -26,6 +27,11 @@ from pyscattviz.publication import (
 )
 
 __all__ = ["render_curve_styles", "render_figure_controls"]
+
+# `st.data_editor` rejects assignment through session_state, and rejects it when
+# the widget is created — so `keep_widget_state` re-asserting the key kills the
+# page on its second render. Registered here, next to the widget that needs it.
+register_widget_suffix("_curve_styles")
 
 
 def render_figure_controls(

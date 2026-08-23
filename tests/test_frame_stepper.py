@@ -189,3 +189,72 @@ def test_quick_plot_offers_the_full_figure_controls(tmp_path):
     # The ones Quick Plot never had: y limits, fonts, ticks, legend placement.
     for name in ("ylim_lo", "ylim_hi", "font_size", "tick_direction", "legend_loc"):
         assert f"quickplot_pub_{name}" in keys, f"Quick Plot is still missing {name}"
+
+
+def test_the_per_curve_style_editor_survives_a_second_run(tmp_path):
+    """st.data_editor rejects session_state assignment, like a button does.
+
+    `keep_widget_state` re-asserts every key so settings survive a page change,
+    which killed both plotting pages on their second render.
+    """
+
+    folder = tmp_path / "curves"
+    folder.mkdir()
+    q = np.linspace(0.01, 2.0, 40)
+    for index in range(2):
+        pd.DataFrame({"q": q, "I": (index + 1) * np.exp(-q)}).to_csv(
+            folder / f"curve_{index}.csv", index=False
+        )
+
+    editor_state = {"edited_rows": {}, "added_rows": [], "deleted_rows": []}
+    app = AppTest.from_file(str(PAGES_DIR / "08_Quick_Plot.py"), default_timeout=300)
+    app.session_state["quickplot_folder"] = str(folder)
+    app.session_state["quickplot_pub_curve_styles"] = editor_state
+    for _ in range(3):
+        app.run()
+        assert not app.exception, [str(item.value) for item in app.exception]
+
+
+def test_the_publication_page_has_the_same_protection():
+    app = AppTest.from_file(str(PAGES_DIR / "09_Publication_Plot.py"), default_timeout=300)
+    app.session_state["pub_curve_styles"] = {
+        "edited_rows": {},
+        "added_rows": [],
+        "deleted_rows": [],
+    }
+    app.run()
+    assert not app.exception, [str(item.value) for item in app.exception]
+
+
+def test_quick_plot_has_y_limits_and_legend_size(tmp_path):
+    folder = tmp_path / "curves"
+    folder.mkdir()
+    q = np.linspace(0.01, 2.0, 40)
+    pd.DataFrame({"q": q, "I": np.exp(-q)}).to_csv(folder / "curve.csv", index=False)
+
+    app = AppTest.from_file(str(PAGES_DIR / "08_Quick_Plot.py"), default_timeout=300)
+    app.session_state["quickplot_folder"] = str(folder)
+    app.run()
+    assert not app.exception
+
+    keys = {item.key for item in app.number_input if item.key}
+    for name in ("quickplot_1d_ymin", "quickplot_1d_ymax", "quickplot_1d_legend_size"):
+        assert name in keys, f"the interactive 1D plot is missing {name}"
+
+
+def test_a_log_axis_range_is_given_in_log_units():
+    """Typing 0.1–1 on a log axis must not be drawn at 10^0.1 … 10^1."""
+
+    # The page runs Streamlit at import, so read the helper out of the source
+    # instead: it is small and self-contained.
+    source = (PAGES_DIR / "08_Quick_Plot.py").read_text()
+    start = source.index("def _axis_range(")
+    end = source.index("def _labels(")
+    namespace = {"np": np}
+    exec(compile(source[start:end], "<axis>", "exec"), namespace)  # noqa: S102
+    axis_range = namespace["_axis_range"]
+
+    assert axis_range(0.1, 1.0, True) == [-1.0, 0.0]
+    assert axis_range(0.1, 1.0, False) == [0.1, 1.0]
+    assert axis_range(None, 1.0, False) is None
+    assert axis_range(-1.0, 1.0, True) is None, "a log axis cannot start at or below zero"

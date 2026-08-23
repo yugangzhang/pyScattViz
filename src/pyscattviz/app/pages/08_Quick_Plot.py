@@ -162,6 +162,24 @@ tab_1d, tab_stack, tab_2d, tab_list = st.tabs(
 one_d_candidates = curve_files + array_files
 
 
+def _axis_range(low, high, is_log):
+    """An optional [min, max] for a Plotly axis, in the units the axis wants.
+
+    A log axis takes its range in log10 units, so a window typed as 1 to 1000
+    has to be handed over as 0 to 3 or the plot is drawn at 10^1 to 10^1000.
+    Returns None unless both ends are usable, which is what leaves the axis on
+    autoscale.
+    """
+
+    if low is None or high is None:
+        return None
+    if is_log:
+        if low <= 0 or high <= 0:
+            return None
+        return [float(np.log10(low)), float(np.log10(high))]
+    return [float(low), float(high)]
+
+
 def _labels(paths):
     stems = [Path(path).stem for path in paths]
     prefix, suffix = common_prefix_suffix(stems)
@@ -264,10 +282,33 @@ with tab_1d:
             x_max = range_row[1].number_input(
                 "x max (blank = auto)", value=None, format="%.5g", key="quickplot_1d_xmax"
             )
-            markers = range_row[2].checkbox("Markers", value=False, key="quickplot_1d_markers")
-            legend = range_row[3].checkbox("Legend", value=True, key="quickplot_1d_legend")
+            # x limits *select* the points plotted; y limits only frame them.
+            # Keeping them side by side is what people expect, so they are here
+            # rather than hidden with the publication controls.
+            y_min = range_row[2].number_input(
+                "y min (blank = auto)", value=None, format="%.5g", key="quickplot_1d_ymin"
+            )
+            y_max = range_row[3].number_input(
+                "y max (blank = auto)", value=None, format="%.5g", key="quickplot_1d_ymax"
+            )
 
-            title = st.text_input("Figure title", value="", key="quickplot_1d_title")
+            style_row = st.columns(4)
+            markers = style_row[0].checkbox("Markers", value=False, key="quickplot_1d_markers")
+            legend = style_row[1].checkbox("Legend", value=True, key="quickplot_1d_legend")
+            legend_size = style_row[2].number_input(
+                "Legend font size", 4.0, 30.0, 12.0, 0.5, key="quickplot_1d_legend_size"
+            )
+            legend_where = style_row[3].selectbox(
+                "Legend position",
+                ["right", "top-right inside", "top-left inside", "below"],
+                key="quickplot_1d_legend_pos",
+            )
+
+            size_row = st.columns([3, 1])
+            title = size_row[0].text_input("Figure title", value="", key="quickplot_1d_title")
+            plot_height = size_row[1].number_input(
+                "Plot height (px)", 300, 2000, 600, 50, key="quickplot_1d_height"
+            )
 
             curves, failures = _load_curves(
                 chosen,
@@ -329,14 +370,26 @@ with tab_1d:
                         "Normalized intensity" if normalization != "none" else curves[0]["y_name"]
                     ),
                     type="log" if log_y else "linear",
+                    # A Plotly log axis takes its range in log10 units, so a
+                    # window typed as 1–1000 has to be handed over as 0–3.
+                    range=_axis_range(y_min, y_max, log_y),
                 )
+                _LEGEND_PLACEMENT = {
+                    "right": dict(orientation="v", x=1.01, y=1.0),
+                    "top-right inside": dict(orientation="v", x=0.99, y=0.99, xanchor="right"),
+                    "top-left inside": dict(orientation="v", x=0.01, y=0.99),
+                    "below": dict(orientation="h", x=0.0, y=-0.18),
+                }
                 figure.update_layout(
                     title=title,
-                    height=600,
+                    height=int(plot_height),
                     template="plotly_white",
                     hovermode="closest",
                     showlegend=legend,
-                    legend=dict(orientation="v", x=1.01, y=1),
+                    legend=dict(
+                        font=dict(size=float(legend_size)),
+                        **_LEGEND_PLACEMENT[legend_where],
+                    ),
                     margin=dict(l=70, r=20, t=50, b=55),
                 )
                 st.plotly_chart(figure, use_container_width=True, key="quickplot_1d_chart")

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.17.1
+
+- **Fixed `StreamlitValueAssignmentNotAllowedError` on the per-curve style
+  editor.** `st.data_editor` rejects assignment through `st.session_state`, and
+  rejects it at widget creation, so `keep_widget_state` re-asserting the key
+  killed Quick Plot on its second render. Publication Plot had the same latent
+  fault. Components now register their own excluded key suffix at import time,
+  which is always before a page calls `keep_widget_state`, so the rule cannot
+  arrive too late.
+- **y limits, legend size and legend position on the interactive 1D plot**, next
+  to the x limits where they belong — the earlier controls only reached the
+  static publication figure. Plot height is adjustable too. A y range typed on a
+  log axis is converted to log10 units, so 0.1–1 is drawn as 0.1–1 rather than
+  10^0.1–10^1.
+
 ## 0.17.0
 
 - **The QC image panel works on the transmission pages.** It was offered as a
