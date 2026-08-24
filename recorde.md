@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.11.0`
+- Current package version: `0.19.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -127,6 +127,41 @@ folders hold only AgBH calibration frames, which the default filter hides.
     `build/lib`, so a rename otherwise ships both names. For pages that is fatal
     — Streamlit rejects two pages with the same inferred URL. `cli.py` also
     repairs an installation that already has both.
+
+23. Naming a folder opens nothing. Registering or typing a path may scan
+    directory entries and nothing else; the first byte of data is read only
+    after a frame or file is chosen. Every viewing page therefore opens on an
+    empty picker — `index=None` with a placeholder for a selectbox, `default=[]`
+    for a multiselect — and stops there with the catalogue on screen. A
+    single-frame folder is no exception: an auto-pick "because there is only
+    one" is what makes the rule impossible to rely on. `coerce_choice(...,
+    default_index=None)` is the version to use for a file picker;
+    `render_frame_picker`/`render_frame_catalog` in `components/frames.py` are
+    the shared gate for the four explorers. `tests/conftest.py` holds
+    `open_frame`/`choose_file`/`choose_files`, which a page test must call
+    before it can assert on any panel.
+24. A product folder is matched by name **without regard to case**, and each
+    product carries the aliases the beamlines actually use. CMS writes
+    `cir_avg`, `q_image`, `qphi`, `qc`, `stitched`; SMI's stitching pipeline
+    writes `Cir_Avg`, `Stitch_Data`, `Check_Stitch`, `Stitch_Image` and
+    `Raw_Plot` for the same things. Hard-coding `root / "cir_avg"` meant that on
+    a case-sensitive mount an SMI GIWAXS folder showed exactly one product. The
+    aliases live in `SCATTERING_PRODUCTS[...]["folders"]` in
+    `components/scattering.py` and in `PRODUCT_FOLDERS` in `discovery.py`
+    (`is_product_folder` is the case-insensitive test); `product_folders(root)`
+    resolves them in one `scandir`. A product is always shown under the name it
+    has on disk — "q-image" tells nobody they are looking at `Stitch_Data`.
+    A new filename prefix must also be added to `_PRODUCT_PREFIXES`, which
+    `stem_of` strips longest-first so `Stitch_Data_qx_` cannot be mistaken for
+    `Stitch_Data_`.
+25. A rendered figure is displayed, not re-plotted. `Stitch_Image`, `Raw_Plot`,
+    `Check_Stitch` and CMS `qc` hold PNGs the reduction already drew, so they go
+    to `st.image` with the read error caught and reported; only detector and
+    q-space arrays go through the heatmap renderer. `Stitch_Data` is the
+    exception that proves it: a float32 TIFF carrying real data, whose qx/qz
+    axes live in sibling `Stitch_Data_qx_*` / `Stitch_Data_qz_*` CSVs, loaded by
+    `_load_stitched_qimage`. Its row 0 is the lowest qz — verified against the
+    reduction's own `Stitch_Image` — so it is passed to Plotly unflipped.
 
 Commit messages are written in my own voice and carry no assistant
 co-author trailer.
@@ -253,16 +288,19 @@ Tests:
 - `tests/test_axis_ranges.py`: the measured limits, plus a check against the
   real CMS/SMI products when they are present (skipped when they are not).
 - `tests/test_real_layouts.py`: the CMS QC layout tags, the deterministic QC
-  choice, the calibration-only message, and the absence of the Streamlit
-  deprecation warning.
+  choice, the calibration-only message, the absence of the Streamlit
+  deprecation warning, and the SMI stitched layout — its five product folders,
+  its filename prefixes, the axes read from the sibling qx/qz CSVs, and the
+  GIWAXS explorer drawing the panels for such a frame.
 
 ## Last verification
 
-The `0.7.0` implementation passed:
+The `0.19.0` implementation passed:
 
 ```text
-python -m pytest -q           492 passed
+python -m pytest -q           564 passed
 python -m ruff check src tests
+python -m ruff format --check src tests
 git diff --check
 python -m pip wheel . --no-deps
 ```
@@ -270,6 +308,13 @@ python -m pip wheel . --no-deps
 Figures were confirmed written to disk from Quick Plot, the four explorers, and
 Publication Plot, each landing in its own page subfolder, with PNG produced
 through kaleido and HTML produced without it.
+
+The SMI layout was checked against a real stitched GIWAXS beamtime
+(`.../pass-xxxxxx/Results/WAXS`, 1,296 frames): all five product folders are
+discovered, every frame carries a stitched image, a raw plot, a `Stitch_Data`
+q-map and a circular average, the two `Check_Stitch` figures attach to the two
+frames they belong to, and the 3009x2180 float32 map loads with its 2,180-point
+qx and 3,009-point qz axes.
 
 ## Next work
 

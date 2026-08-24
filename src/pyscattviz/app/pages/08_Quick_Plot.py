@@ -223,17 +223,21 @@ with tab_1d:
     if not one_d_candidates:
         st.info("No table or array files in this selection.")
     else:
-        default_count = min(8, len(one_d_candidates))
         coerce_choices(st.session_state, "quickplot_1d_files", one_d_candidates)
+        # Opens empty. Naming a folder must not read anything from it, and the
+        # first few files of a folder are rarely the ones anybody wants anyway.
         chosen = st.multiselect(
             "Curves",
             one_d_candidates,
-            default=one_d_candidates[:default_count],
+            default=[],
             format_func=lambda path: Path(path).name,
             key="quickplot_1d_files",
         )
         if not chosen:
-            st.info("Select at least one file.")
+            st.info(
+                f"{len(one_d_candidates):,} file(s) here. Pick the curves to plot — "
+                "none of them is opened until you do."
+            )
         else:
             try:
                 probe = cached_curve(chosen[0], None, None, file_signature(chosen[0]))
@@ -486,15 +490,20 @@ with tab_stack:
         st.info("No table or array files in this selection.")
     else:
         coerce_choices(st.session_state, "quickplot_stack_files", one_d_candidates)
+        # Also empty on arrival: a stack of thirty curves picked for you is
+        # thirty files read before anyone asked for a plot.
         stack_files = st.multiselect(
             "Curves in the stack",
             one_d_candidates,
-            default=one_d_candidates[: min(30, len(one_d_candidates))],
+            default=[],
             format_func=lambda path: Path(path).name,
             key="quickplot_stack_files",
         )
         if len(stack_files) < 2:
-            st.info("Select at least two curves.")
+            st.info(
+                f"Select at least two of the {len(one_d_candidates):,} file(s) here; "
+                "they are read only once selected."
+            )
         else:
             option_row = st.columns(5)
             representation = option_row[0].selectbox(
@@ -654,28 +663,40 @@ with tab_2d:
     if not two_d_candidates:
         st.info("No image or array files in this selection.")
     else:
-        coerce_choice(st.session_state, "quickplot_2d_file", two_d_candidates)
+        # No file is chosen for you: an npz or a detector TIFF is the most
+        # expensive thing this page can open, and over a mount it is a wait.
+        coerce_choice(st.session_state, "quickplot_2d_file", two_d_candidates, default_index=None)
         chosen_2d = st.selectbox(
             "File",
             two_d_candidates,
+            index=None,
+            placeholder=f"Choose one of {len(two_d_candidates):,} image/array files",
             format_func=lambda path: Path(path).name,
             key="quickplot_2d_file",
         )
         arrays: dict[str, np.ndarray] = {}
-        try:
-            if Path(chosen_2d).suffix.lower() in ARRAY_SUFFIXES:
-                arrays = {
-                    name: np.asarray(value)
-                    for name, value in cached_arrays(chosen_2d, file_signature(chosen_2d)).items()
-                    if np.ndim(value) == 2
-                }
-            else:
-                arrays = {Path(chosen_2d).stem: cached_image(chosen_2d, file_signature(chosen_2d))}
-        except DataReadError as exc:
-            st.error(str(exc))
+        if chosen_2d is None:
+            st.info("Pick a file to open it. Nothing here is read from disk until you do.")
+        else:
+            try:
+                if Path(chosen_2d).suffix.lower() in ARRAY_SUFFIXES:
+                    arrays = {
+                        name: np.asarray(value)
+                        for name, value in cached_arrays(
+                            chosen_2d, file_signature(chosen_2d)
+                        ).items()
+                        if np.ndim(value) == 2
+                    }
+                else:
+                    arrays = {
+                        Path(chosen_2d).stem: cached_image(chosen_2d, file_signature(chosen_2d))
+                    }
+            except DataReadError as exc:
+                st.error(str(exc))
 
         if not arrays:
-            st.warning("This file holds no two-dimensional array.")
+            if chosen_2d is not None:
+                st.warning("This file holds no two-dimensional array.")
         else:
             coerce_choice(st.session_state, "quickplot_2d_array", list(arrays))
             control_row = st.columns(5)

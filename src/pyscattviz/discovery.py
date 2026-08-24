@@ -45,6 +45,7 @@ __all__ = [
     "filter_names",
     "find_files",
     "find_folders",
+    "is_product_folder",
     "ls_dir",
     "matches_terms",
     "parse_terms",
@@ -52,7 +53,32 @@ __all__ = [
 
 # Reduction product folders written by the CMS/SMI auto-reduction. A folder
 # holding any of these is worth offering directly to a scattering explorer.
-PRODUCT_FOLDERS = ("cir_avg", "q_image", "qphi", "qc", "stitched")
+# CMS uses the lower-case names; SMI's stitching pipeline writes the same
+# products under Raw_Plot, Stitch_Data, Stitch_Image, Check_Stitch and Cir_Avg.
+# Matching is case-insensitive, which is why Cir_Avg needs no entry of its own.
+PRODUCT_FOLDERS = (
+    "cir_avg",
+    "q_image",
+    "stitch_data",
+    "qphi",
+    "qc",
+    "check_stitch",
+    "stitched",
+    "stitch_image",
+    "raw_plot",
+)
+
+_PRODUCT_FOLDERS_FOLDED = frozenset(name.casefold() for name in PRODUCT_FOLDERS)
+
+
+def is_product_folder(name: str | Path) -> bool:
+    """True if ``name`` names a reduction product folder, whatever its case.
+
+    Accepts a bare folder name or a whole path; only the last component counts.
+    """
+
+    return Path(name).name.casefold() in _PRODUCT_FOLDERS_FOLDED
+
 
 # File extensions the viewer can actually open, grouped by how they are used.
 DATA_EXTENSIONS = {
@@ -203,7 +229,7 @@ def classify_folder(path: str | Path) -> dict:
                 try:
                     if entry.is_dir():
                         subfolders += 1
-                        if entry.name in PRODUCT_FOLDERS:
+                        if is_product_folder(entry.name):
                             products.append(entry.name)
                     elif entry.name.lower().endswith(every_extension):
                         data_files += 1
@@ -217,10 +243,12 @@ def classify_folder(path: str | Path) -> dict:
             "subfolders": 0,
             "available": False,
         }
-    ordered = tuple(name for name in PRODUCT_FOLDERS if name in products)
+    # Report the names as they are on disk, in the canonical order.
+    order = {name: index for index, name in enumerate(PRODUCT_FOLDERS)}
+    ordered = tuple(sorted(products, key=lambda name: order.get(name.casefold(), len(order))))
     return {
         "products": ordered,
-        "is_product_folder": folder.name in PRODUCT_FOLDERS,
+        "is_product_folder": is_product_folder(folder.name),
         "data_files": data_files,
         "subfolders": subfolders,
         "available": True,
@@ -387,9 +415,7 @@ def find_folders(
     if collapse_product_folders:
         matched = {row["path"] for row in rows}
         rows = [
-            row
-            for row in rows
-            if not (Path(row["path"]).name in PRODUCT_FOLDERS and row["parent"] in matched)
+            row for row in rows if not (is_product_folder(row["path"]) and row["parent"] in matched)
         ]
     rows.sort(key=lambda row: row["path"].casefold())
     return rows, truncated

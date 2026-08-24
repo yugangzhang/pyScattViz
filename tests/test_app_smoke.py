@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from conftest import open_frame
 from streamlit.testing.v1 import AppTest
 
 APP_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app"
@@ -140,6 +141,8 @@ def test_explorers_start_with_their_geometry_defaults(tmp_path):
         app = AppTest.from_file(str(PAGES_DIR / filename), default_timeout=10)
         app.session_state["pyscattviz_active_root"] = str(root)
         app.run()
+        # The page opens on no frame at all, so the limits do not exist yet.
+        open_frame(app)
 
         assert not app.exception
         assert app.title[0].value.endswith(title)
@@ -165,6 +168,7 @@ def test_the_geometry_preset_still_fills_mode_specific_limits(tmp_path):
         app = AppTest.from_file(str(PAGES_DIR / filename), default_timeout=15)
         app.session_state["pyscattviz_active_root"] = str(root)
         app.run()
+        open_frame(app)
 
         next(
             item for item in app.button if item.key == f"pyscattviz_{state}_preset_ranges"
@@ -185,6 +189,7 @@ def test_clearing_the_limits_returns_every_box_to_auto(tmp_path):
     app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=15)
     app.session_state["pyscattviz_active_root"] = str(root)
     app.run()
+    open_frame(app)
     next(item for item in app.button if item.key == "pyscattviz_giwaxs_preset_ranges").click().run()
     assert app.session_state["pyscattviz_giwaxs_d_q_hi"] == 5.0
 

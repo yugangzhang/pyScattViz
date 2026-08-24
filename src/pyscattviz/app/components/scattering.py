@@ -62,30 +62,111 @@ CMAPS = [
 # layout.  The explorer can therefore show a new reduction folder (for
 # example ``qc``) without making every page assume that every other product is
 # present too.
+#
+# ``folders`` lists the directory names one product is written under. The CMS
+# auto-reduction uses the lower-case names on the left; SMI's stitching pipeline
+# writes the same five products under ``Raw_Plot``, ``Stitch_Data``,
+# ``Stitch_Image``, ``Check_Stitch`` and ``Cir_Avg``. Matching is
+# case-insensitive, so ``Cir_Avg`` needs no alias of its own. A folder that is
+# not listed here is not a product and is left alone.
 SCATTERING_PRODUCTS = {
     "stitched": {
         "label": "Raw / stitched image",
+        "folders": ("stitched", "Stitch_Image"),
         "patterns": ("*.tif", "*.tiff", "*.png", "*.jpg", "*.jpeg"),
+    },
+    "raw_plot": {
+        "label": "Raw detector plot",
+        "folders": ("raw_plot",),
+        "patterns": ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff"),
     },
     "qc": {
         "label": "QC image",
+        "folders": ("qc", "Check_Stitch"),
         "patterns": ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff"),
     },
     "q_image": {
         "label": "q-image",
-        "patterns": ("*.npz",),
+        # SMI writes the stitched q-map as a float TIFF with its qx and qz axes
+        # beside it in CSVs; CMS writes one npz holding all three.
+        "folders": ("q_image", "Stitch_Data"),
+        "patterns": ("*.npz", "*.tif", "*.tiff"),
     },
     "qphi": {
         "label": "q–φ map",
+        "folders": ("qphi",),
         "patterns": ("*.npz",),
     },
     "cir_avg": {
         "label": "Circular average I(q)",
+        "folders": ("cir_avg",),
         "patterns": ("*.csv",),
     },
 }
 
 SCATTERING_PANEL_ORDER = tuple(SCATTERING_PRODUCTS)
+
+# Product keys whose panel is a picture rather than a detector array: a figure
+# the reduction rendered itself, with its own axes and colour bar. Those are
+# shown as the image they are — running one through the heatmap renderer
+# false-colours a picture that is already coloured.
+PICTURE_PRODUCTS = ("stitched", "raw_plot", "qc")
+
+# Frame-table column ↔ product key. The column names are short because they are
+# read off a row on every panel; the product keys are the ones the folder
+# chooser and the batch exporter speak.
+FRAME_COLUMN_PRODUCTS = {
+    "raw": "stitched",
+    "raw_plot": "raw_plot",
+    "qc": "qc",
+    "qimg": "q_image",
+    "qphi": "qphi",
+    "cir": "cir_avg",
+}
+
+
+def product_key_for_folder(name) -> str | None:
+    """Return the product key a folder name belongs to, or None.
+
+    Case-insensitive, because ``cir_avg`` and ``Cir_Avg`` are the same product
+    written by two beamlines.
+    """
+
+    folded = str(name).casefold()
+    for key, spec in SCATTERING_PRODUCTS.items():
+        if any(folded == alias.casefold() for alias in spec["folders"]):
+            return key
+    return None
+
+
+def product_folders(root) -> dict:
+    """Map each product present below ``root`` to the folder holding it.
+
+    One directory listing answers for every product, which matters over a
+    mounted proposal. Only names are read.
+    """
+
+    try:
+        with os.scandir(Path(root)) as entries:
+            present = {}
+            for entry in entries:
+                try:
+                    if entry.is_dir():
+                        present.setdefault(entry.name.casefold(), entry.name)
+                except OSError:
+                    continue
+    except OSError:
+        return {}
+
+    found = {}
+    for key, spec in SCATTERING_PRODUCTS.items():
+        for alias in spec["folders"]:
+            name = present.get(alias.casefold())
+            if name is not None:
+                found[key] = Path(root) / name
+                break
+    return found
+
 
 # ---------------------------------------------------------------------------
 # Template registry — maps a data-type folder (saxs/waxs/maxs) to the viz
@@ -237,15 +318,16 @@ def discover_scattering_products(path: str):
     if candidate.is_file():
         candidate = candidate.parent
     candidate = candidate.resolve(strict=False)
-    focused = candidate.name if candidate.name in SCATTERING_PRODUCTS else None
+    focused = product_key_for_folder(candidate.name)
     root = candidate.parent if focused else candidate
 
+    folders = product_folders(root)
     products = []
     for key in SCATTERING_PANEL_ORDER:
         if focused and key != focused:
             continue
-        folder = root / key
-        if not folder.is_dir():
+        folder = folders.get(key)
+        if folder is None:
             continue
         spec = SCATTERING_PRODUCTS[key]
         products.append(
@@ -253,6 +335,9 @@ def discover_scattering_products(path: str):
                 "key": key,
                 "label": spec["label"],
                 "folder": str(folder),
+                # The name on disk, which is what the user recognises: SMI's
+                # ``Stitch_Data`` and CMS's ``q_image`` are the same product.
+                "folder_name": folder.name,
                 "count": _product_file_count(folder, spec["patterns"]),
                 "patterns": spec["patterns"],
             }
@@ -299,9 +384,15 @@ def scattering_product_selector(key: str, path: str):
     selected = []
     columns = st.columns(min(3, len(products)))
     for i, product in enumerate(products):
+        # Name the folder as it is on disk when it is not the canonical one.
+        # "q-image" means nothing to someone looking at a folder called
+        # Stitch_Data.
+        name = product.get("folder_name") or ""
+        shown = f" · `{name}`" if name.casefold() != product["key"].casefold() else ""
+        title = f"{product['label']}{shown} ({product['count']:,})"
         with columns[i % len(columns)]:
             checked = st.checkbox(
-                f"{product['label']} ({product['count']:,})",
+                title,
                 value=product["key"] not in UNCHECKED_BY_DEFAULT,
                 key=f"{key}_{product['key']}",
                 help=product["folder"],
@@ -324,12 +415,33 @@ _QC_LAYOUT_RE = re.compile(r"^(?:\d+panel_)?(?:autoelevate_)?", re.IGNORECASE)
 # ---------------------------------------------------------------------------
 # Filename ↔ frame indexing
 # ---------------------------------------------------------------------------
+# Product filename prefixes, longest first so ``Stitch_Data_qx_`` is recognised
+# before ``Stitch_Data_``. The SMI entries carry the axis and check tags: an
+# axis CSV and its map belong to one frame, not to three.
+_PRODUCT_PREFIXES = (
+    "Check_Stitch_q_iq_",
+    "Check_Stitch_",
+    "Stitch_Data_qx_",
+    "Stitch_Data_qz_",
+    "Stitch_Data_",
+    "Stitch_Image_",
+    "Raw_Plot_",
+    "Cir_Avg_",
+    "qphi_",
+    "qimg_",
+    "qc_",
+)
+
+
 def stem_of(fname: str) -> str:
     """Shared ``<name>`` stem: strip known prefixes / extensions from a name.
 
     Handles the mixed conventions used by the auto-reduction, e.g.
     ``stitched/<name>.tiff``, ``q_image/qimg_<name>.tiff.npz`` and
-    ``cir_avg/Cir_Avg_<name>.tiff.csv`` all reduce to the same ``<name>``.
+    ``cir_avg/Cir_Avg_<name>.tiff.csv`` all reduce to the same ``<name>``. So do
+    SMI's stitched products — ``Stitch_Data_<name>.tif.tiff``,
+    ``Stitch_Data_qx_<name>.tif.csv``, ``Stitch_Image_<name>.tif.png``,
+    ``Raw_Plot_<name>.tif.png`` and ``Check_Stitch_q_iq_<name>.tif.png``.
 
     CMS writes several QC layouts for one frame — ``qc_<name>``,
     ``qc_1panel_<name>`` … ``qc_4panel_autoelevate_<name>``. Those layout tags
@@ -337,11 +449,12 @@ def stem_of(fname: str) -> str:
     otherwise each variant becomes its own frame with no other product attached.
     """
     s = Path(fname).name
-    for pref in ("Cir_Avg_", "qphi_", "qimg_", "qc_"):
-        if s.startswith(pref):
+    for pref in _PRODUCT_PREFIXES:
+        if s.lower().startswith(pref.lower()):
             s = s[len(pref) :]
             if pref == "qc_":
                 s = _QC_LAYOUT_RE.sub("", s, count=1)
+            break
     # Peel trailing extensions repeatedly (e.g. ".tiff.npz" → ".tiff" → "").
     # ``tif`` covers SMI, whose products are named ``<name>.tif.{csv,npz}``.
     while True:
@@ -427,39 +540,31 @@ def index_frames(
     exact_stems = {stem_of(item) for item in parse_filename_list(filename_list) if item}
 
     base = Path(analysis_dir)
+    folders = product_folders(base)
+    # ``raw_subdir`` wins when it points somewhere real — transmission keeps its
+    # raw frames in a sibling folder that is not a product folder at all. When it
+    # does not, the stitched product is wherever the reduction put it.
     raw_dir = (base / raw_subdir).resolve()
-    dirs = {
-        # SMI writes raw frames as ``.tif``, CMS as ``.tiff`` — accept both.
-        "raw": (raw_dir, ("*.tiff", "*.tif")),
-        "qc": (base / "qc", ("*.png", "*.jpg", "*.jpeg", "*.tiff", "*.tif")),
-        "qimg": (base / "q_image", ("*.npz",)),
-        "qphi": (base / "qphi", ("*.npz",)),
-        "cir": (base / "cir_avg", ("*.csv",)),
-    }
-    if product_keys is not None:
-        selected = set(product_keys)
-        dirs = {
-            name: value
-            for name, value in dirs.items()
-            if name == "raw"
-            and "stitched" in selected
-            or name == "qc"
-            and "qc" in selected
-            or name == "qimg"
-            and "q_image" in selected
-            or name == "qphi"
-            and "qphi" in selected
-            or name == "cir"
-            and "cir_avg" in selected
-        }
-    maps = {key: {} for key in ("raw", "qc", "qimg", "qphi", "cir")}
+    if not raw_dir.is_dir():
+        raw_dir = folders.get("stitched", raw_dir)
+
+    dirs = {}
+    for column, product in FRAME_COLUMN_PRODUCTS.items():
+        folder = raw_dir if column == "raw" else folders.get(product)
+        if folder is None:
+            continue
+        if product_keys is not None and product not in set(product_keys):
+            continue
+        dirs[column] = (folder, SCATTERING_PRODUCTS[product]["patterns"])
+
+    maps = {key: {} for key in FRAME_COLUMN_PRODUCTS}
     selected_stems: set[str] = set()
     scanned_entries = 0
     truncated = False
 
     # q-space products are the most useful drivers for a reduced-data review;
     # the remaining passes fill in paths for those same canonical stems.
-    scan_order = ("qimg", "qphi", "cir", "qc", "raw")
+    scan_order = ("qimg", "qphi", "cir", "qc", "raw", "raw_plot")
     for key in scan_order:
         if key not in dirs:
             continue
@@ -496,11 +601,13 @@ def index_frames(
                 stem=s,
                 label=s,
                 raw=maps["raw"].get(s),
+                raw_plot=maps["raw_plot"].get(s),
                 qimg=maps["qimg"].get(s),
                 qc=maps["qc"].get(s),
                 qphi=maps["qphi"].get(s),
                 cir=maps["cir"].get(s),
                 has_raw=s in maps["raw"],
+                has_raw_plot=s in maps["raw_plot"],
                 has_qimg=s in maps["qimg"],
                 has_qc=s in maps["qc"],
                 has_qphi=s in maps["qphi"],
@@ -553,16 +660,72 @@ def load_raw(fpath: str):
         raise _read_error(fpath, exc) from exc
 
 
+def _axis_column(frame: pd.DataFrame, axis: str) -> np.ndarray:
+    """Read one axis out of an SMI axis CSV, which has an index column first."""
+
+    columns = {str(name).strip().lower(): name for name in frame.columns}
+    column = columns.get(axis) or frame.columns[-1]
+    return frame[column].to_numpy(float)
+
+
+def _load_stitched_qimage(fpath: str) -> dict:
+    """Read SMI's stitched q-map: a float TIFF with its axes in sibling CSVs.
+
+    ``Stitch_Data`` holds ``Stitch_Data_<name>.tif.tiff`` — the stitched
+    intensity, ``(nz, nx)``, row 0 at the *lowest* qz, which is the orientation
+    the reduction's own ``Stitch_Image`` PNG is drawn in — beside
+    ``Stitch_Data_qx_<name>.tif.csv`` and ``Stitch_Data_qz_<name>.tif.csv``.
+
+    The axes are optional: without them the map still draws, on pixel indices.
+    """
+
+    from PIL import Image
+
+    path = Path(fpath)
+    try:
+        with Image.open(path) as image:
+            qimg = np.asarray(image).astype(float)
+    except (*_READ_FAILURES, Image.DecompressionBombError) as exc:
+        raise _read_error(fpath, exc) from exc
+
+    data: dict = {"qimg": qimg}
+    stem = stem_of(path.name)
+    wanted = {}
+    for name, candidate in _iter_product_files(path.parent, ("*.csv",)):
+        for axis in ("qx", "qz"):
+            if axis not in wanted and f"_{axis}_" in name.lower() and stem_of(name) == stem:
+                wanted[axis] = candidate
+        if len(wanted) == 2:
+            break
+    for axis, candidate in wanted.items():
+        try:
+            data[axis] = _axis_column(pd.read_csv(candidate), axis)
+        except _READ_FAILURES as exc:
+            raise _read_error(candidate, exc) from exc
+
+    # An axis that does not span its side of the map is worse than none: the
+    # panel would silently mislabel every pixel.
+    for axis, length in (("qx", qimg.shape[-1]), ("qz", qimg.shape[0])):
+        if axis in data and data[axis].size != length:
+            data.pop(axis)
+    return data
+
+
 @st.cache_data(show_spinner=False)
 def load_qimg(fpath: str):
-    """Return every array in the q_image npz as a plain dict.
+    """Return every array of a q-image product as a plain dict.
 
     Known keys: ``qimg (nz, nx)``, ``qx (nx,)``, ``qz (nz,)``,
     ``qimg_mask (nz, nx)``. Optional keys enable the qr–qz view:
 
     * a 2D remesh ``qrimg`` / ``qr_image`` / ``qr_img`` (+ ``qr (nx,)``), or
     * a 1D ``qr (nx,)`` axis reused with ``qimg`` as an alternative x-axis.
+
+    CMS writes all of that into one npz. SMI writes the stitched map as a float
+    TIFF with its axes in CSVs beside it; both arrive here as the same dict.
     """
+    if Path(fpath).suffix.lower() in (".tif", ".tiff"):
+        return _load_stitched_qimage(fpath)
     try:
         with np.load(fpath) as archive:
             return {name: archive[name] for name in archive.files}
@@ -862,6 +1025,7 @@ def heatmap_fig(
 # sheet of a hundred frames.
 BATCH_PANELS = {
     "stitched": "Raw / stitched image",
+    "raw_plot": "Raw detector plot",
     "qc": "QC image",
     "q_image": "q-image",
     "qphi": "q–φ map",
@@ -1078,8 +1242,8 @@ def frame_panel_figure(
         vmax_I=vmax_I,
     )
 
-    if panel in {"stitched", "qc"}:
-        path = _product_path(row, "raw" if panel == "stitched" else "qc")
+    if panel in {"stitched", "raw_plot", "qc"}:
+        path = _product_path(row, {"stitched": "raw", "raw_plot": "raw_plot"}.get(panel, "qc"))
         if path is None:
             return None
         z = _flat_image(path, flip=flip_raw and panel == "stitched")

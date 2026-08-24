@@ -110,10 +110,12 @@ selected = st.multiselect(
     "Curves to plot (maximum 50)",
     options,
     key="pyscattviz_publication_curves",
-    default=options[: min(5, len(options))],
+    # Empty on arrival: naming a folder scans filenames, and the CSVs stay shut
+    # until curves are picked out of the list.
+    default=[],
 )
 if not selected:
-    st.info("Select at least one curve.")
+    st.info("Select at least one curve — no CSV is opened until you do.")
     st.stop()
 if len(selected) > 50:
     st.error("Select no more than 50 curves for one publication figure.")

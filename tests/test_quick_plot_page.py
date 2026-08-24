@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import choose_file, choose_files
 from streamlit.testing.v1 import AppTest
 
 PAGES_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
@@ -55,7 +56,14 @@ def test_quick_plot_expands_a_folder_from_the_dataset_basket(curves):
     assert not app.exception
     assert any("4 table" in item.value for item in app.success)
     assert any("1 array" in item.value for item in app.success)
-    # 1D, stacked map, and 2D panels all render.
+    # The folder was listed, not read: every panel waits to be asked.
+    assert not app.get("plotly_chart")
+
+    # 1D, stacked map, and 2D panels each render once their files are picked.
+    choose_files(app, "quickplot_1d_files", 2)
+    choose_files(app, "quickplot_stack_files", 3)
+    choose_file(app, "quickplot_2d_file")
+    assert not app.exception
     assert len(app.get("plotly_chart")) >= 3
 
 
@@ -84,6 +92,7 @@ def test_a_figure_is_written_into_a_subfolder_named_after_the_tab(curves, output
     app = AppTest.from_file(str(PAGE), default_timeout=300)
     app.session_state["pyscattviz_dataset_paths"] = [str(curves)]
     app.run()
+    choose_files(app, "quickplot_1d_files", 2)
 
     fmt = next(item for item in app.selectbox if item.key == "quickplot_1d_save_format")
     fmt.set_value("html")
@@ -101,6 +110,7 @@ def test_the_plotted_table_can_be_written_next_to_the_figure(curves, output_root
     app = AppTest.from_file(str(PAGE), default_timeout=300)
     app.session_state["pyscattviz_dataset_paths"] = [str(curves)]
     app.run()
+    choose_files(app, "quickplot_1d_files", 2)
 
     next(item for item in app.selectbox if item.key == "quickplot_1d_save_what").set_value(
         "Plotted data (table)"
@@ -117,6 +127,7 @@ def test_a_second_save_never_overwrites_the_first(curves, output_root):
     app = AppTest.from_file(str(PAGE), default_timeout=300)
     app.session_state["pyscattviz_dataset_paths"] = [str(curves)]
     app.run()
+    choose_files(app, "quickplot_1d_files", 2)
     fmt = next(item for item in app.selectbox if item.key == "quickplot_1d_save_format")
     fmt.set_value("html")
     app.run()

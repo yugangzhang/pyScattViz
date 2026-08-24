@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import choose_files, open_frame
 from streamlit.testing.v1 import AppTest
 
 PAGES_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
@@ -107,6 +108,9 @@ def test_register_then_select_then_plot_then_save(proposal, output_root):
     plot.run()
     assert not plot.exception
     assert any("3 table" in item.value for item in plot.success)
+    # Quick Plot opens on no curve; the basket is a list of names until asked.
+    assert not plot.get("plotly_chart")
+    choose_files(plot, "quickplot_1d_files", 3)
     assert plot.get("plotly_chart")
 
     # 5. Write the figure into a folder named after the page.
@@ -137,6 +141,9 @@ def test_the_basket_folder_opens_directly_in_an_explorer(proposal, output_root):
     frame = next(item for item in explorer.selectbox if item.label == "Frame")
     assert len(frame.options) == 3
     assert all("AgBH" not in option for option in frame.options)
+    # Naming the folder listed the frames and opened none of them.
+    assert frame.value is None
+    open_frame(explorer)
 
     explorer.session_state["pyscattviz_giwaxs_bp_iq"] = False
     explorer.session_state["pyscattviz_giwaxs_bp_manifest"] = False

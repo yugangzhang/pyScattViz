@@ -112,18 +112,24 @@ def keep_widget_state(session_state) -> int:
     return kept
 
 
-def coerce_choice(session_state, key: str, options, default_index: int = 0) -> None:
+def coerce_choice(session_state, key: str, options, default_index: int | None = 0) -> None:
     """Keep a remembered single choice valid when its options change.
 
     Now that widget values survive a page change, a selectbox can hold a value
     its options no longer contain — pick "svg", switch the payload to a table,
     and the format is stale. Streamlit will not complain; the next save simply
     goes wrong. Snap it back to a real option instead.
+
+    ``default_index=None`` clears the choice rather than falling back to the
+    first option. That is what a file picker wants: dropping the user in a new
+    folder must not silently pick a file and read it.
     """
 
     choices = list(options)
     if key in session_state and session_state[key] not in choices:
-        session_state[key] = choices[default_index] if choices else None
+        session_state[key] = (
+            choices[default_index] if choices and default_index is not None else None
+        )
 
 
 def coerce_choices(session_state, key: str, options) -> None:

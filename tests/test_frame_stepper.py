@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import choose_files, open_frame
 from streamlit.testing.v1 import AppTest
 
 from pyscattviz.app.components.frames import apply_pending_step
@@ -89,6 +90,9 @@ def test_the_arrows_step_through_the_frames(saxs):
 
     labels = [item for item in app.selectbox if item.key == "pyscattviz_tsaxs_frame"][0].options
     assert len(labels) == 5
+    # The arrows appear beneath the panels, and the panels follow a chosen frame.
+    assert not any(item.label in ("◀", "▶") for item in app.button)
+    open_frame(app)
 
     start = current()
     next(item for item in app.button if item.label == "▶").click().run()
@@ -117,6 +121,7 @@ def test_one_frame_gets_no_arrows(tmp_path):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(root)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     assert not any(item.label in ("◀", "▶") for item in app.button)
@@ -137,6 +142,7 @@ def test_the_qc_panel_exists_on_a_transmission_page(saxs):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(saxs)
     app.run()
+    open_frame(app)
     next(item for item in app.checkbox if item.label.startswith("QC image")).set_value(True).run()
 
     assert not app.exception
@@ -159,6 +165,7 @@ def test_the_q_image_panel_has_its_own_limits(saxs):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(saxs)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     keys = {item.key for item in app.number_input if item.key}
@@ -181,6 +188,8 @@ def test_quick_plot_offers_the_full_figure_controls(tmp_path):
     app.session_state["pyscattviz_active_root"] = str(folder)
     app.session_state["quickplot_folder"] = str(folder)
     app.run()
+    # Quick Plot lists the files and opens none of them until curves are picked.
+    choose_files(app, "quickplot_1d_files", 2)
     assert not app.exception
 
     keys = {item.key for item in app.number_input if item.key}
@@ -235,6 +244,7 @@ def test_quick_plot_has_y_limits_and_legend_size(tmp_path):
     app = AppTest.from_file(str(PAGES_DIR / "08_Quick_Plot.py"), default_timeout=300)
     app.session_state["quickplot_folder"] = str(folder)
     app.run()
+    choose_files(app, "quickplot_1d_files", 1)
     assert not app.exception
 
     keys = {item.key for item in app.number_input if item.key}

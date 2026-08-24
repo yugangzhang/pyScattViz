@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from conftest import choose_files, open_frame
 from streamlit.testing.v1 import AppTest
 
 APP_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app"
@@ -73,6 +74,7 @@ def test_a_publication_figure_is_written_into_its_own_page_folder(giwaxs, output
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.run()
     assert not app.exception
+    choose_files(app, "pyscattviz_publication_curves")
 
     next(item for item in app.button if item.key == "publication_save_save").click().run()
 
@@ -86,6 +88,7 @@ def test_an_explorer_panel_is_written_into_its_own_page_folder(giwaxs, output_ro
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.run()
     assert not app.exception
+    open_frame(app)
 
     fmt = next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_panel_save_format")
     fmt.set_value("html")
@@ -105,6 +108,7 @@ def test_turning_off_the_per_page_subfolder_writes_into_the_root(giwaxs, output_
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.session_state["pyscattviz_output_subfolder_per_tab"] = False
     app.run()
+    choose_files(app, "pyscattviz_publication_curves")
     next(item for item in app.button if item.key == "publication_save_save").click().run()
 
     assert list(output_root.glob("*.png"))
@@ -117,6 +121,7 @@ def test_switching_the_payload_switches_to_a_valid_format(giwaxs, output_root):
     app = AppTest.from_file(str(PAGES_DIR / "08_Quick_Plot.py"), default_timeout=300)
     app.session_state["pyscattviz_dataset_paths"] = [str(giwaxs)]
     app.run()
+    choose_files(app, "quickplot_1d_files")
 
     next(item for item in app.selectbox if item.key == "quickplot_1d_save_format").set_value("svg")
     app.run()
@@ -138,6 +143,7 @@ def test_changing_the_root_in_one_panel_updates_the_sidebar_box(giwaxs, output_r
     app = AppTest.from_file(str(PAGES_DIR / "08_Quick_Plot.py"), default_timeout=300)
     app.session_state["pyscattviz_dataset_paths"] = [str(giwaxs)]
     app.run()
+    choose_files(app, "quickplot_1d_files")
 
     next(item for item in app.text_input if item.key == "quickplot_1d_save_root").set_value(
         str(target)

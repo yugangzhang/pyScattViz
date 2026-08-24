@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.19.0
+
+- **An SMI stitched result folder now shows all five of its products, not one.**
+  `Check_Stitch`, `Cir_Avg`, `Raw_Plot`, `Stitch_Data` and `Stitch_Image` sit
+  next to each other in a GIWAXS folder, but product folders were matched
+  against hard-coded lower-case names, so on a case-sensitive mount only
+  `Cir_Avg` — the one name that happened to be spelled the same — was found.
+  Folder matching is case-insensitive now, and the SMI names are recognised
+  alongside the CMS ones, so each product is discovered, listed under the name
+  it carries on disk, and can be selected and plotted on its own.
+- **`Stitch_Data` is read as the q-map it is.** It is a float32 TIFF with its qx
+  and qz axes in sibling `Stitch_Data_qx_*` / `Stitch_Data_qz_*` CSVs, so the
+  map is drawn on real q axes rather than pixel indices. Row 0 is the lowest qz,
+  matching the reduction's own `Stitch_Image`, so no flip is applied. An axis
+  whose length disagrees with the map is dropped rather than mis-drawn.
+- **The raw detector plot is a product of its own.** `Raw_Plot` gets its own
+  panel, checkbox, catalogue column, batch export entry and code export, instead
+  of being folded into the stitched image.
+- **A rendered figure is shown as a figure.** `Stitch_Image`, `Raw_Plot` and
+  `Check_Stitch` hold PNGs the reduction already drew; they are displayed as
+  images, and an unreadable one is reported rather than raised. Only detector
+  and q-space arrays go through the interactive heatmap.
+
+## 0.18.0
+
+- **Naming a folder now opens nothing, on every viewing page.** The explorers
+  used to pick the first frame for you and read its four products the moment a
+  path was registered; Quick Plot opened eight curves, thirty stacked curves and
+  an image on arrival — and because `st.tabs` renders every tab body, it did all
+  three at once. Publication Plot opened five CSVs, Plotting Studio one npz.
+  Over a mounted proposal that is a wait before anything has been asked for, and
+  it is not what the folder was named for. All of them now open on an empty
+  picker with the catalogue of what was found beside it, and read the first byte
+  only when a frame or file is chosen.
+- **A single-frame folder is no exception.** Auto-picking "because there is only
+  one" is what makes a rule like this impossible to trust, so it does not
+  happen.
+- **The frame arrows appear with the frame.** With nothing open there is nothing
+  to step through, and a queued step left over from another folder is dropped
+  rather than opening a frame nobody asked for.
+
 ## 0.17.1
 
 - **Fixed `StreamlitValueAssignmentNotAllowedError` on the per-curve style

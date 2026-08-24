@@ -41,12 +41,17 @@ from pyscattviz.app.components.datasource import (
     render_folder_picker,
     render_term_filters,
 )
-from pyscattviz.app.components.frames import apply_pending_step, render_frame_stepper
+from pyscattviz.app.components.frames import (
+    render_frame_catalog,
+    render_frame_picker,
+    render_frame_stepper,
+)
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 
 # Shared scattering engine (aliased to the underscore names used below).
 from pyscattviz.app.components.scattering import (
     CMAPS,
+    SCATTERING_PANEL_ORDER,
     SCATTERING_PRODUCTS,
     frame_axis_ranges,
     frame_curve,
@@ -88,6 +93,10 @@ from pyscattviz.app.state import action_key, keep_widget_state
 from pyscattviz.codegen import frame_panel_code
 from pyscattviz.dataio import DataReadError
 from pyscattviz.filters import FilterSyntaxError
+
+# A file the reduction rendered for a human to look at, rather than a detector
+# array to scale and mask.
+_PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
 EXPLORER_MODE = globals().get("EXPLORER_MODE", "tsaxs")
 _PROFILES = {
@@ -240,8 +249,8 @@ with st.sidebar:
         st.warning("The frame cap was reached; narrow the filename filter.")
     st.success(
         f"{len(df)} frames (scanned {df.attrs.get('scanned_entries', 0):,} names) — "
-        f"{int(df['has_raw'].sum())} raw · {int(df['has_qc'].sum())} QC · "
-        f"{int(df['has_qimg'].sum())} q-img · "
+        f"{int(df['has_raw'].sum())} raw · {int(df['has_raw_plot'].sum())} raw plot · "
+        f"{int(df['has_qc'].sum())} QC · {int(df['has_qimg'].sum())} q-img · "
         f"{int(df['has_qphi'].sum())} q–φ · {int(df['has_cir'].sum())} 1D."
     )
 
@@ -282,14 +291,14 @@ if work.empty:
 active_products = set(selected_products)
 c1, c2 = st.columns([4, 1])
 labels = work["stem"].tolist()
-# Consume a step queued by the arrows under the panels. Must happen before the
-# dropdown is created: Streamlit refuses to change a widget after instantiation.
-apply_pending_step(STATE_PREFIX, labels)
-chosen = (
-    c1.selectbox("Frame", options=labels, index=0, key=f"{STATE_PREFIX}_frame")
-    if len(labels) > 1
-    else labels[0]
-)
+# Naming a folder opens nothing. Everything above this point read filenames;
+# everything below it reads a file, so the page stops here until a frame is
+# asked for — a single-frame folder included, so the rule has no exceptions.
+chosen = render_frame_picker(STATE_PREFIX, labels, container=c1)
+if chosen is None:
+    c2.metric("Frames", f"{len(labels):,}")
+    render_frame_catalog(work)
+    st.stop()
 idx = labels.index(chosen)
 sel = work.iloc[int(idx)]
 c2.metric("Frame", f"{int(idx) + 1}/{len(labels)}")
@@ -604,6 +613,7 @@ rendered_arrays: dict[str, dict] = {}
 
 PANEL_TITLES = {
     "stitched": "A · raw",
+    "raw_plot": "A2 · raw detector plot",
     "qc": "QC image",
     "q_image": "B · q-image",
     "qphi": "C · q–φ map",
@@ -614,7 +624,25 @@ PANEL_TITLES = {
 def _render_panel(panel: str) -> None:
     """Draw one product panel. Only called when the frame actually has it."""
 
-    if panel == "stitched":
+    if panel in {"raw_plot", "qc"} or (
+        panel == "stitched" and Path(str(sel["raw"])).suffix.lower() in _PICTURE_SUFFIXES
+    ):
+        # A figure the reduction rendered itself, with its own axes and colour
+        # bar. Show it as the picture it is: there is nothing here to mask or
+        # rescale, and false-colouring it only confuses what it already says.
+        path = sel[{"raw_plot": "raw_plot", "qc": "qc"}.get(panel, "raw")]
+        if not path or (isinstance(path, float) and np.isnan(path)):
+            st.info(f"No {PANEL_TITLES[panel].split('·')[-1].strip()} for this frame.")
+            return
+        st.markdown(f"**{PANEL_TITLES[panel]}**")
+        try:
+            # st.image decodes the file itself, so a truncated PNG raises out
+            # of Pillow here rather than at load time.
+            st.image(str(path), use_container_width=True)
+        except Exception as exc:  # noqa: BLE001 - Pillow raises several types
+            st.error(f"The {PANEL_TITLES[panel]} could not be read: {exc}")
+
+    elif panel == "stitched":
         try:
             raw = load_raw(sel["raw"])
         except DataReadError as exc:
@@ -643,20 +671,6 @@ def _render_panel(panel: str) -> None:
         rendered_figures[PANEL_TITLES[panel]] = fig
         rendered_arrays[PANEL_TITLES[panel]] = {"image": z}
 
-    elif panel == "qc":
-        # The reduction's own diagnostic picture, shown as the PNG it is —
-        # there is nothing here to mask or rescale, and false-colouring a
-        # figure that already has its own colour bars only confuses it.
-        if not sel["has_qc"]:
-            st.info("No QC image for this frame.")
-            return
-        st.markdown(f"**{PANEL_TITLES[panel]}**")
-        try:
-            # st.image decodes the file itself, so a truncated PNG raises out
-            # of Pillow here rather than at load time.
-            st.image(str(sel["qc"]), use_container_width=True)
-        except Exception as exc:  # noqa: BLE001 - Pillow raises several types
-            st.error(f"The QC image could not be read: {exc}")
     elif panel == "q_image":
         from pyscattviz.app.components.scattering import load_qimg, resolve_qimage
 
@@ -749,12 +763,13 @@ def _render_panel(panel: str) -> None:
 
 _HAS_PRODUCT = {
     "stitched": bool(sel["has_raw"]),
+    "raw_plot": bool(sel.get("has_raw_plot")),
     "qc": bool(sel["has_qc"]),
     "q_image": bool(sel["has_qimg"]),
     "qphi": bool(sel["has_qphi"]),
     "cir_avg": bool(sel["has_cir"]),
 }
-_selected = [p for p in ("stitched", "qc", "q_image", "qphi", "cir_avg") if p in active_products]
+_selected = [p for p in SCATTERING_PANEL_ORDER if p in active_products]
 _shown = [p for p in _selected if _HAS_PRODUCT[p]]
 _absent = [p for p in _selected if not _HAS_PRODUCT[p]]
 
@@ -804,6 +819,7 @@ if rendered_figures:
             str(sel["stem"]),
             {
                 "A · raw": "stitched",
+                "A2 · raw detector plot": "raw_plot",
                 "QC image": "qc",
                 "B · q-image": "q_image",
                 "C · q–φ map": "qphi",
@@ -822,11 +838,7 @@ if rendered_figures:
     )
     render_batch_process(
         work,
-        [
-            item
-            for item in ("stitched", "qc", "q_image", "qphi", "cir_avg")
-            if item in active_products
-        ],
+        [item for item in SCATTERING_PANEL_ORDER if item in active_products],
         f"{PROFILE['name']} Explorer",
         key=STATE_PREFIX,
         panel_options=dict(
@@ -927,7 +939,19 @@ if centers:
 # --- Frame table ------------------------------------------------------------
 with st.expander("📋 Frame table", expanded=False):
     st.dataframe(
-        work[["stem", "well", "timestamp", "has_raw", "has_qc", "has_qimg", "has_qphi", "has_cir"]],
+        work[
+            [
+                "stem",
+                "well",
+                "timestamp",
+                "has_raw",
+                "has_raw_plot",
+                "has_qc",
+                "has_qimg",
+                "has_qphi",
+                "has_cir",
+            ]
+        ],
         width="stretch",
         hide_index=True,
     )

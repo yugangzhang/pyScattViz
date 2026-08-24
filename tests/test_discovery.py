@@ -251,3 +251,24 @@ def test_products_only_still_works_without_the_report(proposal):
         describe_products=False,
     )
     assert sorted(row["name"] for row in rows) == ["gisaxs", "giwaxs"]
+
+
+def test_classify_folder_recognises_the_smi_product_names(tmp_path):
+    """SMI capitalises its product folders; a case-sensitive mount cares."""
+
+    waxs = tmp_path / "Results" / "WAXS"
+    for product in ("Check_Stitch", "Cir_Avg", "Raw_Plot", "Stitch_Data", "Stitch_Image"):
+        (waxs / product).mkdir(parents=True)
+    (waxs / "Cir_Avg" / "Cir_Avg_sample.tif.csv").write_text("q_ca,iq_ca\n0.1,2\n")
+
+    summary = classify_folder(waxs)
+    # Reported in the canonical product order, under the names on disk.
+    assert summary["products"] == (
+        "Cir_Avg",
+        "Stitch_Data",
+        "Check_Stitch",
+        "Stitch_Image",
+        "Raw_Plot",
+    )
+    assert summary["is_product_folder"] is False
+    assert classify_folder(waxs / "Stitch_Data")["is_product_folder"] is True

@@ -177,15 +177,29 @@ if not root_input or not effective_path_available:
 
 normalized_root, available, _focused = discover_scattering_products(effective_root)
 if not available:
-    st.error("No cir_avg, q_image, qphi, qc, or stitched product folders were found.")
+    st.error(
+        "No reduction product folders were found here. Expected `cir_avg`, `q_image`, "
+        "`qphi`, `qc` or `stitched` (CMS), or `Cir_Avg`, `Stitch_Data`, `Stitch_Image`, "
+        "`Raw_Plot` or `Check_Stitch` (SMI)."
+    )
     st.stop()
 
 available_keys = [item["key"] for item in available]
+# Name the folder as it is on disk beside the product it holds: "q-image" means
+# nothing to someone looking at a folder called Stitch_Data.
+_folder_names = {
+    item["key"]: item.get("folder_name", "")
+    for item in available
+    if str(item.get("folder_name", "")).casefold() != item["key"].casefold()
+}
 selected_products = st.multiselect(
     "Products to index",
     available_keys,
     default=available_keys,
-    format_func=lambda key: SCATTERING_PRODUCTS[key]["label"],
+    format_func=lambda key: (
+        SCATTERING_PRODUCTS[key]["label"]
+        + (f" ({_folder_names[key]})" if key in _folder_names else "")
+    ),
     key="fs_products",
 )
 
@@ -260,6 +274,7 @@ if frame_table is not None and selected_root == normalized_root:
         "well",
         "timestamp",
         "has_raw",
+        "has_raw_plot",
         "has_qc",
         "has_qimg",
         "has_qphi",
@@ -289,7 +304,7 @@ if frame_table is not None and selected_root == normalized_root:
     if basket_columns[0].button("Add these files to the dataset basket"):
         basket = list(st.session_state.get("pyscattviz_dataset_paths", []))
         added = 0
-        for column in ("cir", "qimg", "qphi", "qc", "raw"):
+        for column in ("cir", "qimg", "qphi", "qc", "raw", "raw_plot"):
             if column not in frame_table:
                 continue
             for value in frame_table[column].dropna().tolist():

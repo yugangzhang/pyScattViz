@@ -984,9 +984,14 @@ save_matplotlib_figure(fig, folder, "sample_A_cir_avg", fmt="png", dpi=300)
 
 ## File selection and lazy loading
 
-The **File Selection** page scans directory entries but does not open images,
-NPZ arrays, or CSV tables. A configurable cap prevents a broad match from
-building an unbounded in-memory table. The viewer opens only the current frame.
+Naming a folder opens nothing. Every page scans directory entries — filenames,
+never contents — and then stops and waits. The four explorers open on no frame,
+Quick Plot and Publication Plot on no file, Plotting Studio on no saved bundle;
+each shows the catalogue of what it found and reads the first byte of data only
+when a frame or file is chosen. A folder holding one frame is no exception, so
+the rule needs no explaining. A configurable cap prevents a broad match from
+building an unbounded in-memory table, and the viewer holds only the frame on
+screen.
 
 Boolean expressions support `AND`, `OR`, `NOT`, parentheses, quoted phrases,
 and wildcards:
@@ -1168,13 +1173,32 @@ overlays, safe scientific labels, and figure serialization. See
 The scattering viewers recognize these direct product folders:
 
 ```text
-gisaxs/ or giwaxs/
+gisaxs/ or giwaxs/          # CMS reduction
 ├── cir_avg/     # Cir_Avg_*.csv
 ├── q_image/     # qimg_*.npz
 ├── qc/          # qc_*.png, .tif, ...
 ├── qphi/        # qphi_*.npz
 └── stitched/    # optional CMS stitched/raw images
 ```
+
+SMI's stitching pipeline writes the same products under its own names, and
+every one of them is discovered, listed, and separately selectable:
+
+```text
+WAXS/ or SAXS/              # SMI stitched reduction
+├── Cir_Avg/       # Cir_Avg_*.tif.csv       → circular average I(q)
+├── Stitch_Data/   # Stitch_Data_*.tif.tiff  → the stitched q-map, with its
+│                  #   qx/qz axes in the sibling Stitch_Data_qx_*/_qz_* CSVs
+├── Stitch_Image/  # Stitch_Image_*.tif.png  → the rendered stitched image
+├── Raw_Plot/      # Raw_Plot_*.tif.png      → the raw detector plot
+└── Check_Stitch/  # Check_Stitch_q_iq_*.png → the stitching QC figure
+```
+
+Folder names are matched without regard to case, so `Cir_Avg` and `cir_avg`
+are the same product on a case-sensitive mount. Products are listed with the
+name they carry on disk, and File Selection lets you index any subset of them.
+A rendered figure (PNG/JPG) is shown as the image it is; only the detector and
+q-space arrays go through the interactive heatmap.
 
 The same reduced-product names are supported for transmission SAXS/WAXS.
 The transmission page also accepts editable raw-image locations used by CMS

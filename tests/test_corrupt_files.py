@@ -8,6 +8,7 @@ the rest of the review continues.
 from pathlib import Path
 
 import pytest
+from conftest import choose_files
 from streamlit.testing.v1 import AppTest
 
 from pyscattviz.app.components.scattering import load_cir, load_qimg, load_qphi, load_raw
@@ -121,6 +122,10 @@ def test_publication_plot_skips_unreadable_curves_and_keeps_the_good_one(broken)
     app = AppTest.from_file(str(PAGES_DIR / "09_Publication_Plot.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(broken)
     app.run()
+    # The page opens on no curve at all, so ask for every one it found.
+    key = "pyscattviz_publication_curves"
+    picker = next(item for item in app.multiselect if item.key == key)
+    choose_files(app, key, len(picker.options))
 
     assert not app.exception
     warned = " ".join(item.value for item in app.warning)

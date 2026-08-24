@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import open_frame
 from streamlit.testing.v1 import AppTest
 
 from pyscattviz.app.components.scattering import (
@@ -222,6 +223,7 @@ def test_the_frame_says_what_it_covers(tmp_path):
     app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(root)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     assert any("This frame covers" in item.value for item in app.caption)

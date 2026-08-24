@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import open_frame
 from streamlit.testing.v1 import AppTest
 
 from pyscattviz.app.components.scattering import (
@@ -105,6 +106,7 @@ def test_only_the_panels_that_exist_are_drawn(transmission):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(transmission)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     # cir_avg, qphi and q_image are present; stitched is not, and no slot is
@@ -127,6 +129,7 @@ def test_the_despike_toggle_is_on_by_default(transmission):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(transmission)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     assert app.session_state["pyscattviz_tsaxs_hot_enabled"] is True
@@ -139,6 +142,7 @@ def test_the_hot_pixel_thresholds_are_on_screen(transmission):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(transmission)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     prefix = "pyscattviz_tsaxs_hot"
@@ -160,6 +164,7 @@ def test_the_batch_offers_both_q_phi_reductions(transmission):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(transmission)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     keys = {item.key for item in app.checkbox if item.key}
@@ -193,6 +198,7 @@ def test_auto_q_and_auto_intensity_are_separate_toggles(transmission):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(transmission)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     assert app.session_state["pyscattviz_tsaxs_auto_q"] is True

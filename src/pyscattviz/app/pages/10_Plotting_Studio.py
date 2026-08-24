@@ -194,16 +194,22 @@ with tab_2d:
                 st.error(str(exc))
     elif source_2d == "Saved q-image selection":
         available_qimg = selected_table[selected_table["qimg"].notna()]
+        # The saved selection is a list of names; the npz behind one of them is
+        # opened only once that name is picked.
         chosen_stem = st.selectbox(
             "Saved frame",
             available_qimg["stem"].tolist(),
+            index=None,
+            placeholder=f"Choose one of {len(available_qimg):,} saved frames",
             key="studio_2d_saved_frame",
         )
-        qimg_path = available_qimg.set_index("stem").loc[chosen_stem, "qimg"]
-        try:
-            bundle = {name: np.asarray(value) for name, value in load_qimg(qimg_path).items()}
-        except DataReadError as exc:
-            st.error(str(exc))
+        bundle = {}
+        if chosen_stem is not None:
+            qimg_path = available_qimg.set_index("stem").loc[chosen_stem, "qimg"]
+            try:
+                bundle = {name: np.asarray(value) for name, value in load_qimg(qimg_path).items()}
+            except DataReadError as exc:
+                st.error(str(exc))
 
     arrays_2d = two_dimensional_arrays(bundle)
     if arrays_2d:
@@ -253,8 +259,10 @@ with tab_2d:
             figure_kind="plotly",
             arrays={array_name: image_2d},
         )
-    else:
+    elif bundle:
         st.warning("No two-dimensional numeric array was found in this source.")
+    else:
+        st.info("Pick a saved frame above; its npz is opened only then.")
 
 with tab_3d:
     st.subheader("3D surfaces, wireframes, and contours")

@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import open_frame
 from PIL import Image
 from streamlit.testing.v1 import AppTest
 
@@ -73,8 +74,8 @@ FIRST = "sampleA_runA_th0.1000deg_2026_08_01_12_00_00"
 def test_frame_panel_figure_builds_every_product(giwaxs):
     row = _frame(giwaxs, FIRST)
     for panel in BATCH_PANELS:
-        if panel == "qc":
-            continue  # this fixture has no QC folder
+        if panel in {"qc", "raw_plot"}:
+            continue  # this CMS fixture has no QC or Raw_Plot folder
         built = frame_panel_figure(row, panel, title=FIRST)
         assert built is not None, panel
         figure, table, arrays = built
@@ -109,6 +110,13 @@ def test_frame_panel_figure_honours_the_display_settings(giwaxs):
     assert figure.data[0].colorbar.title.text == "I"
 
 
+def _open(app):
+    """The explorer opens on no frame; the batch panel follows a chosen one."""
+
+    open_frame(app)
+    return app
+
+
 def _tick(app, key, value=True):
     app.session_state[key] = value
     app.run()
@@ -119,6 +127,7 @@ def test_the_batch_writes_the_panels_that_were_ticked(giwaxs, output_root):
     app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.run()
+    _open(app)
     assert not app.exception
 
     app.session_state["pyscattviz_giwaxs_bp_iq"] = False
@@ -151,6 +160,7 @@ def test_the_batch_applies_the_mask_to_every_frame(giwaxs, output_root):
         "sub", [MaskRegion("ring", coords=(0.5, 0.7))]
     )
     app.run()
+    _open(app)
     assert not app.exception
 
     app.session_state["pyscattviz_giwaxs_bp_iq"] = True
@@ -183,6 +193,7 @@ def test_nothing_ticked_writes_nothing(giwaxs, output_root):
     app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=600)
     app.session_state["pyscattviz_active_root"] = str(giwaxs)
     app.run()
+    _open(app)
     for name in ("iq", "iphi", "panels", "arrays", "manifest"):
         app.session_state[f"pyscattviz_giwaxs_bp_{name}"] = False
     app.run()

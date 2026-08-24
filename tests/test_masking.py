@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import open_frame
 from streamlit.testing.v1 import AppTest
 
 from pyscattviz.app.components.maskeditor import selection_to_region
@@ -243,6 +244,10 @@ def test_a_selection_chart_survives_a_second_run(tmp_path):
     empty = {"selection": {"points": [], "box": [], "lasso": []}}
     app.session_state["pyscattviz_giwaxs_qimg_chart"] = empty
     app.session_state["pyscattviz_giwaxs_qphi_chart"] = empty
+    app.run()
+    # The selection charts exist only once a frame is open, which is the whole
+    # point of the test: without this it would pass without drawing one.
+    open_frame(app)
 
     for _ in range(3):
         app.run()
@@ -283,6 +288,11 @@ def _reintegrated(app):
 
     import streamlit as stmod
     from streamlit.delta_generator import DeltaGenerator
+
+    # The page lists the frames and draws nothing until one is asked for, so
+    # open the first frame before watching for its panels.
+    app.run()
+    open_frame(app)
 
     captured = []
     for obj, is_cls in ((DeltaGenerator, True), (stmod, False)):

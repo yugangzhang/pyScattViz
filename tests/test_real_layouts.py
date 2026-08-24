@@ -9,9 +9,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import open_frame
 from streamlit.testing.v1 import AppTest
 
-from pyscattviz.app.components.scattering import index_frames, stem_of
+from pyscattviz.app.components.scattering import (
+    discover_scattering_products,
+    index_frames,
+    load_qimg,
+    stem_of,
+)
 
 PAGES_DIR = Path(__file__).parents[1] / "src" / "pyscattviz" / "app" / "pages"
 
@@ -97,6 +103,7 @@ def test_the_explorer_shows_every_panel_for_such_a_frame(cms_saxs):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(cms_saxs)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     messages = " ".join(item.value for item in app.info)
@@ -129,6 +136,7 @@ def test_charts_render_without_a_streamlit_deprecation_warning(cms_saxs):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(cms_saxs)
     app.run()
+    open_frame(app)
 
     assert not app.exception
     assert app.get("plotly_chart")
@@ -144,6 +152,7 @@ def test_an_unreadable_qc_image_is_reported_rather_than_raised(cms_saxs):
     app = AppTest.from_file(str(PAGES_DIR / "06_Transmission_SAXS.py"), default_timeout=300)
     app.session_state["pyscattviz_active_root"] = str(cms_saxs)
     app.run()
+    open_frame(app)
 
     # The QC panel starts unchecked, so ask for it explicitly.
     next(item for item in app.checkbox if item.label.startswith("QC image")).set_value(True)
@@ -151,3 +160,99 @@ def test_an_unreadable_qc_image_is_reported_rather_than_raised(cms_saxs):
 
     assert not app.exception
     assert any("could not be read" in item.value for item in app.error)
+
+
+SMI_FRAME = "sampleB_n1_0.1000deg_x-3116.29_y123.41_z8003.52_T19.99c_id934411_000000_WAXS"
+
+
+def test_smi_stitched_prefixes_reduce_to_the_frame_stem():
+    """SMI names its products by folder, one prefix per product folder."""
+
+    assert stem_of(f"Cir_Avg_{SMI_FRAME}.tif.csv") == SMI_FRAME
+    assert stem_of(f"Stitch_Data_{SMI_FRAME}.tif.tiff") == SMI_FRAME
+    assert stem_of(f"Stitch_Image_{SMI_FRAME}.tif.png") == SMI_FRAME
+    assert stem_of(f"Raw_Plot_{SMI_FRAME}.tif.png") == SMI_FRAME
+    assert stem_of(f"Check_Stitch_q_iq_{SMI_FRAME}.tif.png") == SMI_FRAME
+    # The axis files sit beside the map they belong to and share its stem.
+    assert stem_of(f"Stitch_Data_qx_{SMI_FRAME}.tif.csv") == SMI_FRAME
+    assert stem_of(f"Stitch_Data_qz_{SMI_FRAME}.tif.csv") == SMI_FRAME
+
+
+@pytest.fixture
+def smi_giwaxs(tmp_path):
+    """One SMI stitched GIWAXS frame, in the five folders the reduction writes."""
+
+    from PIL import Image
+
+    root = tmp_path / "WAXS"
+    for product in ("Cir_Avg", "Stitch_Data", "Stitch_Image", "Raw_Plot", "Check_Stitch"):
+        (root / product).mkdir(parents=True)
+
+    q = np.linspace(0.03, 3.0, 24)
+    pd.DataFrame({"q_ca": q, "iq_ca": q**-2}).to_csv(
+        root / "Cir_Avg" / f"Cir_Avg_{SMI_FRAME}.tif.csv"
+    )
+
+    qx = np.linspace(-2.23, 2.23, 8)
+    qz = np.linspace(-1.12, 5.05, 6)
+    Image.fromarray(np.arange(48, dtype=np.float32).reshape(6, 8)).save(
+        root / "Stitch_Data" / f"Stitch_Data_{SMI_FRAME}.tif.tiff"
+    )
+    pd.DataFrame({"qx": qx}).to_csv(root / "Stitch_Data" / f"Stitch_Data_qx_{SMI_FRAME}.tif.csv")
+    pd.DataFrame({"qz": qz}).to_csv(root / "Stitch_Data" / f"Stitch_Data_qz_{SMI_FRAME}.tif.csv")
+
+    grey = Image.fromarray(np.zeros((4, 4), dtype=np.uint8))
+    grey.save(root / "Stitch_Image" / f"Stitch_Image_{SMI_FRAME}.tif.png")
+    grey.save(root / "Raw_Plot" / f"Raw_Plot_{SMI_FRAME}.tif.png")
+    grey.save(root / "Check_Stitch" / f"Check_Stitch_q_iq_{SMI_FRAME}.tif.png")
+    return root
+
+
+def test_every_smi_product_folder_is_offered(smi_giwaxs):
+    """All five folders used to hide behind lower-case-only name matching."""
+
+    _root, available, _focused = discover_scattering_products(str(smi_giwaxs))
+    found = {item["key"]: item["folder_name"] for item in available}
+    assert found == {
+        "stitched": "Stitch_Image",
+        "raw_plot": "Raw_Plot",
+        "qc": "Check_Stitch",
+        "q_image": "Stitch_Data",
+        "cir_avg": "Cir_Avg",
+    }
+
+
+def test_the_smi_products_index_as_one_frame(smi_giwaxs):
+    index_frames.clear()
+    table = index_frames(str(smi_giwaxs))
+    assert len(table) == 1
+    row = table.iloc[0]
+    assert row["stem"] == SMI_FRAME
+    assert bool(row["has_raw"]) and bool(row["has_raw_plot"]) and bool(row["has_qc"])
+    assert bool(row["has_qimg"]) and bool(row["has_cir"])
+    # The axis CSVs are not frames, and not the map either.
+    assert Path(row["qimg"]).name == f"Stitch_Data_{SMI_FRAME}.tif.tiff"
+
+
+def test_a_stitched_tiff_map_carries_its_axes_from_the_sibling_csvs(smi_giwaxs):
+    index_frames.clear()
+    load_qimg.clear()
+    table = index_frames(str(smi_giwaxs))
+    payload = load_qimg(str(table.iloc[0]["qimg"]))
+    assert payload["qimg"].shape == (6, 8)
+    assert payload["qx"].shape == (8,) and payload["qz"].shape == (6,)
+    # Row 0 is the lowest qz, exactly as the reduction's own Stitch_Image shows it.
+    assert payload["qz"][0] < payload["qz"][-1]
+    assert payload["qimg"][0, 0] == 0.0
+
+
+def test_the_giwaxs_explorer_draws_the_smi_panels(smi_giwaxs):
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(smi_giwaxs)
+    app.run()
+    open_frame(app)
+
+    assert not app.exception
+    messages = " ".join(item.value for item in app.info)
+    assert "No raw detector plot" not in messages
+    assert "No circular average" not in messages
