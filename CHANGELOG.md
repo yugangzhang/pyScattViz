@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.19.1
+
+- **A CMS `analysis/GISAXS` folder now shows its q-image.** `Qimage` is the same
+  product as `q_image`, but the underscore made it a different name, so the
+  folder opened with its raw plot alone and nothing to plot in q. Product
+  folders are matched ignoring case *and* word separators now, which is the only
+  thing that varies between the reductions — one rule instead of a list of
+  spellings to keep extending.
+- **`Qimage` holds the map the way `Stitch_Data` does**, a float TIFF with its
+  qx and qz axes in sibling `Qimage_qx_*` / `Qimage_qz_*` CSVs, so it is drawn
+  on real q axes. The rendered PNG the reduction leaves in the same folder is
+  not mistaken for the map, nor indexed as a frame of its own. Row 0 is the
+  lowest qz — checked against that rendering — so no flip is applied.
+
 ## 0.19.0
 
 - **An SMI stitched result folder now shows all five of its products, not one.**

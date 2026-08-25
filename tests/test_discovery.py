@@ -6,6 +6,7 @@ from pyscattviz.discovery import (
     filter_names,
     find_files,
     find_folders,
+    is_product_folder,
     ls_dir,
     matches_terms,
     parse_terms,
@@ -272,3 +273,13 @@ def test_classify_folder_recognises_the_smi_product_names(tmp_path):
     )
     assert summary["is_product_folder"] is False
     assert classify_folder(waxs / "Stitch_Data")["is_product_folder"] is True
+
+
+def test_a_product_folder_is_recognised_whatever_its_spelling():
+    """CMS writes q_image in one pipeline and Qimage in another."""
+
+    for name in ("q_image", "Q_Image", "Qimage", "QIMAGE", "cir_avg", "Cir_Avg"):
+        assert is_product_folder(name) is True
+    assert is_product_folder("/mnt/proposal/Results/giwaxs/Stitch_Data") is True
+    assert is_product_folder("qimages") is False
+    assert is_product_folder("analysis") is False

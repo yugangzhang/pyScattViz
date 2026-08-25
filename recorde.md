@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.19.0`
+- Current package version: `0.19.1`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -140,28 +140,34 @@ folders hold only AgBH calibration frames, which the default filter hides.
     the shared gate for the four explorers. `tests/conftest.py` holds
     `open_frame`/`choose_file`/`choose_files`, which a page test must call
     before it can assert on any panel.
-24. A product folder is matched by name **without regard to case**, and each
-    product carries the aliases the beamlines actually use. CMS writes
-    `cir_avg`, `q_image`, `qphi`, `qc`, `stitched`; SMI's stitching pipeline
-    writes `Cir_Avg`, `Stitch_Data`, `Check_Stitch`, `Stitch_Image` and
+24. A product folder is matched by name **ignoring case and word separators**,
+    and each product carries the aliases the beamlines actually use. CMS writes
+    `cir_avg`, `q_image`, `qphi`, `qc`, `stitched` from one pipeline and
+    `Qimage`, `Raw_Plot` from the grazing-incidence one; SMI's stitching
+    pipeline writes `Cir_Avg`, `Stitch_Data`, `Check_Stitch`, `Stitch_Image` and
     `Raw_Plot` for the same things. Hard-coding `root / "cir_avg"` meant that on
-    a case-sensitive mount an SMI GIWAXS folder showed exactly one product. The
-    aliases live in `SCATTERING_PRODUCTS[...]["folders"]` in
+    a case-sensitive mount an SMI GIWAXS folder showed exactly one product, and
+    `Qimage` — one underscore away from `q_image` — showed none. Case and
+    separators are the only thing that ever varies, so `fold_folder_name` in
+    `discovery.py` normalises both away and one rule replaces a growing list of
+    spellings. The aliases live in `SCATTERING_PRODUCTS[...]["folders"]` in
     `components/scattering.py` and in `PRODUCT_FOLDERS` in `discovery.py`
-    (`is_product_folder` is the case-insensitive test); `product_folders(root)`
-    resolves them in one `scandir`. A product is always shown under the name it
-    has on disk — "q-image" tells nobody they are looking at `Stitch_Data`.
-    A new filename prefix must also be added to `_PRODUCT_PREFIXES`, which
-    `stem_of` strips longest-first so `Stitch_Data_qx_` cannot be mistaken for
-    `Stitch_Data_`.
+    (`is_product_folder` is the test); `product_folders(root)` resolves them in
+    one `scandir`. A product is always shown under the name it has on disk —
+    "q-image" tells nobody they are looking at `Stitch_Data`. A new filename
+    prefix must also be added to `_PRODUCT_PREFIXES`, which `stem_of` strips
+    longest-first so `Stitch_Data_qx_` cannot be mistaken for `Stitch_Data_`.
 25. A rendered figure is displayed, not re-plotted. `Stitch_Image`, `Raw_Plot`,
     `Check_Stitch` and CMS `qc` hold PNGs the reduction already drew, so they go
     to `st.image` with the read error caught and reported; only detector and
-    q-space arrays go through the heatmap renderer. `Stitch_Data` is the
-    exception that proves it: a float32 TIFF carrying real data, whose qx/qz
-    axes live in sibling `Stitch_Data_qx_*` / `Stitch_Data_qz_*` CSVs, loaded by
-    `_load_stitched_qimage`. Its row 0 is the lowest qz — verified against the
-    reduction's own `Stitch_Image` — so it is passed to Plotly unflipped.
+    q-space arrays go through the heatmap renderer. `Stitch_Data` and `Qimage`
+    are the exception that proves it: a float32 TIFF carrying real data, whose
+    qx/qz axes live in sibling `*_qx_*` / `*_qz_*` CSVs, loaded by
+    `_load_stitched_qimage` — which finds the axes by stem, so it does not care
+    which of the two folders it is in. Row 0 is the lowest qz in both, verified
+    against each reduction's own rendering, so the map goes to Plotly unflipped.
+    A rendered PNG sitting *inside* `Qimage` is neither the map nor a frame of
+    its own; the `q_image` patterns only take `.npz`/`.tif`/`.tiff`.
 
 Commit messages are written in my own voice and carry no assistant
 co-author trailer.
@@ -291,14 +297,15 @@ Tests:
   choice, the calibration-only message, the absence of the Streamlit
   deprecation warning, and the SMI stitched layout — its five product folders,
   its filename prefixes, the axes read from the sibling qx/qz CSVs, and the
-  GIWAXS explorer drawing the panels for such a frame.
+  GIWAXS explorer drawing the panels for such a frame. The CMS `Qimage` layout
+  is covered the same way, down to the rendered PNG in the map's own folder.
 
 ## Last verification
 
-The `0.19.0` implementation passed:
+The `0.19.1` implementation passed:
 
 ```text
-python -m pytest -q           564 passed
+python -m pytest -q           569 passed
 python -m ruff check src tests
 python -m ruff format --check src tests
 git diff --check
@@ -315,6 +322,13 @@ discovered, every frame carries a stitched image, a raw plot, a `Stitch_Data`
 q-map and a circular average, the two `Check_Stitch` figures attach to the two
 frames they belong to, and the 3009x2180 float32 map loads with its 2,180-point
 qx and 3,009-point qz axes.
+
+The CMS `Qimage` layout was checked against a real grazing-incidence beamtime
+(`.../experiments/1_gi_static/saxs/analysis/GISAXS`, 935 frames): `Qimage` and
+`Raw_Plot` are both found, every frame has a q-map and a raw plot, and the
+1679x1475 float32 map loads with its qx and qz axes. Its orientation was
+confirmed by re-rendering the TIFF with row 0 at the lowest qz and matching the
+asymmetric detector-gap streak against the reduction's own PNG.
 
 ## Next work
 

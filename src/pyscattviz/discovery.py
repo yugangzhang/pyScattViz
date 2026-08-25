@@ -45,6 +45,7 @@ __all__ = [
     "filter_names",
     "find_files",
     "find_folders",
+    "fold_folder_name",
     "is_product_folder",
     "ls_dir",
     "matches_terms",
@@ -53,9 +54,9 @@ __all__ = [
 
 # Reduction product folders written by the CMS/SMI auto-reduction. A folder
 # holding any of these is worth offering directly to a scattering explorer.
-# CMS uses the lower-case names; SMI's stitching pipeline writes the same
-# products under Raw_Plot, Stitch_Data, Stitch_Image, Check_Stitch and Cir_Avg.
-# Matching is case-insensitive, which is why Cir_Avg needs no entry of its own.
+# The same product is spelled differently by each reduction: CMS writes q_image
+# or Qimage, SMI writes Stitch_Data. Matching ignores case and word separators,
+# so Cir_Avg and cir_avg — or Qimage and q_image — need only one entry.
 PRODUCT_FOLDERS = (
     "cir_avg",
     "q_image",
@@ -68,16 +69,30 @@ PRODUCT_FOLDERS = (
     "raw_plot",
 )
 
-_PRODUCT_FOLDERS_FOLDED = frozenset(name.casefold() for name in PRODUCT_FOLDERS)
+_SEPARATORS = str.maketrans("", "", "_- ")
+
+
+def fold_folder_name(name: str | Path) -> str:
+    """Normalise a product folder name for comparison.
+
+    Case and word separators are the only thing that varies between the same
+    product written by two reductions — ``cir_avg`` / ``Cir_Avg``, ``q_image`` /
+    ``Qimage`` — so neither is allowed to decide whether a folder is found.
+    """
+
+    return str(name).translate(_SEPARATORS).casefold()
+
+
+_PRODUCT_FOLDERS_FOLDED = frozenset(fold_folder_name(name) for name in PRODUCT_FOLDERS)
 
 
 def is_product_folder(name: str | Path) -> bool:
-    """True if ``name`` names a reduction product folder, whatever its case.
+    """True if ``name`` names a reduction product folder, whatever its spelling.
 
     Accepts a bare folder name or a whole path; only the last component counts.
     """
 
-    return Path(name).name.casefold() in _PRODUCT_FOLDERS_FOLDED
+    return fold_folder_name(Path(name).name) in _PRODUCT_FOLDERS_FOLDED
 
 
 # File extensions the viewer can actually open, grouped by how they are used.

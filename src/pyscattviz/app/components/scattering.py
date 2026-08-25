@@ -31,6 +31,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from pyscattviz.dataio import DataReadError
+from pyscattviz.discovery import fold_folder_name
 from pyscattviz.filters import compile_filter, parse_filename_list
 
 # Max pixels to keep for a heatmap; larger images are stride-decimated.
@@ -88,8 +89,9 @@ SCATTERING_PRODUCTS = {
     "q_image": {
         "label": "q-image",
         # SMI writes the stitched q-map as a float TIFF with its qx and qz axes
-        # beside it in CSVs; CMS writes one npz holding all three.
-        "folders": ("q_image", "Stitch_Data"),
+        # beside it in CSVs, and so does the CMS `Qimage` folder; the older CMS
+        # `q_image` folder writes one npz holding all three.
+        "folders": ("q_image", "Qimage", "Stitch_Data"),
         "patterns": ("*.npz", "*.tif", "*.tiff"),
     },
     "qphi": {
@@ -126,15 +128,11 @@ FRAME_COLUMN_PRODUCTS = {
 
 
 def product_key_for_folder(name) -> str | None:
-    """Return the product key a folder name belongs to, or None.
+    """Return the product key a folder name belongs to, or None."""
 
-    Case-insensitive, because ``cir_avg`` and ``Cir_Avg`` are the same product
-    written by two beamlines.
-    """
-
-    folded = str(name).casefold()
+    folded = fold_folder_name(name)
     for key, spec in SCATTERING_PRODUCTS.items():
-        if any(folded == alias.casefold() for alias in spec["folders"]):
+        if any(folded == fold_folder_name(alias) for alias in spec["folders"]):
             return key
     return None
 
@@ -152,7 +150,7 @@ def product_folders(root) -> dict:
             for entry in entries:
                 try:
                     if entry.is_dir():
-                        present.setdefault(entry.name.casefold(), entry.name)
+                        present.setdefault(fold_folder_name(entry.name), entry.name)
                 except OSError:
                     continue
     except OSError:
@@ -161,7 +159,7 @@ def product_folders(root) -> dict:
     found = {}
     for key, spec in SCATTERING_PRODUCTS.items():
         for alias in spec["folders"]:
-            name = present.get(alias.casefold())
+            name = present.get(fold_folder_name(alias))
             if name is not None:
                 found[key] = Path(root) / name
                 break
@@ -416,8 +414,8 @@ _QC_LAYOUT_RE = re.compile(r"^(?:\d+panel_)?(?:autoelevate_)?", re.IGNORECASE)
 # Filename ↔ frame indexing
 # ---------------------------------------------------------------------------
 # Product filename prefixes, longest first so ``Stitch_Data_qx_`` is recognised
-# before ``Stitch_Data_``. The SMI entries carry the axis and check tags: an
-# axis CSV and its map belong to one frame, not to three.
+# before ``Stitch_Data_``. The axis and check tags are part of the prefix: an
+# axis CSV and the map it belongs to are one frame, not three.
 _PRODUCT_PREFIXES = (
     "Check_Stitch_q_iq_",
     "Check_Stitch_",
@@ -425,6 +423,9 @@ _PRODUCT_PREFIXES = (
     "Stitch_Data_qz_",
     "Stitch_Data_",
     "Stitch_Image_",
+    "Qimage_qx_",
+    "Qimage_qz_",
+    "Qimage_",
     "Raw_Plot_",
     "Cir_Avg_",
     "qphi_",

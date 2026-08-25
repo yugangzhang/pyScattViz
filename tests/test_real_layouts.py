@@ -256,3 +256,82 @@ def test_the_giwaxs_explorer_draws_the_smi_panels(smi_giwaxs):
     messages = " ".join(item.value for item in app.info)
     assert "No raw detector plot" not in messages
     assert "No circular average" not in messages
+
+
+CMS_GI_FRAME = "sampleC_SEM_b_x0.000_th0.080_15.00s_2304516_000000_saxs"
+
+
+def test_the_cms_qimage_prefixes_reduce_to_the_frame_stem():
+    """The `Qimage` folder writes the map and its axes under one prefix."""
+
+    assert stem_of(f"Qimage_{CMS_GI_FRAME}.tiff.tiff") == CMS_GI_FRAME
+    assert stem_of(f"Qimage_{CMS_GI_FRAME}.tiff.png") == CMS_GI_FRAME
+    assert stem_of(f"Qimage_qx_{CMS_GI_FRAME}.tiff.csv") == CMS_GI_FRAME
+    assert stem_of(f"Qimage_qz_{CMS_GI_FRAME}.tiff.csv") == CMS_GI_FRAME
+
+
+@pytest.fixture
+def cms_gisaxs(tmp_path):
+    """A CMS `analysis/GISAXS` folder: `Qimage` beside `Raw_Plot`, nothing else."""
+
+    from PIL import Image
+
+    root = tmp_path / "GISAXS"
+    for product in ("Qimage", "Raw_Plot"):
+        (root / product).mkdir(parents=True)
+
+    qx = np.linspace(-0.152, 0.150, 8)
+    qz = np.linspace(-0.140, 0.152, 6)
+    Image.fromarray(np.arange(48, dtype=np.float32).reshape(6, 8)).save(
+        root / "Qimage" / f"Qimage_{CMS_GI_FRAME}.tiff.tiff"
+    )
+    pd.DataFrame({"qx": qx}).to_csv(root / "Qimage" / f"Qimage_qx_{CMS_GI_FRAME}.tiff.csv")
+    pd.DataFrame({"qz": qz}).to_csv(root / "Qimage" / f"Qimage_qz_{CMS_GI_FRAME}.tiff.csv")
+
+    grey = Image.fromarray(np.zeros((4, 4), dtype=np.uint8))
+    # The reduction leaves its own rendering of the map in the same folder.
+    grey.save(root / "Qimage" / f"Qimage_{CMS_GI_FRAME}.tiff.png")
+    grey.save(root / "Raw_Plot" / f"Raw_Plot_{CMS_GI_FRAME}.tiff.png")
+    return root
+
+
+def test_a_cms_qimage_folder_is_found_and_indexed(cms_gisaxs):
+    """`Qimage` used to match nothing, so the folder showed a raw plot alone."""
+
+    _root, available, _focused = discover_scattering_products(str(cms_gisaxs))
+    assert {item["key"]: item["folder_name"] for item in available} == {
+        "q_image": "Qimage",
+        "raw_plot": "Raw_Plot",
+    }
+
+    index_frames.clear()
+    table = index_frames(str(cms_gisaxs))
+    assert len(table) == 1
+    row = table.iloc[0]
+    assert row["stem"] == CMS_GI_FRAME
+    assert bool(row["has_qimg"]) and bool(row["has_raw_plot"])
+    # The rendered PNG beside the map is not the map, and not a frame of its own.
+    assert Path(row["qimg"]).name == f"Qimage_{CMS_GI_FRAME}.tiff.tiff"
+
+
+def test_a_cms_qimage_map_carries_its_axes(cms_gisaxs):
+    index_frames.clear()
+    load_qimg.clear()
+    table = index_frames(str(cms_gisaxs))
+    payload = load_qimg(str(table.iloc[0]["qimg"]))
+    assert payload["qimg"].shape == (6, 8)
+    assert payload["qx"].shape == (8,) and payload["qz"].shape == (6,)
+    # Row 0 is the lowest qz, as in the reduction's own rendering of the map.
+    assert payload["qz"][0] < payload["qz"][-1]
+    assert payload["qimg"][0, 0] == 0.0
+
+
+def test_the_gisaxs_explorer_draws_a_qimage_only_folder(cms_gisaxs):
+    app = AppTest.from_file(str(PAGES_DIR / "04_GISAXS_Explorer.py"), default_timeout=300)
+    app.session_state["pyscattviz_active_root"] = str(cms_gisaxs)
+    app.run()
+    open_frame(app)
+
+    assert not app.exception
+    assert app.get("plotly_chart")
+    assert "No q-image" not in " ".join(item.value for item in app.info)

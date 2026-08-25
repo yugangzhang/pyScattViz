@@ -1181,6 +1181,16 @@ gisaxs/ or giwaxs/          # CMS reduction
 └── stitched/    # optional CMS stitched/raw images
 ```
 
+A CMS `analysis/GISAXS` folder writes the q-map differently — as a float TIFF
+with its axes beside it — and that is read too:
+
+```text
+analysis/GISAXS/            # CMS grazing-incidence reduction
+├── Qimage/      # Qimage_*.tiff.tiff  → the q-map, with its qx/qz axes in the
+│                #   sibling Qimage_qx_*/_qz_* CSVs, plus its rendered PNG
+└── Raw_Plot/    # Raw_Plot_*.tiff.png → the raw detector plot
+```
+
 SMI's stitching pipeline writes the same products under its own names, and
 every one of them is discovered, listed, and separately selectable:
 
@@ -1194,9 +1204,10 @@ WAXS/ or SAXS/              # SMI stitched reduction
 └── Check_Stitch/  # Check_Stitch_q_iq_*.png → the stitching QC figure
 ```
 
-Folder names are matched without regard to case, so `Cir_Avg` and `cir_avg`
-are the same product on a case-sensitive mount. Products are listed with the
-name they carry on disk, and File Selection lets you index any subset of them.
+Folder names are matched without regard to case or word separators, so
+`Cir_Avg` and `cir_avg`, or `Qimage` and `q_image`, are the same product on a
+case-sensitive mount. Products are listed with the name they carry on disk, and
+File Selection lets you index any subset of them.
 A rendered figure (PNG/JPG) is shown as the image it is; only the detector and
 q-space arrays go through the interactive heatmap.
 
