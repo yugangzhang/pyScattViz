@@ -17,6 +17,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.datasource import (
     ensure_remembered_folders,
     known_folders,
@@ -36,6 +37,7 @@ st.set_page_config(page_title="Terminal", page_icon="🖥️", layout="wide")
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+require_password()
 ensure_remembered_folders()
 st.title("🖥️ Terminal")
 st.caption(

@@ -296,6 +296,37 @@ cd "$HOME/pyScattViz"
 ./start_linux.sh
 ```
 
+#### Shared workstation: an existing conda environment and a password
+
+On a beamline workstation the package may already be installed in a conda
+environment, and other people can reach the port. `run` starts pyScattViz from
+that environment behind a password, without creating `.venv`:
+
+```bash
+./run 5649 asdf               # port 5649, password "asdf", every network interface
+./run 5649 asdf 127.0.0.1     # this machine only (or through an ssh tunnel)
+./run 5649                    # no password; warns if reachable from the network
+```
+
+Open `http://<workstation>:5649` and enter the password once; it covers every
+page until the browser tab is reloaded. The interpreter defaults to
+`/nsls2/users/yuzhang/conda_envs/Droplet/bin/python`; point `PYSCATTVIZ_PYTHON`
+at another environment's `python` to use that one, after a one-time
+`python -m pip install -e .` there.
+
+The same password works with any launcher: `pyscattviz --password asdf`, or set
+`PYSCATTVIZ_PASSWORD` before starting. It reaches the server through the
+environment, so it does not appear in `ps`. With no password set, nothing is
+asked for and the application behaves exactly as before.
+
+Two things to know:
+
+- The **Python Console** stays disabled whenever the server listens on an
+  address other machines can reach, password or not. To keep it, bind to
+  `127.0.0.1` and tunnel: `ssh -L 5649:localhost:5649 <workstation>`.
+- The connection is plain HTTP, so treat the password as a lock on the door, not
+  as a secret worth reusing anywhere else.
+
 ### Stop or update pyScattViz
 
 To stop the application on any platform, return to the terminal and press

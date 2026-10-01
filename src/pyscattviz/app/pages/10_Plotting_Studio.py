@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 
 import pyscattviz.plotting as pv
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.saving import render_output_settings, render_save_panel
 from pyscattviz.app.components.scattering import load_qimg
 from pyscattviz.app.state import action_key, keep_widget_state
@@ -32,6 +33,7 @@ st.set_page_config(page_title="Plotting Studio", page_icon="🎨", layout="wide"
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+require_password()
 st.title("🎨 Plotting Studio")
 st.markdown(
     """

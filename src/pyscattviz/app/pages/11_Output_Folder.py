@@ -20,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.saving import (
     HISTORY_KEY,
     ensure_output_settings,
@@ -54,6 +55,7 @@ st.set_page_config(page_title="Output Folder", page_icon="📂", layout="wide")
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+require_password()
 st.title("📂 Output Folder")
 st.caption("One place to choose where pyScattViz writes figures, tables, and arrays.")
 

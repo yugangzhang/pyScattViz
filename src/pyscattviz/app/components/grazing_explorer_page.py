@@ -38,6 +38,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.batchprocess import render_batch_process
 from pyscattviz.app.components.cleaning import render_cleaning_controls
 from pyscattviz.app.components.codeview import render_code_export
@@ -181,6 +182,7 @@ st.set_page_config(
 
 # Streamlit forgets a page's widgets as soon as another page is opened.
 keep_widget_state(st.session_state)
+require_password()
 
 st.title(f"{PROFILE['icon']} {PROFILE['name']} Explorer")
 st.caption(PROFILE["description"])

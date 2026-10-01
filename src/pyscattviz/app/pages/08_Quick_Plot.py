@@ -23,6 +23,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.codeview import render_code_export
 from pyscattviz.app.components.curvecontrols import (
     render_curve_styles,
@@ -62,6 +63,7 @@ st.set_page_config(page_title="Quick Plot", page_icon="⚡", layout="wide")
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+require_password()
 ensure_remembered_folders()
 st.title("⚡ Quick Plot")
 st.caption(

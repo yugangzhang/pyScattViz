@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.20.0
+
+- **`./run PORT [PASSWORD] [ADDRESS]` starts pyScattViz on a shared Linux
+  workstation** from an existing conda environment (Droplet by default,
+  `PYSCATTVIZ_PYTHON` to override) instead of a `.venv`, listening on every
+  interface unless an address is given. `start_linux.sh` is unchanged.
+- **An optional password in front of every page.** `pyscattviz --password ...`
+  or `PYSCATTVIZ_PASSWORD` turns it on; one sign-in covers every page for that
+  browser session. It travels to the server in the environment, so it never
+  shows in `ps`, and is compared in constant time. With no password set nothing
+  changes. The login widgets are registered as action keys so
+  `keep_widget_state` neither trips over the submit button nor keeps the typed
+  password.
+
 ## 0.19.1
 
 - **A CMS `analysis/GISAXS` folder now shows its q-image.** `Qimage` is the same

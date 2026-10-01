@@ -9,6 +9,8 @@ import sys
 from importlib.resources import files
 from pathlib import Path
 
+from pyscattviz.app.auth import PASSWORD_ENV
+
 # Pages were renumbered with zero-padded prefixes in 0.7.0 so the sidebar stays
 # in order past nine pages. Upgrading a clone in place does not remove the old
 # files from its ``build/lib`` directory, setuptools folds them back into the
@@ -87,6 +89,14 @@ def main() -> None:
         default="127.0.0.1",
         help="Listening address (default: local computer only).",
     )
+    parser.add_argument(
+        "--password",
+        default=None,
+        help=(
+            "Ask for this password before showing any page. Also read from the "
+            "PYSCATTVIZ_PASSWORD environment variable; default: no password."
+        ),
+    )
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
@@ -106,6 +116,10 @@ def main() -> None:
     ]
     environment = os.environ.copy()
     environment.setdefault("MPLBACKEND", "Agg")
+    if args.password is not None:
+        # Through the environment, not Streamlit's argv, so the long-running
+        # server process does not show the password in `ps`.
+        environment[PASSWORD_ENV] = args.password
     try:
         return_code = subprocess.call(command, env=environment)
     except KeyboardInterrupt:

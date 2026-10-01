@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Launch pyScattViz from an existing conda environment, behind a password.
+#
+#   ./run PORT [PASSWORD] [ADDRESS]
+#   ./run 5649 asdf                  # every interface, password "asdf"
+#   ./run 5649 asdf 127.0.0.1        # this machine only (keeps the Python Console)
+#   ./run 5649                       # no password
+#
+# The interpreter defaults to the Droplet environment; point PYSCATTVIZ_PYTHON
+# at another one to use that instead. pyScattViz must already be importable
+# there (pip install -e . once). start_linux.sh and its .venv are untouched.
+
+PYTHON="${PYSCATTVIZ_PYTHON:-/nsls2/users/yuzhang/conda_envs/Droplet/bin/python}"
+
+if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+fi
+
+PORT="$1"
+PASSWORD="${2:-}"
+ADDRESS="${3:-0.0.0.0}"
+
+if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
+    echo "Port must be a number between 1 and 65535, not '$PORT'." >&2
+    exit 1
+fi
+if [[ ! -x "$PYTHON" ]]; then
+    echo "No Python at $PYTHON. Set PYSCATTVIZ_PYTHON to the environment's python." >&2
+    exit 1
+fi
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+cd "$SCRIPT_DIR" || exit 1
+
+if ! "$PYTHON" -c "import pyscattviz" 2>/dev/null; then
+    echo "pyscattviz is not installed in $PYTHON's environment. Run once:" >&2
+    echo "  $PYTHON -m pip install -e \"$SCRIPT_DIR\"" >&2
+    exit 1
+fi
+
+if [[ -z "$PASSWORD" && "$ADDRESS" != "127.0.0.1" && "$ADDRESS" != "localhost" ]]; then
+    echo "Warning: listening on $ADDRESS with no password; anyone who can reach" >&2
+    echo "port $PORT can browse and read files with your permissions." >&2
+fi
+
+echo "pyScattViz on http://$(hostname -f 2>/dev/null || hostname):$PORT  (listening on $ADDRESS)"
+[[ -n "$PASSWORD" ]] && echo "Password protection: on"
+
+# The password travels in the environment, not on the command line, so it is
+# not visible in `ps` once this script has exec'd into Python.
+export PYSCATTVIZ_PASSWORD="$PASSWORD"
+exec "$PYTHON" -m pyscattviz --port "$PORT" --address "$ADDRESS"

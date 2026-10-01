@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.codeview import render_code_export
 from pyscattviz.app.components.datasource import (
     apply_term_filters,
@@ -39,6 +40,7 @@ st.set_page_config(page_title="Publication Plot", page_icon="📈", layout="wide
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+require_password()
 st.title("📈 Publication Plot")
 st.caption("Overlay selected circular averages and export PNG, SVG, or PDF.")
 

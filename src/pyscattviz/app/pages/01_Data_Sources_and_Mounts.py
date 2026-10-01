@@ -18,6 +18,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.datasource import ensure_remembered_folders, remember_folder
 from pyscattviz.app.state import (
     keep_widget_state,
@@ -61,6 +62,7 @@ st.set_page_config(page_title="Data Sources & Mounts", page_icon="🗂️", layo
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+require_password()
 ensure_remembered_folders()
 st.title("🗂️ Data Sources & Mounts")
 st.caption(

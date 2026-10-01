@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.auth import require_password
 from pyscattviz.app.components.datasource import ensure_remembered_folders, remember_folder
 from pyscattviz.app.components.saving import render_save_panel
 from pyscattviz.app.state import (
@@ -47,6 +48,7 @@ st.set_page_config(page_title="Data Selection", page_icon="🎯", layout="wide")
 
 # Streamlit forgets a page's widgets as soon as another page is opened. Keep them.
 keep_widget_state(st.session_state)
+require_password()
 ensure_remembered_folders()
 st.title("🎯 Data Selection")
 st.caption(
