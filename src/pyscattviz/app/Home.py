@@ -49,6 +49,10 @@ review. The application runs locally and opens a file only when it is selected.
    intensity map, or 2D images.
 6. **Publication Plot** and **Plotting Studio** — export-ready figures using the
    same `pyscattviz.plotting` API available in notebooks.
+7. **Org** — a whole experiment at once: make an org of its data folder (kept
+   beside the data, it opens wherever the proposal is mounted), then **Org
+   Overview**, **Org Sample**, **Org Compare** and **Org In-situ** follow it as
+   it is measured. **Ask AI** answers questions about it with your own AI model.
 
 Everything that draws something can write it straight to a folder you name, in a
 subfolder named after the page it came from. Set that folder on

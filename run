@@ -1,25 +1,33 @@
 #!/usr/bin/env bash
 # Launch pyScattViz from an existing conda environment, behind a password.
 #
-#   ./run PORT [PASSWORD] [ADDRESS]
+#   ./run PORT [PASSWORD] [ADDRESS] [--org PATH] [--ask]
 #   ./run 5649 asdf                  # every interface, password "asdf"
 #   ./run 5649 asdf 127.0.0.1        # this machine only (keeps the Python Console)
 #   ./run 5649                       # no password
+#   ./run 5649 asdf --org <proposal>/Org   # the Org pages open on that org
 #
 # The interpreter defaults to the Droplet environment; point PYSCATTVIZ_PYTHON
 # at another one to use that instead. pyScattViz must already be importable
 # there (pip install -e . once). start_linux.sh and its .venv are untouched.
+# Options after the positional ones go to pyscattviz as they are (--ask turns
+# Ask AI on behind the password: the model bills the account running this).
 
 PYTHON="${PYSCATTVIZ_PYTHON:-/nsls2/users/yuzhang/conda_envs/Droplet/bin/python}"
 
 if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
-    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
 fi
 
-PORT="$1"
-PASSWORD="${2:-}"
-ADDRESS="${3:-0.0.0.0}"
+POSITIONAL=()
+while [[ $# -gt 0 && "$1" != --* ]]; do
+    POSITIONAL+=("$1")
+    shift
+done
+PORT="${POSITIONAL[0]:-}"
+PASSWORD="${POSITIONAL[1]:-}"
+ADDRESS="${POSITIONAL[2]:-0.0.0.0}"
 
 if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
     echo "Port must be a number between 1 and 65535, not '$PORT'." >&2
@@ -50,4 +58,4 @@ echo "pyScattViz on http://$(hostname -f 2>/dev/null || hostname):$PORT  (listen
 # The password travels in the environment, not on the command line, so it is
 # not visible in `ps` once this script has exec'd into Python.
 export PYSCATTVIZ_PASSWORD="$PASSWORD"
-exec "$PYTHON" -m pyscattviz --port "$PORT" --address "$ADDRESS"
+exec "$PYTHON" -m pyscattviz --port "$PORT" --address "$ADDRESS" "$@"

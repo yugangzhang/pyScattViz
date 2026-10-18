@@ -37,6 +37,9 @@ The application runs locally on Windows, macOS, and Linux, listens on
 | **Output Folder** | Where saved figures go, and what has been written there |
 | **Terminal** | `ls`, `cd`, `cat`, `find` over a mounted folder, and `select` to build a named list every plotting tab reads |
 | **Python Console** | Your own code against the session's data, with the readers and plotting API already imported |
+| **Org** | Make an org of an experiment's data folder — or open one — kept beside the data as one JSON file ([below](#an-experiment-as-an-org)) |
+| **Org Overview · Org Sample · Org Compare · Org In-situ** | The whole experiment while it is measured: raw against reduced, one sample's frames, samples side by side, a run as a waterfall, a peak followed along it |
+| **Ask AI** | Questions about the open org in plain words, answered by your own AI model ([below](#ask-ai)) |
 
 Each explorer can also export one panel for *every* frame that passes its
 filters, which turns an angle series or an in-situ run into a folder of figures
@@ -313,6 +316,10 @@ page until the browser tab is reloaded. The interpreter defaults to
 `/nsls2/users/yuzhang/conda_envs/Droplet/bin/python`; point `PYSCATTVIZ_PYTHON`
 at another environment's `python` to use that one, after a one-time
 `python -m pip install -e .` there.
+
+Options after the positional ones go to `pyscattviz` as they are:
+`./run 5649 asdf --org <proposal>/Org` opens the Org pages on that org
+([An experiment as an org](#an-experiment-as-an-org)).
 
 The same password works with any launcher: `pyscattviz --password asdf`, or set
 `PYSCATTVIZ_PASSWORD` before starting. It reaches the server through the
@@ -829,6 +836,99 @@ That list *is* the dataset basket, so it shows up immediately in Quick Plot, in
 Publication Plot, and in the explorers. `save <name>` keeps it as a named
 collection under `~/.pyscattviz/collections/`, and `load <name>` brings it back
 next week. Type `help` in the page to see every command.
+
+## An experiment as an org
+
+The explorers look at one frame at a time. The **Org** pages look at a whole
+experiment — every folder, sample and in-situ run of it — and keep up while it
+is being measured: what is on disk is read again every 15 s, and a page can be
+put on *Live*.
+
+**Org** reads a data folder by a *layout*:
+
+| Layout | Reads |
+|---|---|
+| `cms` | A CMS experiment, `experiments/<name>/<folder>/<saxs\|waxs\|maxs…>/{raw,analysis}`, with the sample, spot, angle and scan — and in situ the time, RH and T — read from the frame names |
+| `products` | Any folder with the reduction's product folders (`cir_avg`, `q_image`, `qphi`, `qc`, `stitched`; SMI's `Cir_Avg`, `Stitch_Data` …) at or below it; the names are read by a regular expression you give, e.g. `^(?P<sample>.+?)_(?P<T_C>\d+)C_th(?P<th>[\d.]+)` |
+
+Pick the folder, check the samples and frames it reads, and either **Build the
+org** or **Look at it without keeping an org**. An org is a
+[pyDataOrg](https://github.com/yugangzhang/pyDataOrg) organiser saved as one
+JSON file: the samples, a measurement per sample, folder and detector, and the
+paths of their products. Kept beside the data — `<proposal>/Org/<name>.json`,
+the place offered by default for a proposal folder — it records those paths
+relative to itself, so the same file opens from the beamline, an SSHFS or
+rclone mount, or a RaiDrive letter. Opened again, it links the frames written
+since. Notes, tags and a selection of samples made in pyDataOrg are kept, and
+**Org Compare** starts from the selection.
+
+| Page | What it shows |
+|---|---|
+| **Org Overview** | Raw, stitched and reduced frames per folder and detector, how long ago each last changed, the newest QC images, and every sample |
+| **Org Sample** | One sample: its q-image, q–φ map and I(q), every angle of a static sample, any frame of a run |
+| **Org Compare** | Samples at one angle overlaid or as a map, normalised in a q window if wanted; a peak's area, position and width for each, with CSVs |
+| **Org In-situ** | A run as a waterfall against time, RH or T; the cell's readings; any frame; a peak followed along the run |
+
+An org needs pyDataOrg:
+
+```bash
+python -m pip install "pyScattViz[org]"     # or: pip install -e ".[org]" in a clone
+```
+
+Without it every page still works on a folder opened with **Look at it without
+keeping an org**; there is just nothing kept. A clone of pyDataOrg next to a
+clone of pyScattViz (`Repos/pyDataOrg` beside `Repos/pyScattViz`) is used by
+the launcher as it is.
+
+`pyscattviz --org <proposal>/Org` (or `--org` the file itself) opens the org
+when the GUI starts. In Python, the same:
+
+```python
+from pyscattviz.org import store
+
+org = store.create_org("<proposal>/Org/run.json", "<proposal>/experiments/run")
+org = store.open_org("<proposal>/Org/run.json")     # the frames written since, linked in
+org.table()                                         # one row per sample
+q, curves, _ = org.data("<sample>", "iq", stage="<folder>", role="<det>_th0.100")
+```
+
+## Ask AI
+
+**Ask AI** answers questions about the open org — *which frames are still to
+reduce? which samples were measured at more than one angle? how long is each
+run?* — with an AI model you already have. pyScattViz holds no model and no
+key: it runs the command-line AI tool configured on the computer, for the user
+running the GUI — `codex`, `claude` (Claude Code), `gemini`, or a local
+`ollama` model.
+
+The model is given the org as text — raw against reduced per folder, one line
+per sample, and the frames of the samples the question names — and told to
+answer from that alone. It is never shown the scattering, nor where the data
+is on this computer, and it writes nothing. **What the model was given** under
+each answer shows exactly what it saw.
+
+On **Org**, *Ask AI to propose how to read it* shows a model a new folder's
+tree — folder names, file counts, a few file names, never a file's contents —
+and asks for a layout and its options. The proposal is checked and shown; you
+look at what it reads, and build the org yourself or do not.
+
+Which models you are offered is yours to say, in
+`~/.config/pyScattViz/ask.json` (or the file `PYSCATTVIZ_ASK_CONFIG` names):
+
+```json
+{"models": [{"tool": "codex", "model": "<a model>"},
+            {"tool": "claude", "model": "<another>", "note": "fast"}],
+ "env": {"<VARIABLE THE TOOL READS>": "$<VARIABLE IT IS IN>"}}
+```
+
+The models listed come first, the first the default; `env` is handed to the
+tools with each `$NAME` taken from your environment, so a key is named there,
+never written. `PYSCATTVIZ_AI_DEFAULT` picks the default by name.
+
+A model bills the account of whoever runs the GUI. So Ask AI is on in a GUI
+without a password — your own, on your own computer — and **off behind a
+password** (a shared workstation), unless its owner starts it with `--ask`
+(`PYSCATTVIZ_ASK=on`).
 
 ## From clicking to code
 

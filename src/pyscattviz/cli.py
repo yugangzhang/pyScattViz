@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import subprocess
 import sys
@@ -10,6 +11,8 @@ from importlib.resources import files
 from pathlib import Path
 
 from pyscattviz.app.auth import PASSWORD_ENV
+from pyscattviz.org.ask import ASK_ENV
+from pyscattviz.org.store import ORG_ENV
 
 # Pages were renumbered with zero-padded prefixes in 0.7.0 so the sidebar stays
 # in order past nine pages. Upgrading a clone in place does not remove the old
@@ -78,6 +81,23 @@ def _repair_installation(pages_dir: Path) -> None:
     )
 
 
+def sibling_pydataorg(here: Path | None = None) -> Path | None:
+    """A pyDataOrg clone beside this pyScattViz clone, when pyDataOrg is not
+    installed: the Org pages can use it from there.
+
+    Only for a clone (``Repos/pyScattViz`` beside ``Repos/pyDataOrg``); an
+    installed pyScattViz uses an installed pyDataOrg (``pyScattViz[org]``).
+    """
+
+    if importlib.util.find_spec("pyDataOrg") is not None:
+        return None
+    clone = Path(here or __file__).resolve().parents[2]
+    candidate = clone.parent / "pyDataOrg"
+    if (clone / "pyproject.toml").is_file() and (candidate / "pyDataOrg" / "__init__.py").is_file():
+        return candidate
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="pyscattviz",
@@ -97,9 +117,28 @@ def main() -> None:
             "PYSCATTVIZ_PASSWORD environment variable; default: no password."
         ),
     )
+    parser.add_argument(
+        "--org",
+        default=None,
+        help=(
+            "Open this org on the Org pages: its .json file, or the folder it is "
+            "kept in (<proposal>/Org)."
+        ),
+    )
+    parser.add_argument(
+        "--ask",
+        action="store_true",
+        help=(
+            "Turn Ask AI on behind a password too. A model bills the account "
+            "running this server, for everyone who can log in."
+        ),
+    )
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
+    org = Path(args.org).expanduser().resolve() if args.org else None
+    if org is not None and not org.exists():
+        parser.error(f"--org: no file or folder {org}")
 
     home = files("pyscattviz.app").joinpath("Home.py")
     _repair_installation(Path(str(home)).parent / "pages")
@@ -120,6 +159,15 @@ def main() -> None:
         # Through the environment, not Streamlit's argv, so the long-running
         # server process does not show the password in `ps`.
         environment[PASSWORD_ENV] = args.password
+    if org is not None:
+        environment[ORG_ENV] = str(org)
+    if args.ask:
+        environment[ASK_ENV] = "on"
+    sibling = sibling_pydataorg()
+    if sibling is not None:
+        environment["PYTHONPATH"] = os.pathsep.join(
+            p for p in (str(sibling), environment.get("PYTHONPATH", "")) if p
+        )
     try:
         return_code = subprocess.call(command, env=environment)
     except KeyboardInterrupt:

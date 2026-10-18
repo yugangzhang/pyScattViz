@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.21.0
+
+- **Org pages: a whole experiment, followed while it is measured.** *Org*
+  makes an org of a data folder — read by a layout, `cms` (a CMS experiment,
+  names parsed for sample, spot, angle, scan, time, RH and T) or `products`
+  (any product folders, names read by a regular expression) — or opens one.
+  *Org Overview*, *Org Sample*, *Org Compare* and *Org In-situ* show raw
+  against reduced, one sample's frames, samples side by side, and a run as a
+  waterfall against time, RH or T, with a peak's area, position and width
+  followed along it. Folders are re-read every 15 s and a page can go *Live*.
+- **An org is a pyDataOrg organiser kept as one JSON file**, with its paths
+  relative to itself when it is kept beside the data (`<proposal>/Org/`), so
+  it opens wherever the proposal is mounted; opened again, it links the
+  frames written since. pyDataOrg is the new optional extra
+  `pyScattViz[org]`; without it a folder can still be looked at, and nothing
+  else changes. A pyDataOrg clone beside a pyScattViz clone is used as is.
+- **Ask AI**: questions about the open org answered by the user's own
+  command-line AI tool (codex, claude, gemini, ollama), from the org's names
+  and counts only — never the data, never where it is, and the model writes
+  nothing. On *Org* a model can propose how to read a new folder; the
+  proposal is checked and shown, and the user builds the org. Models and the
+  environment variables they need are listed in
+  `~/.config/pyScattViz/ask.json`. Off behind a password unless started with
+  `--ask`: a model bills the account running the server.
+- **`pyscattviz --org PATH`** opens an org when the GUI starts; `./run`
+  passes options after its positional ones through to `pyscattviz`.
+
 ## 0.20.0
 
 - **`./run PORT [PASSWORD] [ADDRESS]` starts pyScattViz on a shared Linux

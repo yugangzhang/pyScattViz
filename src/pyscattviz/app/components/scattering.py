@@ -31,8 +31,16 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from pyscattviz.dataio import DataReadError
-from pyscattviz.discovery import fold_folder_name
 from pyscattviz.filters import compile_filter, parse_filename_list
+from pyscattviz.products import (  # noqa: F401  (the names this module always had)
+    _PRODUCT_PREFIXES,
+    _QC_LAYOUT_RE,
+    SCATTERING_PRODUCTS,
+    _iter_product_files,
+    product_folders,
+    product_key_for_folder,
+    stem_of,
+)
 
 # Max pixels to keep for a heatmap; larger images are stride-decimated.
 RAW_MAX_PIXELS = 500_000
@@ -59,52 +67,6 @@ CMAPS = [
     "Spectral",
 ]
 
-# Reduction products are deliberately described as data, not as a fixed page
-# layout.  The explorer can therefore show a new reduction folder (for
-# example ``qc``) without making every page assume that every other product is
-# present too.
-#
-# ``folders`` lists the directory names one product is written under. The CMS
-# auto-reduction uses the lower-case names on the left; SMI's stitching pipeline
-# writes the same five products under ``Raw_Plot``, ``Stitch_Data``,
-# ``Stitch_Image``, ``Check_Stitch`` and ``Cir_Avg``. Matching is
-# case-insensitive, so ``Cir_Avg`` needs no alias of its own. A folder that is
-# not listed here is not a product and is left alone.
-SCATTERING_PRODUCTS = {
-    "stitched": {
-        "label": "Raw / stitched image",
-        "folders": ("stitched", "Stitch_Image"),
-        "patterns": ("*.tif", "*.tiff", "*.png", "*.jpg", "*.jpeg"),
-    },
-    "raw_plot": {
-        "label": "Raw detector plot",
-        "folders": ("raw_plot",),
-        "patterns": ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff"),
-    },
-    "qc": {
-        "label": "QC image",
-        "folders": ("qc", "Check_Stitch"),
-        "patterns": ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff"),
-    },
-    "q_image": {
-        "label": "q-image",
-        # SMI writes the stitched q-map as a float TIFF with its qx and qz axes
-        # beside it in CSVs, and so does the CMS `Qimage` folder; the older CMS
-        # `q_image` folder writes one npz holding all three.
-        "folders": ("q_image", "Qimage", "Stitch_Data"),
-        "patterns": ("*.npz", "*.tif", "*.tiff"),
-    },
-    "qphi": {
-        "label": "q–φ map",
-        "folders": ("qphi",),
-        "patterns": ("*.npz",),
-    },
-    "cir_avg": {
-        "label": "Circular average I(q)",
-        "folders": ("cir_avg",),
-        "patterns": ("*.csv",),
-    },
-}
 
 SCATTERING_PANEL_ORDER = tuple(SCATTERING_PRODUCTS)
 
@@ -125,45 +87,6 @@ FRAME_COLUMN_PRODUCTS = {
     "qphi": "qphi",
     "cir": "cir_avg",
 }
-
-
-def product_key_for_folder(name) -> str | None:
-    """Return the product key a folder name belongs to, or None."""
-
-    folded = fold_folder_name(name)
-    for key, spec in SCATTERING_PRODUCTS.items():
-        if any(folded == fold_folder_name(alias) for alias in spec["folders"]):
-            return key
-    return None
-
-
-def product_folders(root) -> dict:
-    """Map each product present below ``root`` to the folder holding it.
-
-    One directory listing answers for every product, which matters over a
-    mounted proposal. Only names are read.
-    """
-
-    try:
-        with os.scandir(Path(root)) as entries:
-            present = {}
-            for entry in entries:
-                try:
-                    if entry.is_dir():
-                        present.setdefault(fold_folder_name(entry.name), entry.name)
-                except OSError:
-                    continue
-    except OSError:
-        return {}
-
-    found = {}
-    for key, spec in SCATTERING_PRODUCTS.items():
-        for alias in spec["folders"]:
-            name = present.get(fold_folder_name(alias))
-            if name is not None:
-                found[key] = Path(root) / name
-                break
-    return found
 
 
 # ---------------------------------------------------------------------------
@@ -406,63 +329,10 @@ _TH_RE = re.compile(r"_th(-?\d+\.\d+)_")
 _SCAN_RE = re.compile(r"_(\d{6,})_\d{6}_")
 _WELL_RE = re.compile(r"_([A-H]\d{1,2})_(?=\d{4}_\d{2}_\d{2})")
 
-# CMS QC layout tags that sit between the ``qc_`` prefix and the frame name.
-_QC_LAYOUT_RE = re.compile(r"^(?:\d+panel_)?(?:autoelevate_)?", re.IGNORECASE)
-
 
 # ---------------------------------------------------------------------------
 # Filename ↔ frame indexing
 # ---------------------------------------------------------------------------
-# Product filename prefixes, longest first so ``Stitch_Data_qx_`` is recognised
-# before ``Stitch_Data_``. The axis and check tags are part of the prefix: an
-# axis CSV and the map it belongs to are one frame, not three.
-_PRODUCT_PREFIXES = (
-    "Check_Stitch_q_iq_",
-    "Check_Stitch_",
-    "Stitch_Data_qx_",
-    "Stitch_Data_qz_",
-    "Stitch_Data_",
-    "Stitch_Image_",
-    "Qimage_qx_",
-    "Qimage_qz_",
-    "Qimage_",
-    "Raw_Plot_",
-    "Cir_Avg_",
-    "qphi_",
-    "qimg_",
-    "qc_",
-)
-
-
-def stem_of(fname: str) -> str:
-    """Shared ``<name>`` stem: strip known prefixes / extensions from a name.
-
-    Handles the mixed conventions used by the auto-reduction, e.g.
-    ``stitched/<name>.tiff``, ``q_image/qimg_<name>.tiff.npz`` and
-    ``cir_avg/Cir_Avg_<name>.tiff.csv`` all reduce to the same ``<name>``. So do
-    SMI's stitched products — ``Stitch_Data_<name>.tif.tiff``,
-    ``Stitch_Data_qx_<name>.tif.csv``, ``Stitch_Image_<name>.tif.png``,
-    ``Raw_Plot_<name>.tif.png`` and ``Check_Stitch_q_iq_<name>.tif.png``.
-
-    CMS writes several QC layouts for one frame — ``qc_<name>``,
-    ``qc_1panel_<name>`` … ``qc_4panel_autoelevate_<name>``. Those layout tags
-    are part of the QC filename, not of the frame, so they are stripped too;
-    otherwise each variant becomes its own frame with no other product attached.
-    """
-    s = Path(fname).name
-    for pref in _PRODUCT_PREFIXES:
-        if s.lower().startswith(pref.lower()):
-            s = s[len(pref) :]
-            if pref == "qc_":
-                s = _QC_LAYOUT_RE.sub("", s, count=1)
-            break
-    # Peel trailing extensions repeatedly (e.g. ".tiff.npz" → ".tiff" → "").
-    # ``tif`` covers SMI, whose products are named ``<name>.tif.{csv,npz}``.
-    while True:
-        new = re.sub(r"\.(npz|csv|png|tiff|tif)$", "", s)
-        if new == s:
-            return s
-        s = new
 
 
 def parse_meta(stem: str) -> dict:
@@ -489,23 +359,6 @@ def parse_meta(stem: str) -> dict:
     # calibration filter still catches those frames.
     is_cal = bool(re.match(r"_*(AgBH|DirBeam|Empty|glassy|GC)", stem, re.I))
     return dict(timestamp=ts, th=th, scan=scan, well=well, is_calibration=is_cal)
-
-
-def _iter_product_files(folder: Path, patterns):
-    """Yield matching direct children while holding at most one entry."""
-
-    try:
-        with os.scandir(folder) as entries:
-            for entry in entries:
-                try:
-                    if entry.is_file() and any(
-                        fnmatch.fnmatch(entry.name.lower(), pattern.lower()) for pattern in patterns
-                    ):
-                        yield entry.name, entry.path
-                except OSError:
-                    continue
-    except OSError:
-        return
 
 
 @st.cache_data(show_spinner=False)

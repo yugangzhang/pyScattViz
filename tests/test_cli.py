@@ -107,3 +107,62 @@ def test_a_stale_build_directory_is_cleared_before_packaging() -> None:
     shim = (Path(__file__).parents[1] / "setup.py").read_text()
     assert 'Path(__file__).parent / "build" / "lib"' in shim
     assert "rmtree" in shim
+
+
+def _launch(monkeypatch, *argv: str) -> dict:
+    """What the launcher hands Streamlit: its environment (nothing is run)."""
+
+    from pyscattviz import cli
+
+    seen = {}
+
+    def call(command, env):
+        seen.update(env)
+        return 0
+
+    monkeypatch.setattr(cli.subprocess, "call", call)
+    monkeypatch.setattr(sys, "argv", ["pyscattviz", *argv])
+    for name in ("PYSCATTVIZ_ORG", "PYSCATTVIZ_ASK"):
+        monkeypatch.delenv(name, raising=False)
+    try:
+        cli.main()
+    except SystemExit as stop:
+        assert stop.code == 0
+    return seen
+
+
+def test_org_and_ask_reach_the_pages(monkeypatch, tmp_path) -> None:
+    org = tmp_path / "Org"
+    org.mkdir()
+    env = _launch(monkeypatch, "--org", str(org), "--ask")
+    assert env["PYSCATTVIZ_ORG"] == str(org.resolve())
+    assert env["PYSCATTVIZ_ASK"] == "on"
+    env = _launch(monkeypatch)
+    assert "PYSCATTVIZ_ORG" not in env and "PYSCATTVIZ_ASK" not in env
+
+
+def test_an_org_that_is_not_there_stops_the_launch(monkeypatch, tmp_path, capsys) -> None:
+    from pyscattviz import cli
+
+    monkeypatch.setattr(sys, "argv", ["pyscattviz", "--org", str(tmp_path / "missing")])
+    try:
+        cli.main()
+    except SystemExit as stop:
+        assert stop.code == 2
+    assert "--org: no file or folder" in capsys.readouterr().err
+
+
+def test_a_pydataorg_clone_beside_this_one_is_used(monkeypatch, tmp_path) -> None:
+    from pyscattviz import cli
+
+    clone = tmp_path / "pyScattViz"
+    (clone / "src" / "pyscattviz").mkdir(parents=True)
+    (clone / "pyproject.toml").touch()
+    here = clone / "src" / "pyscattviz" / "cli.py"
+    monkeypatch.setattr(cli.importlib.util, "find_spec", lambda name: None)
+    assert cli.sibling_pydataorg(here) is None
+    (tmp_path / "pyDataOrg" / "pyDataOrg").mkdir(parents=True)
+    (tmp_path / "pyDataOrg" / "pyDataOrg" / "__init__.py").touch()
+    assert cli.sibling_pydataorg(here) == tmp_path / "pyDataOrg"
+    (clone / "pyproject.toml").unlink()  # an installed copy, not a clone
+    assert cli.sibling_pydataorg(here) is None

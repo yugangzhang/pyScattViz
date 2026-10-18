@@ -8,7 +8,7 @@ private keys.
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.20.0`
+- Current package version: `0.21.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
 - At the end of this handoff update, `main` is expected to be committed, pushed,
   and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
@@ -86,8 +86,8 @@ folders hold only AgBH calibration frames, which the default filter hides.
 10. Saving is to the user's own folder, one subfolder per page, never silently
     overwriting. Browser downloads are kept as a secondary route.
 11. Streamlit-free modules (`discovery`, `datasets`, `dataio`, `exporting`,
-    `mounts`, `filters`, `publication`, `plotting`) hold the logic so it stays
-    testable and usable from notebooks.
+    `mounts`, `filters`, `publication`, `plotting`, `products`, `org`) hold the
+    logic so it stays testable and usable from notebooks.
 12. Every loader raises one catchable `DataReadError`. A corrupt file must
     report itself and leave the rest of the page working; it must never raise
     a bare `EOFError`, `BadZipFile`, or `EmptyDataError` into Streamlit.
@@ -168,6 +168,31 @@ folders hold only AgBH calibration frames, which the default filter hides.
     against each reduction's own rendering, so the map goes to Plotly unflipped.
     A rendered PNG sitting *inside* `Qimage` is neither the map nor a frame of
     its own; the `q_image` patterns only take `.npz`/`.tif`/`.tiff`.
+26. An experiment is followed as an **org**: a pyDataOrg organiser kept as one
+    JSON file, with the data folder it was made of recorded under
+    `project.extensions.pyscattviz.source` (layout, root, options). Kept
+    beside the data (`<proposal>/Org/`), that root is relative to the file, so
+    the org opens wherever the proposal is mounted; reopened, it links the
+    frames written since and keeps what the user added. pyDataOrg is the
+    optional extra `[org]` — every Org page also works on a folder alone (a
+    `Source` in `svorg_source`), and `store.create_org` says how to install
+    it. A folder is read by a *layout* (`org/layouts.py`): `cms`, the CMS
+    `<folder>/<detector>/{raw,analysis}` tree with names parsed in
+    `org/cms.py`, or `products`, any product folders with names read by a
+    regular expression. The product-folder rules moved out of
+    `components/scattering.py` into `products.py` so that reading a folder
+    imports no Streamlit — `tests/test_org_store.py` checks that in a
+    subprocess; `scattering.py` re-exports the names it always had.
+    **Ask AI** (`org/ask.py`) runs the user's own command-line tool (codex,
+    claude, gemini, ollama, or what `~/.config/pyScattViz/ask.json` lists) on
+    the org's names and counts only — never data, never a path — and nothing
+    it says is written anywhere. A model may *propose* how to read a folder;
+    `parse_proposal` checks it and the user builds the org. Ask is off behind
+    a password unless `--ask` turns it on: a model bills whoever runs the
+    server. The config names environment variables, never keys. Org page keys
+    start `svorg_`; a frame slider must go through `controls.pick_frame`,
+    because a value from a longer run otherwise raises
+    `StreamlitValueAboveMaxError` when a shorter one is chosen.
 
 Commit messages are written in my own voice and carry no assistant
 co-author trailer.
@@ -246,6 +271,18 @@ Core logic, all Streamlit-free:
   carried out with `pathlib`; nothing reaches a system shell. `select`/`save`
   build the same named collections Data Selection reads.
 - `src/pyscattviz/data_sources.py`: persistent remote-to-mounted path mapping.
+- `src/pyscattviz/products.py`: `SCATTERING_PRODUCTS`, `product_folders`,
+  `stem_of` — which folder holds which product, and the frame a file is of.
+- `src/pyscattviz/org/cms.py`: a CMS experiment read from its names — frames,
+  raw-against-reduced progress, samples, in-situ runs, the pyDataOrg links.
+- `src/pyscattviz/org/layouts.py`: the `cms` and `products` layouts,
+  `detect_layout`, `describe_tree` (what a model is shown of a folder).
+- `src/pyscattviz/org/store.py`: `Source`, `create_org`/`open_org`, the org's
+  name and suggested place, recent orgs.
+- `src/pyscattviz/org/ask.py`: the models, the context a question is asked
+  with, `ask`, and `propose_source`/`parse_proposal`.
+- `src/pyscattviz/org/analysis.py`: a peak's area, position and width along a
+  run.
 
 Streamlit layer:
 
@@ -274,6 +311,11 @@ Streamlit layer:
   panel code because they also draw line-cut bands and per-curve styling.
 - `src/pyscattviz/app/components/grazing_explorer_page.py` and
   `transmission_explorer_page.py`: shared renderers with independent profiles.
+- `src/pyscattviz/app/pages/14_Org.py` to `19_Ask_AI.py`: make or open an
+  org, then Overview, Sample, Compare, In-situ, and Ask AI. They share
+  `components/org/state.py` (the open org or folder, `PYSCATTVIZ_ORG`, the
+  15 s re-read), `controls.py` (folder, sample, angle and frame pickers) and
+  `figures.py`.
 
 Tests:
 
@@ -299,17 +341,22 @@ Tests:
   its filename prefixes, the axes read from the sibling qx/qz CSVs, and the
   GIWAXS explorer drawing the panels for such a frame. The CMS `Qimage` layout
   is covered the same way, down to the rendered PNG in the map's own folder.
+- `tests/org_experiment.py`: a small CMS experiment written to disk (static,
+  humidity and spin-coating folders, a repeat, an unreduced frame, a dead T
+  sensor). `tests/test_org_cms.py`, `test_org_store.py`, `test_org_ask.py`
+  and `test_org_pages.py` run on it; a model is a stand-in Python script.
+  The org tests that need pyDataOrg skip without it.
 
 ## Last verification
 
-The `0.19.1` implementation passed:
+The `0.21.0` implementation passed, with pyDataOrg importable:
 
 ```text
-python -m pytest -q           569 passed
+python -m pytest -q           651 passed, 4 skipped
 python -m ruff check src tests
 python -m ruff format --check src tests
 git diff --check
-python -m pip wheel . --no-deps
+python -m pip wheel . --no-deps   (the org package, products.py and pages 14–19 are in it)
 ```
 
 Figures were confirmed written to disk from Quick Plot, the four explorers, and
