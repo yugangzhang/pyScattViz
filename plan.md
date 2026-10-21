@@ -41,7 +41,32 @@ Last updated: 2026-10-21, at `0.22.0` (not yet committed).
 
 ## 2. Org pages
 
-1. **The run metadata of an SMI org's scans, from Tiled.** The org keeps
+1. **Tell spots apart by x and y.** OGang's transmission spots are named
+   `_x…_y…`, but `cms.parse_frame` reads only x (`_X_RE`), and spots are told
+   apart on `["pos", "x"]` both in `cms.sample_table` and in the spot picker
+   of `16_Org_Sample.py`. So two spots that share an x are one spot, and the
+   second shows up only as a *Repeat* on *Org Sample*. Parse y the way x is
+   parsed, key spots on `pos`, `x` and `y`, and show y in the spot label when
+   a sample has it. Done when a test with OGang-style names (same x, two y)
+   gives two spots, and the OGang org's spot and repeat counts are checked on
+   the real folder. SMI frames carry y already (`smi.parse_frame`):
+   HZheng's 3 × 3 grid of spots reads as 3 spots × 3 repeats until then.
+2. **Save a figure from the Org pages.** Every other plotting page saves its
+   panels to the output folder through `components/saving.py`; the Org pages
+   download their data as CSV (the I(q), the curves, the waterfall, the peak
+   tables) but cannot save a figure. Add the shared save panel to *Org
+   Sample*, *Org Compare* and *Org In-situ*, writing to an `org` subfolder.
+3. **Line-cuts on *Org Sample*.** The explorers' horizontal and vertical cuts
+   of the q-image and the q–φ map. Reuse the explorer code rather than copying
+   it.
+4. **Hot-pixel cleaning and masks on the Org q-images**, through
+   `despike.py` as the explorers do.
+5. **To decide: save the org on its own while *Live* is on.** Today a frame
+   measured since the last save is linked on screen but written to the file
+   only on *Link new frames and save*. Saving by itself means the server
+   writes into the proposal folder unattended, so it should stay off by
+   default if it is added at all.
+6. **Later, on request: the run metadata of an SMI org's scans, from Tiled.** The org keeps
    what the names, `user_data/` listings and `configs/*.yaml` say, and the
    scan id of every linked file (`meta.scans`). What only the Bluesky
    records hold is not in it yet: the start document's `user_hints` (every
@@ -55,31 +80,6 @@ Last updated: 2026-10-21, at `0.22.0` (not yet committed).
    *environment vacuum, RT*, *holder Al GI bar* and the slit and
    attenuator settings, and an org opens and works with no Tiled access.
 
-2. **Tell spots apart by x and y.** OGang's transmission spots are named
-   `_x…_y…`, but `cms.parse_frame` reads only x (`_X_RE`), and spots are told
-   apart on `["pos", "x"]` both in `cms.sample_table` and in the spot picker
-   of `16_Org_Sample.py`. So two spots that share an x are one spot, and the
-   second shows up only as a *Repeat* on *Org Sample*. Parse y the way x is
-   parsed, key spots on `pos`, `x` and `y`, and show y in the spot label when
-   a sample has it. Done when a test with OGang-style names (same x, two y)
-   gives two spots, and the OGang org's spot and repeat counts are checked on
-   the real folder. SMI frames carry y already (`smi.parse_frame`):
-   HZheng's 3 × 3 grid of spots reads as 3 spots × 3 repeats until then.
-3. **Save a figure from the Org pages.** Every other plotting page saves its
-   panels to the output folder through `components/saving.py`; the Org pages
-   download their data as CSV (the I(q), the curves, the waterfall, the peak
-   tables) but cannot save a figure. Add the shared save panel to *Org
-   Sample*, *Org Compare* and *Org In-situ*, writing to an `org` subfolder.
-4. **Line-cuts on *Org Sample*.** The explorers' horizontal and vertical cuts
-   of the q-image and the q–φ map. Reuse the explorer code rather than copying
-   it.
-5. **Hot-pixel cleaning and masks on the Org q-images**, through
-   `despike.py` as the explorers do.
-6. **To decide: save the org on its own while *Live* is on.** Today a frame
-   measured since the last save is linked on screen but written to the file
-   only on *Link new frames and save*. Saving by itself means the server
-   writes into the proposal folder unattended, so it should stay off by
-   default if it is added at all.
 
 ## 3. Tests
 
