@@ -15,7 +15,9 @@ from pyscattviz.app.state import action_key, keep_widget_state
 keep_widget_state(st.session_state)
 require_password()
 
+from pyscattviz.app.components import scattering as sv  # noqa: E402
 from pyscattviz.app.components.org import controls, figures, state  # noqa: E402
+from pyscattviz.dataio import DataReadError  # noqa: E402
 from pyscattviz.org import cms  # noqa: E402
 
 state.on_page()
@@ -94,8 +96,53 @@ else:
     b.caption(f"{t_label} {t[i]:g} · {cms.frame_label(row.to_dict())}")
 
 st.caption(f"`{row['stem']}`")
-images = controls.image_options("svorg_one_img")
-curves = controls.curve_options("svorg_one_iq", offset=False, colormap=False)
+
+# ---------------------------------------------------------------------------
+# How it is shown
+# ---------------------------------------------------------------------------
+
+qimage = None
+if isinstance(row["qimg"], str):
+    try:
+        qimage = state.load_qimage_data(row["qimg"])
+    except DataReadError as exc:  # caught half-written by the reduction
+        st.warning(str(exc))
+has_qr = sv.qimage_has_qr(qimage)
+show = controls.display_options("svorg_one", qr=has_qr, logx=str(det).lower().startswith("saxs"))
+mode = show["qmode"] if has_qr else "qx"
+measured = sv.frame_axis_ranges(row, mode)
+covers = [
+    f"{name} {pair[0]:+.3g} … {pair[1]:+.3g}"
+    for name, pair in (
+        (mode, measured.get(mode)),
+        ("qz", measured.get("qz")),
+        ("q–φ q", measured.get("qphi_q")),
+        ("φ", measured.get("phi")),
+        ("I(q) q", measured.get("cir_q")),
+    )
+    if pair
+]
+below = "Every angle" if kind == "static" else "Its run"
+limits = controls.ranges(
+    "svorg_one",
+    {
+        "q-image": [("qimg_I", "I"), ("qimg_x", mode), ("qimg_z", "qz")],
+        "q–φ": [("qphi_I", "I"), ("qphi_q", "q"), ("qphi_phi", "φ")],
+        "I(q)": [("iq_q", "q"), ("iq_I", "I")],
+        f"{below} (below; q as I(q))": [("below_I", "I")],
+    },
+    fit={
+        "qimg_x": measured.get(mode),
+        "qimg_z": measured.get("qz"),
+        "qphi_q": measured.get("qphi_q"),
+        "qphi_phi": measured.get("phi"),
+        "iq_q": measured.get("cir_q"),
+        "iq_I": measured.get("cir_I"),
+    },
+    note="This frame covers " + " · ".join(covers) if covers else "",
+)
+with st.expander("I(q) curve style"):
+    style = controls.curve_style("svorg_one_iq_style", width=1.6)
 
 # ---------------------------------------------------------------------------
 # The frame
@@ -103,8 +150,8 @@ curves = controls.curve_options("svorg_one_iq", offset=False, colormap=False)
 
 left, right = st.columns(2)
 with left:
-    if isinstance(row["qimg"], str):
-        z, qx, qz, mask, xlabel = state.load_qimage(row["qimg"])
+    if qimage is not None:
+        z, qx, qz, mask, xlabel = sv.resolve_qimage(qimage, mode)
         st.plotly_chart(
             figures.image_figure(
                 z,
@@ -114,11 +161,14 @@ with left:
                 "qz (Å⁻¹)",
                 mask=mask,
                 title="q-image",
-                cmap=images["cmap"],
-                log=images["log"],
-                vmin=images["vmin"],
-                vmax=images["vmax"],
-                aspect=images["aspect"],
+                cmap=show["cmap"],
+                log=show["log"],
+                vmin=limits["qimg_I"][0],
+                vmax=limits["qimg_I"][1],
+                x_range=limits["qimg_x"],
+                y_range=limits["qimg_z"],
+                aspect=show["aspect"],
+                height=show["height"],
             ),
             width="stretch",
             key="svorg_one_qimg_chart",
@@ -136,12 +186,14 @@ with right:
                 "q (Å⁻¹)",
                 "φ (°)",
                 title="q–φ",
-                cmap=images["cmap"],
-                log=images["log"],
-                vmin=images["vmin"],
-                vmax=images["vmax"],
-                x_range=curves["q_range"],
-                xlog=curves["logx"],
+                cmap=show["cmap"],
+                log=show["log"],
+                vmin=limits["qphi_I"][0],
+                vmax=limits["qphi_I"][1],
+                x_range=limits["qphi_q"],
+                y_range=limits["qphi_phi"],
+                xlog=show["logx"],
+                height=show["height"],
             ),
             width="stretch",
             key="svorg_one_qphi_chart",
@@ -156,12 +208,15 @@ with left:
         st.plotly_chart(
             figures.curves_figure(
                 [("I(q)", q, iq)],
-                logx=curves["logx"],
-                logy=curves["logy"],
-                x_range=curves["q_range"],
+                logx=show["logx"],
+                logy=show["logy"],
+                x_range=limits["iq_q"],
+                y_range=limits["iq_I"],
                 title="circular average",
                 legend=False,
                 line_colors=["#1f2a44"],
+                style=style,
+                height=show["height"],
             ),
             width="stretch",
             key="svorg_one_iq_chart",
@@ -194,25 +249,22 @@ if kind == "static":
         .sort_values("th")
     )
     if len(latest) > 1:
-        a, b = st.columns(2)
-        cmap = a.selectbox("Colour map", figures.LINE_CMAPS, key="svorg_one_angles_cmap")
-        offset = b.number_input(
-            "Offset (× per curve)",
-            value=1.0,
-            min_value=0.0,
-            format="%g",
-            key="svorg_one_angles_offset",
-        )
+        lines_shown = controls.curve_controls("svorg_one_angles")
         q, stack = state.stack(tuple(latest["cir"]))
         lines = [(f"θ {r.th:g}°", q, stack[k]) for k, r in enumerate(latest.itertuples())]
         st.plotly_chart(
             figures.curves_figure(
                 lines,
-                logx=curves["logx"],
-                logy=curves["logy"],
-                offset=offset,
-                cmap=cmap,
-                x_range=curves["q_range"],
+                logx=show["logx"],
+                logy=show["logy"],
+                offset=lines_shown["offset"],
+                cmap=lines_shown["cmap"],
+                x_range=limits["iq_q"],
+                y_range=limits["below_I"],
+                width=lines_shown["width"],
+                markers=lines_shown["markers"],
+                legend=lines_shown["legend"],
+                height=show["height"],
                 title=f"{sample} · {cms.frame_label({'pos': pos, 'x': x})}",
             ),
             width="stretch",
@@ -229,6 +281,7 @@ else:
     chosen = [("first", run.iloc[0]), ("this", row), ("last", run.iloc[-1])]
     chosen = [(n, r) for n, r in chosen if isinstance(r["cir"], str)]
     if chosen:
+        lines_shown = controls.curve_controls("svorg_one_run", colormap=False)
         q, stack = state.stack(tuple(r["cir"] for _, r in chosen))
         lines = [
             (f"{n} · {cms.frame_label(r.to_dict())}", q, stack[k])
@@ -237,10 +290,16 @@ else:
         st.plotly_chart(
             figures.curves_figure(
                 lines,
-                logx=curves["logx"],
-                logy=curves["logy"],
-                x_range=curves["q_range"],
+                logx=show["logx"],
+                logy=show["logy"],
+                offset=lines_shown["offset"],
+                x_range=limits["iq_q"],
+                y_range=limits["below_I"],
                 line_colors=["#9aa5b1", "#d62728", "#1f2a44"][: len(lines)],
+                width=lines_shown["width"],
+                markers=lines_shown["markers"],
+                legend=lines_shown["legend"],
+                height=show["height"],
             ),
             width="stretch",
             key="svorg_one_run_chart",

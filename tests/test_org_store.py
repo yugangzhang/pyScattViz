@@ -117,6 +117,16 @@ def test_names_of_an_experiment(proposal, settings, tmp_path):
     assert store.suggest_store(loose) == tmp_path / "orgs" / "run.json"
 
 
+def test_the_experiments_of_a_proposal(proposal, tmp_path):
+    pass_folder = proposal.parent.parent
+    (pass_folder / "experiments" / "Org").mkdir()  # an org kept in the wrong place
+    (pass_folder / "experiments" / "empty").mkdir()
+    assert store.experiments_in(pass_folder) == [proposal]
+    assert store.experiments_in(pass_folder / "experiments") == [proposal]
+    assert store.experiments_in(proposal) == []
+    assert store.experiments_in(tmp_path / "nothing") == []
+
+
 def test_a_source_is_relative_to_the_org(tmp_path):
     source = store.Source.from_dict({"layout": "cms", "root": "../experiments/run"})
     assert source.path(tmp_path / "p" / "Org") == tmp_path / "p" / "experiments" / "run"
@@ -175,10 +185,12 @@ def test_reopening_links_the_frames_written_since(proposal, settings):
         "1002005_000000_maxs.tiff"
     )
     write_products(proposal / "2_Humidity" / "maxs" / "analysis", frame, 2.0)
+    assert store.linked_frames(org) == 5
     again = store.open_org(where)
     assert len(again.table(level="measurement", all_samples=True)) == linked
     m = again.measurement("film_C_humid_70C", "iq", stage="2_Humidity", role="maxs_th0.100")
     assert len(m.paths) == 4  # the new frame, linked in
+    assert store.linked_frames(again) == 6
     assert again.project.samples["film_C_humid_70C"].notes == "kept"
     assert "film_A1" not in again.project.samples  # only the folders it was made of
     with pytest.raises(FileNotFoundError):

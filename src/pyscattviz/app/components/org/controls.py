@@ -1,17 +1,27 @@
 """Page pieces the Org pages share: pickers, display options, live refresh.
 
+The display options and the *Ranges & colour scaling* panel are the
+explorers' (GISAXS, GIWAXS …): log axes, colour map, aspect, the q-image's
+in-plane axis, and a min and a max box for every axis and intensity of
+every panel — blank is auto (:mod:`.figures`).
+
 Widget keys start ``svorg_``; the caller gives the rest.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
+from pyscattviz.app.components import scattering as sv
 from pyscattviz.app.components.org import figures
+from pyscattviz.app.state import action_key
+
+ASPECTS = ("Equal (1:1)", "Auto", "Custom")
+QIMAGE_AXES = {"qx": "qx–qz", "qr": "qr–qz"}
 
 
 def folders(frames: pd.DataFrame, kind: Optional[str] = None) -> List[str]:
@@ -114,53 +124,132 @@ def pick_frame(n: int, key: str, run: str, *, label: str = "Frame", container=st
     return int(container.slider(label, 0, n - 1, key=key))
 
 
-def image_options(key: str, *, expanded: bool = False) -> dict:
-    """Colour map, log intensity, intensity limits — for the 2-D panels."""
-    with st.expander("Image options", expanded=expanded):
-        a, b, c, d = st.columns(4)
-        cmap = a.selectbox("Colour map", figures.CMAPS, key=f"{key}_cmap")
-        log = b.toggle("log intensity", value=True, key=f"{key}_log")
-        auto = c.toggle("auto limits (1–99.5 %)", value=True, key=f"{key}_auto")
-        equal = d.toggle("equal q aspect", value=True, key=f"{key}_equal")
-        vmin = vmax = None
-        if not auto:
-            e, f = st.columns(2)
-            vmin = e.number_input("I min", value=1.0, min_value=0.0, key=f"{key}_vmin", format="%g")
-            vmax = f.number_input("I max", value=1e4, min_value=0.0, key=f"{key}_vmax", format="%g")
-    return dict(cmap=cmap, log=log, vmin=vmin, vmax=vmax, aspect="equal" if equal else None)
-
-
-def curve_options(
-    key: str, *, offset: bool = True, colormap: bool = True, expanded: bool = False
-) -> dict:
-    """Log axes, q range, stacking offset, colour map — for I(q) plots."""
-    with st.expander("Curve options", expanded=expanded):
-        a, b, c, d = st.columns(4)
-        logx = a.toggle("log q", value=False, key=f"{key}_logx")
-        logy = b.toggle("log I", value=True, key=f"{key}_logy")
-        q_lo = c.number_input(
-            "q min (0: auto)", value=0.0, min_value=0.0, step=0.05, key=f"{key}_qlo", format="%g"
-        )
-        q_hi = d.number_input(
-            "q max (0: auto)", value=0.0, min_value=0.0, step=0.1, key=f"{key}_qhi", format="%g"
-        )
-        e, f = st.columns(2)
-        shift = 1.0
-        if offset:
-            shift = e.number_input(
-                "Offset (× per curve on log I, + on linear; 1/0 = none)",
-                value=1.0 if logy else 0.0,
-                min_value=0.0,
-                key=f"{key}_offset",
-                format="%g",
-            )
-        cmap = (
-            f.selectbox("Colour map", figures.LINE_CMAPS, key=f"{key}_lcmap") if colormap else None
-        )
-    q_range = (q_lo or None, q_hi or None)
-    return dict(
-        logx=logx, logy=logy, offset=shift, cmap=cmap, q_range=q_range if any(q_range) else None
+def display_options(key: str, *, qimage: bool = True, qr: bool = False, logx: bool = False) -> dict:
+    """The row above the panels: log I of the maps, log q and log I of the
+    curves, the maps' colour map; with *qimage*, the q-image's aspect and —
+    where its npz has a qr remesh (*qr*) — its in-plane axis; the panels'
+    height. *logx* is log q's first value."""
+    a, b, c, d = st.columns(4)
+    found = dict(
+        log=a.checkbox("log I (2D panels)", value=True, key=f"{key}_log"),
+        logx=b.checkbox("log q (1D)", value=logx, key=f"{key}_logx"),
+        logy=c.checkbox("log I (1D)", value=True, key=f"{key}_logy"),
+        cmap=d.selectbox("2D colour map", figures.CMAPS, key=f"{key}_cmap"),
+        aspect=None,
+        qmode="qx",
     )
+    a, b, c, d = st.columns(4)
+    if qimage:
+        mode = a.selectbox(
+            "Aspect ratio (q-image)",
+            ASPECTS,
+            key=f"{key}_aspect",
+            help="Equal locks qz to q∥ at 1:1; Custom sets the qz:q∥ ratio.",
+        )
+        if mode == "Custom":
+            found["aspect"] = b.number_input(
+                "qz : q∥ ratio", 0.05, 20.0, 1.0, 0.1, format="%.2f", key=f"{key}_ratio"
+            )
+        elif mode == ASPECTS[0]:
+            found["aspect"] = "equal"
+        found["qmode"] = c.selectbox(
+            "q-image x-axis",
+            list(QIMAGE_AXES),
+            format_func=QIMAGE_AXES.get,
+            key=f"{key}_qmode",
+            help="qr–qz needs a qr remesh in the q_image npz"
+            + ("" if qr else " — this frame has none, so qx–qz is shown")
+            + ".",
+        )
+    found["height"] = d.select_slider(
+        "Panel height (px)", [320, 380, 420, 480, 560, 640, 760], value=420, key=f"{key}_height"
+    )
+    return found
+
+
+def limits(container, label: str, key: str) -> Tuple[Optional[float], Optional[float]]:
+    """A *label* min and max box side by side → ``(lo, hi)``; blank is None."""
+    a, b = container.columns(2)
+    lo = a.number_input(f"{label} min", value=None, key=f"{key}_lo", format="%.4g")
+    hi = b.number_input(f"{label} max", value=None, key=f"{key}_hi", format="%.4g")
+    return lo, hi
+
+
+def fill_limits(values: Mapping[str, Optional[Tuple[float, float]]]) -> None:
+    """Write ``{key: (lo, hi)}`` into the boxes of :func:`limits`; None
+    empties them."""
+    for key, pair in values.items():
+        st.session_state[f"{key}_lo"] = None if pair is None else float(pair[0])
+        st.session_state[f"{key}_hi"] = None if pair is None else float(pair[1])
+
+
+def ranges(
+    key: str,
+    panels: Mapping[str, Sequence[Tuple[str, str]]],
+    *,
+    fit: Optional[Mapping[str, Optional[Tuple[float, float]]]] = None,
+    fit_label: str = "Fit to this frame",
+    note: str = "",
+    expanded: bool = False,
+) -> Dict[str, Tuple[Optional[float], Optional[float]]]:
+    """*Ranges & colour scaling*, as on the explorers: for each panel
+    (``{title: [(name, label), …]}``) a min and a max box per axis, three
+    panels to a row. **Fit** writes *fit* ``{name: (lo, hi)}`` into the
+    boxes, to be edited; **Clear back to auto** empties them. Returns
+    ``{name: (lo, hi)}``, None where blank."""
+    names = [name for axes in panels.values() for name, _ in axes]
+    found = {}
+    with st.expander("🎛️ Ranges & colour scaling (blank = auto)", expanded=expanded):
+        st.caption(
+            "Blank is auto: an axis frames the data it shows, and a colour or "
+            "intensity scale spans what lies inside that window — narrow q and I "
+            "follows. Colour limits are intensities (before the log)."
+        )
+        a, b, _ = st.columns([1.2, 1.4, 2.4])
+        if fit and a.button(fit_label, key=action_key(st.session_state, f"{key}_fit")):
+            fill_limits({f"{key}_{n}": fit[n] for n in names if fit.get(n)})
+            st.rerun()
+        if b.button("Clear back to auto", key=action_key(st.session_state, f"{key}_clear")):
+            fill_limits({f"{key}_{n}": None for n in names})
+            st.rerun()
+        items = list(panels.items())
+        for row in range(0, len(items), 3):
+            for column, (title, axes) in zip(st.columns(3), items[row : row + 3]):
+                column.markdown(f"**{title}**")
+                for name, label in axes:
+                    found[name] = limits(column, label, f"{key}_{name}")
+        if note:
+            st.caption(note)
+    return found
+
+
+def curve_controls(key: str, *, offset: bool = True, colormap: bool = True) -> dict:
+    """Stacking offset, colour map, line width, markers and legend of a plot
+    of several I(q)."""
+    a, b, c, d, e = st.columns([1.3, 1.2, 1, 0.8, 0.8])
+    shift = (
+        a.number_input(
+            "Offset (× per curve on log I, + on linear; 1/0 = none)",
+            value=1.0,
+            min_value=0.0,
+            key=f"{key}_offset",
+            format="%g",
+        )
+        if offset
+        else 1.0
+    )
+    cmap = (
+        b.selectbox("Line colour map", figures.LINE_CMAPS, key=f"{key}_lcmap") if colormap else None
+    )
+    width = c.slider("Line width", 0.5, 5.0, 1.4, 0.1, key=f"{key}_width")
+    markers = d.checkbox("Markers", value=False, key=f"{key}_markers")
+    legend = e.checkbox("Legend", value=True, key=f"{key}_legend")
+    return dict(offset=shift, cmap=cmap, width=width, markers=markers, legend=legend)
+
+
+def curve_style(key: str, **defaults) -> dict:
+    """The explorers' style of one curve: colour, marker, line, width …"""
+    return sv.curve_style_controls(key, defaults=defaults or None)
 
 
 def live(key: str, *, default: bool = False) -> Optional[int]:
@@ -198,8 +287,13 @@ __all__ = [
     "pick_detector",
     "angles",
     "pick_angle",
-    "image_options",
-    "curve_options",
+    "pick_frame",
+    "display_options",
+    "limits",
+    "fill_limits",
+    "ranges",
+    "curve_controls",
+    "curve_style",
     "live",
     "q_window",
 ]

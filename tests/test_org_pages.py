@@ -9,9 +9,10 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 import streamlit as st
-from org_experiment import make_experiment
+from org_experiment import make_experiment, write_products
 from streamlit.testing.v1 import AppTest
 
 from pyscattviz.org import ask, store
@@ -54,6 +55,11 @@ def _ok(app: AppTest) -> AppTest:
 
 def _charts(app: AppTest) -> list:
     return [c for c in app.get("plotly_chart")]
+
+
+def _figure(app: AppTest, key: str) -> dict:
+    chart = next(c for c in _charts(app) if c.proto.id.endswith(f"-{key}"))
+    return json.loads(chart.proto.spec)
 
 
 def _button(app: AppTest, label: str):
@@ -109,6 +115,32 @@ def test_one_sample_static_and_in_situ(experiment):
     assert len(_charts(app)) == 4
 
 
+def test_one_sample_takes_the_explorers_ranges(experiment):
+    app = _ok(_page("16_Org_Sample.py", experiment))
+    assert _figure(app, "svorg_one_qimg_chart")["layout"]["yaxis"]["scaleanchor"] == "x"
+    app.number_input(key="svorg_one_qimg_x_lo").set_value(0.5)
+    app.number_input(key="svorg_one_qimg_x_hi").set_value(1.5)
+    app.number_input(key="svorg_one_qphi_phi_lo").set_value(0.0)
+    app.number_input(key="svorg_one_qphi_phi_hi").set_value(90.0)
+    app.number_input(key="svorg_one_iq_I_lo").set_value(2.0)
+    app.number_input(key="svorg_one_iq_I_hi").set_value(200.0)
+    app.selectbox(key="svorg_one_aspect").set_value("Auto")
+    app.checkbox(key="svorg_one_logx").check().run()
+    _ok(app)
+    qimg = _figure(app, "svorg_one_qimg_chart")["layout"]
+    assert qimg["xaxis"]["range"] == [0.5, 1.5] and "scaleanchor" not in qimg["yaxis"]
+    assert _figure(app, "svorg_one_qphi_chart")["layout"]["yaxis"]["range"] == [0.0, 90.0]
+    iq = _figure(app, "svorg_one_iq_chart")["layout"]
+    assert iq["xaxis"]["type"] == "log"
+    assert iq["yaxis"]["range"] == pytest.approx([np.log10(2.0), np.log10(200.0)])
+
+    _button(app, "Clear back to auto").click().run()
+    _ok(app)
+    assert app.number_input(key="svorg_one_qimg_x_lo").value is None
+    _button(app, "Fit to this frame").click().run()
+    assert _ok(app).number_input(key="svorg_one_iq_q_lo").value == pytest.approx(0.05)
+
+
 def test_compare_and_its_peak(experiment):
     app = _ok(_page("17_Org_Compare.py", experiment))
     app.selectbox(key="svorg_cmp_folder").set_value("1_Static").run()
@@ -146,6 +178,20 @@ def test_look_at_a_folder_without_an_org(experiment):
     assert "svorg_org" not in app.session_state
 
 
+def test_a_proposal_folder_offers_its_experiments(tmp_path):
+    run = make_experiment(tmp_path / "2026-1" / "pass-000001" / "experiments")
+    app = AppTest.from_file(str(PAGES / "14_Org.py"), default_timeout=20)
+    app.session_state["pyscattviz_active_root"] = str(run.parent.parent)
+    _ok(app.run())
+    assert app.selectbox(key="svorg_make_experiment").value == "demo_run"
+    assert app.selectbox(key="svorg_make_layout").value == "cms"
+    assert app.text_input(key="svorg_make_name").value == "demo_run · 2026-1 · pass-000001"
+    assert app.text_input(key="svorg_make_store").value == str(
+        run.parent.parent / "Org" / "demo_run.json"
+    )
+    assert {m.label: m.value for m in app.metric}["samples"] == "5"
+
+
 # ---------------------------------------------------------------------------
 # An org
 # ---------------------------------------------------------------------------
@@ -180,6 +226,29 @@ def test_build_an_org_then_open_it_with_the_launcher(experiment, tmp_path, monke
     app.selectbox(key="svorg_cmp_folder").set_value("1_Static").run()
     chosen = next(m for m in _ok(app).multiselect if m.label.startswith("Samples"))
     assert chosen.value == ["film_A10"]
+
+
+@needs_pydataorg
+def test_an_org_measured_since_is_updated_in_one_click(tmp_path):
+    run = make_experiment(tmp_path / "2026-1" / "pass-000001" / "experiments")
+    where = store.suggest_store(run)
+    store.create_org(where, run)
+    write_products(
+        run / "2_Humidity" / "maxs" / "analysis",
+        "film_C_humid_70C_5_250.0s_x+0.000_th+0.100_1.00s_RH60.000_T70.000C_"
+        "1002005_000000_maxs.tiff",
+        2.0,
+    )
+    app = _ok(AppTest.from_file(str(PAGES / "14_Org.py"), default_timeout=30).run())
+    app.text_input(key="svorg_open_path").set_value(str(where)).run()
+    _button(_ok(app), "Open this org").click().run()
+    _ok(app)
+    assert any(i.value.startswith("1 reduced frames written since") for i in app.info)
+    assert store.linked_frames(store.open_org(where, refresh=False)) == 14
+    _button(app, "💾 Link new frames and save").click().run()
+    _ok(app)
+    assert store.linked_frames(store.open_org(where, refresh=False)) == 15
+    assert not any(i.value.startswith("1 reduced frames written since") for i in app.info)
 
 
 # ---------------------------------------------------------------------------

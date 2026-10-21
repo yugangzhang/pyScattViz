@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyScattViz"
-version = "0.21.0"
+version = "0.22.0"
 description = "Local, lazy-loading exploration and plotting of scattering data"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -40,7 +40,8 @@ dependencies = [
 dev = ["pytest>=8", "ruff>=0.6"]
 # The Org pages keep an org of a data folder with pyDataOrg; without it a
 # folder can still be looked at.
-org = ["pyDataOrg @ git+https://github.com/yugangzhang/pyDataOrg.git"]
+# PyYAML reads the reduction's configs an org of an SMI project keeps.
+org = ["pyDataOrg @ git+https://github.com/yugangzhang/pyDataOrg.git", "PyYAML>=5.1"]
 
 [project.scripts]
 pyscattviz = "pyscattviz.cli:main"

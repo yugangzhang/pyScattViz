@@ -9,12 +9,16 @@ table, so a new kind of folder needs a new layout and nothing else::
     frames = index(root, "cms")               # one row per reduced frame
     frames = index(root, "products", {"sample_pattern": r"^(?P<sample>.+?)_x"})
 
-Two are built in:
+Three are built in:
 
 ``cms``       a CMS experiment, ``experiments/<name>/<folder>/<detector>/
               {raw,analysis}`` — the names say spot, angle, scan, and for an
               in-situ run its time, humidity and temperature
               (:mod:`pyscattviz.org.cms`)
+``smi``       an SMI project's ``Results/`` — the names say group, sample,
+              angle, spot, energy, arc, distance and scan; the raw frames of
+              ``user_data/`` and the reduction's configs say how it was
+              measured and reduced (:mod:`pyscattviz.org.smi`)
 ``products``  any folder holding the reduction's product folders
               (``cir_avg``, ``q_image``, ``qphi``, ``qc``, SMI's ``Cir_Avg``,
               ``Stitch_Data`` …) somewhere below it; what a name says is read
@@ -36,7 +40,7 @@ from typing import Callable, Dict, List, Mapping, Optional
 
 import pandas as pd
 
-from pyscattviz.org import cms
+from pyscattviz.org import cms, smi
 from pyscattviz.products import (
     SCATTERING_PRODUCTS,
     _iter_product_files,
@@ -71,7 +75,9 @@ class Layout:
 
     *detect* says whether a folder looks like this layout; *index* reads it
     (``(root, options) -> frames``); *progress*, when there is one, counts
-    raw against reduced (``(root, options) -> table``). *options* names
+    raw against reduced (``(root, options) -> table``); *describe*, when
+    there is one, says how the folder was measured and reduced, for an org
+    to keep (``(root, options, frames, base) -> dict``). *options* names
     each option it takes and says what it does.
     """
 
@@ -82,6 +88,7 @@ class Layout:
     index: Callable[[Path, Mapping], pd.DataFrame]
     progress: Optional[Callable[[Path, Mapping], pd.DataFrame]] = None
     options: Mapping[str, str] = field(default_factory=dict)
+    describe: Optional[Callable[..., dict]] = None
 
 
 LAYOUTS: Dict[str, Layout] = {}
@@ -271,7 +278,17 @@ def parse_with(stem: str, pattern: Optional[re.Pattern], kind: str = "auto") -> 
     return row
 
 
-def _home_frames(root: Path, home: Path, options: Mapping) -> pd.DataFrame:
+def _home_frames(
+    root: Path,
+    home: Path,
+    options: Mapping,
+    parse=None,
+    columns: Optional[Mapping[str, type]] = None,
+) -> pd.DataFrame:
+    """The reduced frames of one product home; *parse* reads a name (by
+    default :func:`parse_with` and the options), filling *columns* too
+    (``{name: type}``)."""
+    columns = columns or {}
     folder, det_folder, det_dir = _where(home, root)
     folders = product_folders(home)
     paths: Dict[str, Dict[str, str]] = {}
@@ -281,22 +298,28 @@ def _home_frames(root: Path, home: Path, options: Mapping) -> pd.DataFrame:
             continue
         for name, path in _iter_product_files(where, SCATTERING_PRODUCTS[key]["patterns"]):
             paths.setdefault(stem_of(name), {}).setdefault(column, path)
-    pattern = re.compile(options["sample_pattern"]) if options.get("sample_pattern") else None
-    kind = options.get("kind", "auto")
+    if parse is None:
+        pattern = re.compile(options["sample_pattern"]) if options.get("sample_pattern") else None
+        kind = options.get("kind", "auto")
+
+        def parse(stem):
+            return parse_with(stem, pattern, kind)
+
     rows = []
     for stem, products in paths.items():
         if not any(products.get(c) for c in _REDUCED + ("qc",)):
             continue
-        row = parse_with(stem, pattern, kind)
+        row = parse(stem)
         row.pop("matched", None)
         row.update({c: products.get(c) for c in _COLUMNS})
         row["stem"] = stem
         row["stitched"] = bool(products.get("raw")) and "stitched" in str(products["raw"]).lower()
         rows.append(row)
     keep = [c for c in cms.FRAME_COLUMNS if c not in ("folder", "det_folder", "det")]
-    frame = pd.DataFrame(rows, columns=keep)
-    numeric = [c for c, t in PATTERN_FIELDS.items() if t is not str]
-    frame = frame.astype({c: float for c in numeric})
+    frame = pd.DataFrame(rows, columns=keep + list(columns))
+    numeric = [c for c, t in {**PATTERN_FIELDS, **columns}.items() if t is not str]
+    text = [c for c, t in columns.items() if t is str]
+    frame = frame.astype({**{c: float for c in numeric}, **{c: object for c in text}})
     frame.insert(0, "det", cms._detector(det_folder))
     frame.insert(0, "det_folder", det_folder)
     frame.insert(0, "folder", folder)
@@ -311,12 +334,14 @@ def _homes(root: Path, options: Mapping) -> List[Path]:
     return homes
 
 
-def _products_index(root: Path, options: Mapping) -> pd.DataFrame:
-    parts = [
-        p for p in (_home_frames(root, h, options) for h in _homes(root, options)) if not p.empty
-    ]
+def _products_index(
+    root: Path, options: Mapping, parse=None, columns: Optional[Mapping[str, type]] = None
+) -> pd.DataFrame:
+    homes = _homes(root, options)
+    parts = [_home_frames(root, h, options, parse, columns) for h in homes]
+    parts = [p for p in parts if not p.empty]
     if not parts:
-        return pd.DataFrame(columns=list(cms.FRAME_COLUMNS))
+        return pd.DataFrame(columns=list(cms.FRAME_COLUMNS) + list(columns or {}))
     return cms.sort_frames(pd.concat(parts, ignore_index=True))
 
 
@@ -356,6 +381,76 @@ def _products_progress(root: Path, options: Mapping) -> pd.DataFrame:
         "reduced_changed",
     ]
     return pd.DataFrame(rows, columns=columns)
+
+
+# ---------------------------------------------------------------------------
+# smi
+# ---------------------------------------------------------------------------
+
+
+def _smi_parse(stem: str) -> dict:
+    """An SMI name, or — for one that is not — what a CMS name would say."""
+    row = smi.parse_frame(stem)
+    return row if row is not None else parse_with(stem, None)
+
+
+def _smi_detect(root: Path) -> bool:
+    """Product folders, the first names of one of them SMI frame names
+    (``Mask/Stitch_Image`` holds the calibrant's check, named otherwise)."""
+    for home in product_homes(root, depth=2)[:8]:
+        for where in product_folders(home).values():
+            names = sorted(cms._names(where))[:5]
+            if any(smi.parse_frame(stem_of(n)) for n in names):
+                return True
+    return False
+
+
+def _smi_index(root: Path, options: Mapping) -> pd.DataFrame:
+    frames = _products_index(root, options, _smi_parse, smi.COLUMNS)
+    frames["stitched"] = frames["arc_tag"].fillna("").str.upper().str.startswith("STITCH")
+    return smi.with_raw(frames, smi.raw_frames(smi.project_dir(root)))
+
+
+def _smi_progress(root: Path, options: Mapping) -> pd.DataFrame:
+    """As for product folders, with the raw frames of ``user_data/``: each
+    folder's raw frames, and its spots not reduced yet."""
+    table = _products_progress(root, options)
+    table = table[table["det_folder"].str.lower() != "mask"].reset_index(drop=True)
+    project = smi.project_dir(root)
+    if table.empty or project is None:
+        return table
+    frames, raw = _smi_index(root, options), smi.raw_frames(project)
+    for i, row in table.iterrows():
+        part = frames[
+            (frames["folder"] == row["folder"]) & (frames["det_folder"] == row["det_folder"])
+        ]
+        mine = smi.raw_of(row["det_folder"], part, raw)
+        table.at[i, "raw"] = len(mine)
+        table.at[i, "to_reduce"] = smi.to_reduce(row["det_folder"], part, raw)
+        if not mine.empty:
+            table.at[i, "raw_changed"] = cms._mtime(Path(mine["path"].iloc[0]).parent)
+    return table
+
+
+def _smi_describe(root: Path, options: Mapping, frames=None, base=None) -> dict:
+    return smi.describe(root, frames, base=base)
+
+
+register_layout(
+    Layout(
+        key="smi",
+        label="SMI project",
+        description="an SMI project's Results/ (giwaxs, gisaxs, tsaxs … with cir_avg, "
+        "q_image, qphi, qc); names read for group, sample, angle, spot, energy, arc, "
+        "distance and scan — the group being the name's first field — and the raw "
+        "frames of user_data/ and the reduction's configs kept with the org",
+        detect=_smi_detect,
+        index=_smi_index,
+        progress=_smi_progress,
+        options={"folders": "only these folders (as the Folder column shows them)"},
+        describe=_smi_describe,
+    )
+)
 
 
 register_layout(

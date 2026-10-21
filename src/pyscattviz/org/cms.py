@@ -57,6 +57,9 @@ _STAGE_T_RE = re.compile(r"_T(-?\d+(?:\.\d+)?)C(?=_)")
 _RH_RE = re.compile(r"_RH(-?\d+(?:\.\d+)?)(?=_)")
 _INSITU_TH_RE = re.compile(r"_th([+-]?\d+(?:\.\d+)?)")
 _UID_RE = re.compile(r"_(\d+)_(\d+)_(?:saxs|waxs|maxs)\w*\.tiff?$", re.IGNORECASE)
+# Stage readings a run may write between its elapsed time and `_x`
+# (`AS_5-5_1023.6s_T37.136C_x…`).
+_READINGS = r"(?:_(?:T|Linkam)-?\d+(?:\.\d+)?C|_RH-?\d+(?:\.\d+)?)*"
 # `<series>_<frame idx>_<elapsed>s_` -- what one in-situ run shares.
 _SERIES_RE = re.compile(r"^(.*?)_(\d+)_\d+(?:\.\d+)?s_(?=[A-Za-z])")
 
@@ -140,8 +143,9 @@ def insitu_series(filename: str) -> str:
     m = _SERIES_RE.search(filename)
     if m:
         return m.group(1)
-    # Spin-coating scans: `<sample>_<elapsed>s_x...`, one scan of many frames.
-    return re.sub(r"_\d+(?:\.\d+)?s$", "", filename.split("_x", 1)[0])
+    # Spin-coating scans: `<sample>_<elapsed>s_x...`, one scan of many frames;
+    # a heated or humid cell's `<sample>_<elapsed>s_T<T>C_x...`, one run.
+    return re.sub(rf"_\d+(?:\.\d+)?s{_READINGS}$", "", filename.split("_x", 1)[0])
 
 
 # key: (folder under analysis/, filename prefix, suffix)
@@ -161,9 +165,10 @@ _X_RE = re.compile(r"_x([+-]?\d+(?:\.\d+)?)(?=_)")
 _TH_RE = re.compile(r"_th([+-]?\d+(?:\.\d+)?)(?=_)")
 _POS_RE = re.compile(r"_pos(\d+)$")
 # `<series>_<index>_<elapsed>s_x` (humidity, Linkam) or `<series>_<start>s_x`
-# (one spin: every frame carries the scan's start time).
-_INDEXED_RE = re.compile(r"^(.*?)_(\d+)_(\d+(?:\.\d+)?)s_x")
-_STARTED_RE = re.compile(r"^(.*?)_(\d+(?:\.\d+)?)s_x")
+# (one spin: every frame carries the scan's start time) — either perhaps with
+# the cell's readings before `_x` (`<series>_<elapsed>s_T<T>C_x`).
+_INDEXED_RE = re.compile(rf"^(.*?)_(\d+)_(\d+(?:\.\d+)?)s{_READINGS}_x")
+_STARTED_RE = re.compile(rf"^(.*?)_(\d+(?:\.\d+)?)s{_READINGS}_x")
 
 _NUMERIC = ("pos", "x", "th", "exposure_s", "scan", "frame", "index", "elapsed_s", "T_C", "RH")
 FRAME_COLUMNS = (
@@ -440,10 +445,50 @@ def _span_of(lo, hi) -> Optional[str]:
     return f"{lo:.4g}" if np.isclose(lo, hi) else f"{lo:.4g}–{hi:.4g}"
 
 
+def _span_g(values, form: str = "g") -> Optional[str]:
+    """:func:`span` with every digit a position (µm) or a scan id needs."""
+    v = pd.to_numeric(pd.Series(list(values)), errors="coerce").dropna()
+    if v.empty:
+        return None
+    lo, hi = format(v.min(), form), format(v.max(), form)
+    return lo if lo == hi else f"{lo}–{hi}"
+
+
+def _joined(values) -> Optional[str]:
+    """The distinct numbers of ``"0, 20, 40"`` strings, joined in order."""
+    found = {float(v) for text in values if isinstance(text, str) for v in text.split(",")}
+    return ", ".join(f"{v:g}" for v in sorted(found)) or None
+
+
+def _extra_columns(f: pd.DataFrame, groups) -> Dict[str, pd.Series]:
+    """What frames of some layouts say beyond :data:`FRAME_COLUMNS` (SMI's:
+    the group, where on the bar, the beam, the detector's arcs and the raw
+    scans), per sample — only where the frames have it."""
+    out = {}
+    if "group" in f:
+        out["group"] = groups["group"].agg(lambda v: ", ".join(sorted(set(v.dropna()))) or None)
+    if "y" in f:
+        for axis in ("x", "y", "z"):
+            out[f"{axis}_um"] = groups[axis].agg(_span_g)
+    if "energy_eV" in f:
+        out["energy_keV"] = groups["energy_eV"].agg(lambda v: span(v / 1000.0))
+    for column in ("sdd_mm", "E_V"):
+        if column in f:
+            out[column] = groups[column].agg(span)
+    if "arcs" in f:
+        out["arcs_deg"] = groups["arcs"].agg(_joined)
+    if "raw_scans" in f:
+        out["raw_scans"] = groups["raw_scans"].agg(
+            lambda v: _span_g([s for text in v.dropna() for s in text.split(",")], ".0f")
+        )
+    return out
+
+
 def sample_table(frames: pd.DataFrame) -> pd.DataFrame:
     """One row per (folder, sample): what kind, which detectors, how many
     frames, at which angles and spots, and — in situ — over what time,
-    humidity and temperature."""
+    humidity and temperature; and what a layout's frames say beyond that
+    (SMI's group, positions, energy, distance, arcs and raw scans)."""
     columns = [
         "folder",
         "sample",
@@ -502,6 +547,9 @@ def sample_table(frames: pd.DataFrame) -> pd.DataFrame:
     out["RH"] = [_span_of(a, b) for a, b in zip(out["rh_lo"], out["rh_hi"])]
     out["T_C"] = [_span_of(a, b) for a, b in zip(out["t_lo"], out["t_hi"])]
     out.loc[~static, ["spots", "repeats"]] = None
+    for column, values in _extra_columns(f, groups).items():
+        out[column] = values
+        columns.append(column)
     return out.reset_index()[columns]
 
 
@@ -781,16 +829,29 @@ def build_organizer(
     # These lists come from directory listings: they are files.
     project = organizer.project
     base = Path(organizer.path).parent if relative else None
+    # The scan each file is of, kept beside its path: what finds its run's
+    # metadata in the beamline's records.
+    scans = {}
+    for product in PRODUCT_MODALITY:
+        scans.update(
+            (p, int(n))
+            for p, n in zip(frames[product], frames["scan"])
+            if isinstance(p, str) and pd.notna(n)
+        )
     for row in link_rows(frames).itertuples(index=False):
         sample = project.get_sample(row.sample_id) or project.add_sample(row.sample_id)
+        paths = row.paths.split(";")
+        meta = dict(det_folder=row.det_folder, linked=True)
+        if any(p in scans for p in paths):
+            meta["scans"] = [scans.get(p) for p in paths]
         sample.add_measurement(
             Measurement(
                 sample_id=row.sample_id,
                 modality=row.modality,
                 stage=row.stage,
                 role=row.role,
-                paths=[recorded_path(p, base) for p in row.paths.split(";")],
-                meta=dict(det_folder=row.det_folder, linked=True),
+                paths=[recorded_path(p, base) for p in paths],
+                meta=meta,
             )
         )
     return organizer

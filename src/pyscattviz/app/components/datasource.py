@@ -144,6 +144,26 @@ def _folder_label(value: str) -> str:
     return "…/" + "/".join(parts[-3:]) if len(parts) > 3 else value
 
 
+def _use_known_folder(menu_key: str, path_state: str) -> None:
+    """The menu was changed: put its folder in the box."""
+
+    choice = st.session_state.get(menu_key)
+    if not choice or choice == PASTE_PROMPT:
+        return
+    st.session_state[path_state] = choice
+    st.session_state.pop(f"_{path_state}", None)
+    st.session_state[ACTIVE_KEY] = choice
+    remember_folder(choice)
+
+
+def _use_typed_folder(menu_key: str, path_state: str) -> None:
+    """The box was typed in: keep it, and stop the menu naming another folder."""
+
+    store_persistent_widget(st.session_state, path_state)
+    if menu_key in st.session_state:
+        st.session_state[menu_key] = PASTE_PROMPT
+
+
 def render_folder_picker(
     state_prefix: str,
     label: str,
@@ -163,24 +183,26 @@ def render_folder_picker(
     mappings = st.session_state["pyscattviz_path_mappings"]
 
     path_state = f"{state_prefix}_folder_text"
+    menu_key = f"{state_prefix}_folder_pick"
     folders = known_folders()
     if folders:
-        choice = host.selectbox(
+        # Only a choice made in the menu moves the box. Comparing the menu with
+        # the box on every rerun instead put a pasted path straight back to the
+        # folder still showing in the menu, so no other folder could be typed.
+        if st.session_state.get(menu_key) not in (PASTE_PROMPT, *folders):
+            st.session_state[menu_key] = PASTE_PROMPT
+        host.selectbox(
             f"Known folders ({len(folders)})",
             [PASTE_PROMPT, *folders],
             format_func=_folder_label,
-            key=f"{state_prefix}_folder_pick",
+            key=menu_key,
+            on_change=_use_known_folder,
+            args=(menu_key, path_state),
             help=(
                 "Registered mounts, the dataset basket, and every folder you "
                 "have opened before — kept in data_folders.md between sessions."
             ),
         )
-        if choice != PASTE_PROMPT and choice != st.session_state.get(path_state):
-            st.session_state[path_state] = choice
-            st.session_state.pop(f"_{path_state}", None)
-            st.session_state[ACTIVE_KEY] = choice
-            remember_folder(choice)
-            st.rerun()
 
     widget_key = prepare_persistent_widget(
         st.session_state, path_state, str(st.session_state.get(ACTIVE_KEY, ""))
@@ -188,8 +210,8 @@ def render_folder_picker(
     typed = host.text_input(
         label,
         key=widget_key,
-        on_change=store_persistent_widget,
-        args=(st.session_state, path_state),
+        on_change=_use_typed_folder,
+        args=(menu_key, path_state),
         help=help_text or "Type or paste any folder on this computer, or a mounted path.",
     )
 

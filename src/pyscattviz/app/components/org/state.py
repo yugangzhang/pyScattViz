@@ -36,6 +36,7 @@ _load_cir = getattr(sv.load_cir, "__wrapped__", sv.load_cir)
 SOURCE = "svorg_source"  # {"layout", "root", "options"} of the open folder
 ORG = "svorg_org"  # the open org (a pyDataOrg Organizer), or absent
 LINKED = "svorg_linked"  # {(folder, sample): frames linked} in the org
+SAVED = "svorg_saved_frames"  # reduced frames the org's file links
 AUTO_OPENED = "svorg_auto_opened"
 #: Pages re-read the folder listings after this long, so new frames appear.
 REFRESH_S = 15
@@ -140,6 +141,7 @@ def open_folder(path, layout: Optional[str] = None, options=None) -> None:
         "options": layouts.check_options(layout, options),
     }
     st.session_state.pop(ORG, None)
+    st.session_state.pop(SAVED, None)
     st.session_state[LINKED] = {}
     rescan()
 
@@ -164,6 +166,8 @@ def _attach(found) -> object:
     }
     st.session_state[ORG] = found
     st.session_state[LINKED] = {}
+    # Counted before the frames written since are linked in: what the file holds.
+    st.session_state[SAVED] = store.linked_frames(found) if Path(found.path).exists() else 0
     rescan()
     if where.is_dir():
         sync_org()
@@ -212,6 +216,34 @@ def sync_org() -> int:
     return len(changed)
 
 
+def unsaved() -> int:
+    """Reduced frames linked in the open org that its file does not hold yet."""
+    found = org()
+    if found is None:
+        return 0
+    return max(store.linked_frames(found) - st.session_state.get(SAVED, 0), 0)
+
+
+def save_org() -> Path:
+    """Write the open org to its file; raises OSError where it cannot."""
+    found = org()
+    path = Path(found.save())
+    st.session_state[SAVED] = store.linked_frames(found)
+    store.remember(path)
+    return path
+
+
+def update_org() -> int:
+    """Re-read the folders, link what is new, re-read how the data were
+    measured and reduced, and save: returns the frames the file gained."""
+    before = st.session_state.get(SAVED, 0)
+    rescan()
+    sync_org()
+    store.describe(org(), frames())
+    save_org()
+    return st.session_state[SAVED] - before
+
+
 def require_source() -> Path:
     """The open data folder, or a pointer to the Org page and a stop."""
     found = root()
@@ -257,6 +289,18 @@ def sidebar() -> None:
         if not table.empty:
             reduced, waiting = int(table["cir"].sum()), int(table["to_reduce"].sum())
             st.caption(f"{reduced} frames reduced · {waiting} still to reduce")
+        new = unsaved()
+        if new:
+            st.caption(f"{new} new frames linked, not saved in the org's file yet")
+            if st.button(
+                "💾 Save them into the org",
+                width="stretch",
+                key=action_key(st.session_state, "svorg_sidebar_save"),
+            ):
+                try:
+                    st.toast(f"Saved {shown(save_org())}")
+                except OSError as exc:
+                    st.error(f"Could not save: {exc}")
         if st.button(
             "↻ Re-scan the folders",
             width="stretch",
@@ -315,9 +359,15 @@ def stack(paths: Sequence[str]) -> Tuple[np.ndarray, np.ndarray]:
     return cms.stack_iq(curves)
 
 
+def load_qimage_data(path: str) -> dict:
+    """Every array of one ``qimg_*.npz`` (:func:`load_qimage` is a view of it)."""
+    return sv.load_qimg(path)
+
+
 def load_qimage(path: str, mode: str = "qx"):
-    """``(z, x, y, mask, xlabel)`` of one ``qimg_*.npz`` — pyScattViz's view."""
-    return sv.resolve_qimage(sv.load_qimg(path), mode)
+    """``(z, x, y, mask, xlabel)`` of one ``qimg_*.npz`` — pyScattViz's view;
+    *mode* ``"qr"`` is its qr remesh where it has one."""
+    return sv.resolve_qimage(load_qimage_data(path), mode)
 
 
 def load_qphi(path: str):
@@ -349,6 +399,9 @@ __all__ = [
     "open_org",
     "create_org",
     "sync_org",
+    "unsaved",
+    "save_org",
+    "update_org",
     "require_source",
     "auto_open",
     "sidebar",
@@ -356,6 +409,7 @@ __all__ = [
     "page_link",
     "load_iq",
     "stack",
+    "load_qimage_data",
     "load_qimage",
     "load_qphi",
     "shown",

@@ -6,6 +6,7 @@
     org = open_org("…/Org/run.json")                         # new frames linked in
     source_of(org)          # Source(layout="cms", root="../experiments/run", options={})
     data_root(org)          # the data folder on this machine
+    beamline(org)           # how it was measured and reduced, where the layout says
 
 The org records where its data is — the *source*: the layout that reads the
 folder (:mod:`pyscattviz.org.layouts`), the folder, the layout's options —
@@ -32,7 +33,7 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from pyscattviz.org import cms, layouts
+from pyscattviz.org import cms, layouts, smi
 
 #: The org's settings for pyScattViz, in ``ProjectConfig.extensions``.
 SOURCE_KEY = "pyscattviz"
@@ -40,7 +41,8 @@ SOURCE_KEY = "pyscattviz"
 ORGS_ENV = "PYSCATTVIZ_ORGS"
 #: An org to open on the first visit (``pyscattviz --org PATH``).
 ORG_ENV = "PYSCATTVIZ_ORG"
-#: The folder next to ``experiments/`` an org of an experiment is kept in.
+#: The folder next to ``experiments/`` an org of an experiment is kept in
+#: (in an SMI project, next to ``Results/``).
 ORG_FOLDER = "Org"
 RECENT_NAME = "recent_orgs.json"
 MAX_RECENT = 12
@@ -73,19 +75,30 @@ def orgs_dir() -> Path:
 
 
 def _experiment_parts(root) -> Optional[tuple]:
-    """``(cycle, proposal, name)`` of ``…/<cycle>/<proposal>/experiments/<name>``."""
-    parts = Path(root).parts
+    """``(cycle, proposal, name, home)`` of a CMS experiment,
+    ``…/<cycle>/<proposal>/experiments/<name>``, or of a folder of an SMI
+    project, ``…/<cycle>/<proposal>/projects/<project>[/Results[/<sub>…]]``
+    (named ``<project>[_<sub>…]``); *home* is the folder its ``Org/`` goes
+    in — the proposal's, the project's."""
+    root = Path(root)
+    parts = root.parts
     if len(parts) >= 4 and parts[-2] == "experiments":
-        return parts[-4], parts[-3], parts[-1]
+        return parts[-4], parts[-3], parts[-1], root.parent.parent
+    found = smi.project_parts(root)
+    if found:
+        cycle, proposal, project, below = found
+        home = root.parents[len(below) - 1] if below else root
+        below = below[1:] if below[:1] == ("Results",) else below
+        return cycle, proposal, "_".join([project, *below]), home
     return None
 
 
 def title(root) -> str:
-    """``run · 2026-3 · pass-123456`` for an experiment of a proposal; the
-    folder's name for anything else."""
+    """``run · 2026-3 · pass-123456`` for an experiment of a proposal (or an
+    SMI project); the folder's name for anything else."""
     found = _experiment_parts(root)
     if found:
-        cycle, proposal, name = found
+        cycle, proposal, name, _ = found
         return f"{name} · {cycle} · {proposal}"
     return Path(root).name
 
@@ -94,18 +107,32 @@ def tag(root) -> str:
     """A file name for an org of *root* (``2026-3_pass-123456_run``)."""
     found = _experiment_parts(root)
     if found:
-        cycle, proposal, name = found
+        cycle, proposal, name, _ = found
         return f"{cycle}_{proposal}_{name}"
     return Path(root).name or "org"
 
 
+def experiments_in(folder) -> List[Path]:
+    """The experiments a layout can read in a proposal folder
+    (``<proposal>/experiments/<name>``) or in its ``experiments/``, by name;
+    the ``Org`` folder an org is kept in is not one."""
+    folder = Path(folder)
+    home = folder if folder.name == "experiments" else folder / "experiments"
+    try:
+        found = sorted(p for p in home.iterdir() if p.is_dir() and not p.name.startswith("."))
+    except OSError:
+        return []
+    return [p for p in found if p.name != ORG_FOLDER and layouts.detect_layout(p) is not None]
+
+
 def suggest_store(root) -> Path:
-    """Where an org of *root* is kept by default: ``<proposal>/Org/<name>.json``
-    for an experiment of a proposal, beside the data; else in
-    :func:`orgs_dir`."""
-    root = Path(root)
-    if _experiment_parts(root):
-        return root.parent.parent / ORG_FOLDER / f"{root.name}.json"
+    """Where an org of *root* is kept by default, beside the data:
+    ``<proposal>/Org/<name>.json`` for an experiment of a proposal,
+    ``<proposal>/projects/<project>/Org/<name>.json`` for an SMI project;
+    else in :func:`orgs_dir`."""
+    found = _experiment_parts(root)
+    if found:
+        return found[3] / ORG_FOLDER / f"{found[2]}.json"
     return orgs_dir() / f"{tag(root)}.json"
 
 
@@ -206,14 +233,40 @@ def frames_of(source: Source, base=None) -> pd.DataFrame:
 
 def link(org, frames: Optional[pd.DataFrame] = None):
     """Link *frames* (default: every frame of the org's source, read now)
-    into *org*; earlier links of the same samples are replaced. Not saved."""
+    into *org*, and re-read how it was measured (:func:`describe`);
+    earlier links of the same samples are replaced. Not saved."""
     if frames is None:
         root = data_root(org)
         source = source_of(org)
         if source is None or root is None:
             raise ValueError("this org records no data folder")
         frames = layouts.index(root, source.layout, source.options)
-    return cms.build_organizer(frames, None, organizer=org)
+    cms.build_organizer(frames, None, organizer=org)
+    describe(org, frames)
+    return org
+
+
+def beamline(org) -> dict:
+    """What *org* keeps about how its data were measured and reduced — for
+    an SMI project the beamline, the raw folders, the acquisition's strategy
+    and the reduction's configs (:func:`pyscattviz.org.smi.describe`); empty
+    where its layout says nothing."""
+    return dict(org.project.config.extensions.get(SOURCE_KEY, {}).get("beamline") or {})
+
+
+def describe(org, frames: Optional[pd.DataFrame] = None) -> dict:
+    """Re-read how *org*'s data were measured and reduced, as its layout
+    says, and keep it in the org (not saved); returns it. *frames* are the
+    org's frames, when they are at hand."""
+    source, root = source_of(org), data_root(org)
+    layout = layouts.LAYOUTS.get(source.layout) if source is not None else None
+    if layout is None or layout.describe is None or root is None or not root.is_dir():
+        return beamline(org)
+    found = layout.describe(root, source.options, frames, Path(org.path).parent.resolve())
+    settings = dict(org.project.config.extensions.get(SOURCE_KEY) or {})
+    settings["beamline"] = found
+    org.project.config.extensions[SOURCE_KEY] = settings
+    return found
 
 
 def create_org(
@@ -268,6 +321,16 @@ def open_org(store, *, refresh: bool = True):
         link(org)
     remember(org.path)
     return org
+
+
+def linked_frames(org) -> int:
+    """How many reduced frames *org* links: its I(q) files."""
+    return sum(
+        len(m.paths)
+        for sample in org.project.samples.values()
+        for m in sample.measurements
+        if m.modality == "iq"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +396,7 @@ __all__ = [
     "orgs_dir",
     "title",
     "tag",
+    "experiments_in",
     "suggest_store",
     "source_of",
     "set_source",
@@ -342,6 +406,7 @@ __all__ = [
     "link",
     "create_org",
     "open_org",
+    "linked_frames",
     "recent",
     "remember",
     "is_org_file",

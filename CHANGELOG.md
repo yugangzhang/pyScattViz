@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.22.0
+
+- **An SMI project is read as one, and its org keeps how it was measured.**
+  The new `smi` layout recognises an SMI project's `Results/` and reads the
+  full SMI name: the group (the name's first field, `QYu`), the sample
+  (`SR_2025S4`, underscores kept), the incident angle, x, y and z, a series'
+  index and time, T, the potential, the exposure, the energy, the WAXS arc
+  (`waxsSTITCH` for a frame stitched over its arcs), the distance, the scan
+  and the detector. Before, each angle of a GI sample was a sample of its own
+  (`QYu_JL5_0.1000deg`). Each reduced frame is tied to the raw frames of
+  `user_data/` it was made of (its arcs and scans), so *still to reduce*
+  counts raw spots not reduced yet. The org records, under
+  `extensions.pyscattviz.beamline`, the beamline, cycle, proposal and project;
+  each raw folder's frames, scans, dates, energies, arcs, distances and
+  exposures, and the beamline's alignment scans and snapshots; the strategy
+  the samples were measured with (geometry, angles, each detector's arcs,
+  spots and their offsets, exposure, calibrants); every reduction config
+  (`configs/*.yaml`) as written; and the acquisition's logbook and
+  alignments where they are kept beside the data. Each sample keeps its
+  group, positions, energy, distance, arcs and raw scans, and each linked
+  file its scan id. **Org** shows it all under *Beamline, acquisition and
+  reduction*; **Link new frames and save** reads it again.
+- **An SMI project's org is offered beside it**, at
+  `<proposal>/projects/<project>/Org/<project>.json`, named
+  `<project> · <cycle> · <proposal>` — not `~/.pyscattviz/orgs/Results.json`.
+- **The Org plot pages have the explorers' controls.** *Org Sample*, *Org
+  Compare* and *Org In-situ* open with the explorers' display row — log I of
+  the maps, log q and log I of the curves, the colour map, the q-image's
+  aspect (Equal, Auto, Custom) and its qx–qz or qr–qz axis, the panel height —
+  and their *Ranges & colour scaling* panel: a min and a max box for every
+  axis and intensity of every panel, with *Fit to this frame* and *Clear back
+  to auto*. Blank is auto: an axis frames the data, not the blank around a
+  remeshed image, and an intensity scale spans what lies inside the window
+  shown, so narrowing q rescales I. Curves get a line width, markers, a
+  legend switch and, on *Org Sample*, the explorers' curve style. One shared
+  intensity range for every map is gone: each map has its own.
+- **A path pasted under *Known folders* is kept.** The menu put the folder
+  it showed back over whatever was typed below it on the next rerun, on every
+  page with a folder picker, so another folder could only be reached through
+  the menu. Only choosing in the menu moves the box now.
+- **A proposal folder can be given to *Make an org*.** Its experiments
+  (`<proposal>/experiments/<name>`) are offered to choose from, and the org's
+  name and file follow the one chosen.
+- **An org being measured is updated, not made again.** Opening it links the
+  frames written since, as before; the Org page and the sidebar now say how
+  many are not in the file yet, and *Link new frames and save* re-reads the
+  folders, links and saves in one click.
+- **A heated or humid run whose names carry the cell's reading before `_x`**
+  (`AS_5-5_1023.6s_T37.136C_x+0.001_y-0.000_1.00s_…`) is one in-situ run, not
+  a sample per frame.
+
 ## 0.21.0
 
 - **Org pages: a whole experiment, followed while it is measured.** *Org*

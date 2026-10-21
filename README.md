@@ -1,8 +1,9 @@
 # pyScattViz
 
 > Continuing this work in a new chat or development session? Read
-> [recorde.md](recorde.md) first. It records the current release, design
-> decisions, verified behavior, Windows test status, and next steps.
+> [record.md](record.md) first. It records the current release, design
+> decisions, verified behavior and Windows test status;
+> [plan.md](plan.md) lists the work still to do, in order.
 
 I wrote **pyScattViz** so collaborators can explore their scattering data on
 their own computer without asking me to run anything for them. It covers
@@ -849,10 +850,12 @@ put on *Live*.
 | Layout | Reads |
 |---|---|
 | `cms` | A CMS experiment, `experiments/<name>/<folder>/<saxs\|waxs\|maxs…>/{raw,analysis}`, with the sample, spot, angle and scan — and in situ the time, RH and T — read from the frame names |
+| `smi` | An SMI project's `Results/` (`giwaxs`, `gisaxs`, `tsaxs` … with `cir_avg`, `q_image`, `qphi`, `qc`), with the group (the name's first field, `QYu`), sample, angle, spot (x, y, z), energy, WAXS arc, distance and scan read from the frame names, and each reduced frame tied to the raw frames of `user_data/` it was made of |
 | `products` | Any folder with the reduction's product folders (`cir_avg`, `q_image`, `qphi`, `qc`, `stitched`; SMI's `Cir_Avg`, `Stitch_Data` …) at or below it; the names are read by a regular expression you give, e.g. `^(?P<sample>.+?)_(?P<T_C>\d+)C_th(?P<th>[\d.]+)` |
 
-Pick the folder, check the samples and frames it reads, and either **Build the
-org** or **Look at it without keeping an org**. An org is a
+Pick the folder — an experiment, or the proposal folder above it to choose one
+of its experiments — check the samples and frames it reads, and either **Build
+the org** or **Look at it without keeping an org**. An org is a
 [pyDataOrg](https://github.com/yugangzhang/pyDataOrg) organiser saved as one
 JSON file: the samples, a measurement per sample, folder and detector, and the
 paths of their products. Kept beside the data — `<proposal>/Org/<name>.json`,
@@ -862,12 +865,48 @@ rclone mount, or a RaiDrive letter. Opened again, it links the frames written
 since. Notes, tags and a selection of samples made in pyDataOrg are kept, and
 **Org Compare** starts from the selection.
 
+An org of an SMI project also keeps how it was measured and reduced, under
+`project.extensions.pyscattviz.beamline` in its file (shown on **Org** under
+*Beamline, acquisition and reduction*):
+
+- **where**: NSLS-II, SMI (12-ID), the cycle, proposal and project;
+- **acquisition**: each raw folder of `user_data/` (`2M`, `900KW` …) — its
+  frames, scans, when the first and last were written, the energies, WAXS
+  arcs, distances and exposures, and the beamline's own frames (alignment
+  scans, snapshots);
+- **strategy**: how the samples were measured, read from the raw names — the
+  geometry, energy, distance, incident angles, each detector's arcs, the
+  exposure, the spots per sample and their offsets, the calibrants, the scans
+  and, for a series, its length, T and potential;
+- **reduction**: every `configs/*.yaml` the reduction ran with, as written
+  (detector, beam centre, mask, geometry, products, stitching);
+- **logs**: the acquisition's logbook and alignment files, where it wrote
+  them beside the data (`yz_logs/`).
+
+Each sample keeps its group, positions, energy, distance, arcs and raw scans,
+and each linked file its scan id. Nothing is read from a frame, only the
+names, the listings and the YAML configs. The org of
+`<proposal>/projects/<project>/Results` is offered at
+`<proposal>/projects/<project>/Org/<project>.json`.
+
+While the beamtime goes on, open the org again rather than making it again:
+the frames measured since are linked as they come, the Org page and the sidebar
+say how many are not in the file yet, and **Link new frames and save** (or the
+sidebar's **Save**) writes them into it.
+
 | Page | What it shows |
 |---|---|
 | **Org Overview** | Raw, stitched and reduced frames per folder and detector, how long ago each last changed, the newest QC images, and every sample |
 | **Org Sample** | One sample: its q-image, q–φ map and I(q), every angle of a static sample, any frame of a run |
 | **Org Compare** | Samples at one angle overlaid or as a map, normalised in a q window if wanted; a peak's area, position and width for each, with CSVs |
 | **Org In-situ** | A run as a waterfall against time, RH or T; the cell's readings; any frame; a peak followed along the run |
+
+Sample, Compare and In-situ have the explorers' plot controls: log axes, colour
+map, aspect and the q-image's qx–qz or qr–qz axis above the panels, and
+**🎛️ Ranges & colour scaling** with a min and a max for every axis and
+intensity of every panel. A blank box is auto — the axis frames the data, and
+the intensity spans what lies inside the window shown, so narrowing q
+rescales I.
 
 An org needs pyDataOrg:
 
@@ -888,8 +927,10 @@ from pyscattviz.org import store
 
 org = store.create_org("<proposal>/Org/run.json", "<proposal>/experiments/run")
 org = store.open_org("<proposal>/Org/run.json")     # the frames written since, linked in
+org.save()                                          # … and kept in the file
 org.table()                                         # one row per sample
 q, curves, _ = org.data("<sample>", "iq", stage="<folder>", role="<det>_th0.100")
+store.beamline(org)                                 # an SMI project: how it was measured
 ```
 
 ## Ask AI
@@ -1359,7 +1400,8 @@ More detail is available in [the user guide](docs/USER_GUIDE.md),
 [the mount guide](docs/MOUNTS.md), and
 [the plotting API guide](docs/PLOTTING_API.md).
 
-The development/session handoff is maintained in [recorde.md](recorde.md).
+The development/session handoff is maintained in [record.md](record.md), and
+the work still to do in [plan.md](plan.md).
 
 ## Contact and license
 

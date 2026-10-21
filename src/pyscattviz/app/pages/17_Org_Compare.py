@@ -91,7 +91,8 @@ how = st.radio(
     help="A static sample may have several spots and repeats at one "
     "angle; an in-situ sample is a run of frames.",
 )
-curves = controls.curve_options("svorg_cmp_iq", expanded=False)
+show = controls.display_options("svorg_cmp", qimage=False, logx=str(det).lower().startswith("saxs"))
+lines_shown = controls.curve_controls("svorg_cmp_lines")
 with st.expander("Normalise"):
     norm = st.toggle(
         "Divide each curve by its mean I in a q window", value=False, key="svorg_cmp_norm"
@@ -132,26 +133,39 @@ for name in chosen:
 # ---------------------------------------------------------------------------
 
 q0, stacked = cms.stack_iq([(q, iq) for _, q, iq in lines])
+limits = controls.ranges(
+    "svorg_cmp",
+    {"Overlay": [("q", "q"), ("I", "I")], "Map (q as the overlay)": [("map_I", "I")]},
+    fit={
+        "q": figures.span(q0[np.isfinite(stacked).any(axis=0)], positive=show["logx"]),
+        "I": figures.span(stacked, positive=show["logy"]),
+    },
+    fit_label="Fit to these curves",
+)
 title = " · ".join(t for t in (folder, det, th_text) if t)
 overlay, mapped = st.tabs(["Overlay", "Map"])
 with overlay:
     st.plotly_chart(
         figures.curves_figure(
             lines,
-            logx=curves["logx"],
-            logy=curves["logy"],
-            offset=curves["offset"],
-            cmap=curves["cmap"],
-            x_range=curves["q_range"],
+            logx=show["logx"],
+            logy=show["logy"],
+            offset=lines_shown["offset"],
+            cmap=lines_shown["cmap"],
+            x_range=limits["q"],
+            y_range=limits["I"],
+            width=lines_shown["width"],
+            markers=lines_shown["markers"],
+            legend=lines_shown["legend"],
             title=title,
             ylabel="I(q) / ⟨I⟩" if norm else "I(q)",
-            height=520,
+            height=show["height"] + 100,
         ),
         width="stretch",
         key="svorg_cmp_overlay_chart",
     )
 with mapped:
-    keep = controls.q_window(q0, curves["q_range"])
+    keep = controls.q_window(q0, limits["q"])
     st.plotly_chart(
         figures.image_figure(
             stacked[:, keep],
@@ -160,9 +174,12 @@ with mapped:
             "q (Å⁻¹)",
             "sample",
             title="I(q), a row per sample",
-            log=curves["logy"],
-            xlog=curves["logx"],
-            height=max(320, 22 * len(lines) + 120),
+            cmap=show["cmap"],
+            log=show["log"],
+            vmin=limits["map_I"][0],
+            vmax=limits["map_I"][1],
+            xlog=show["logx"],
+            height=max(show["height"] - 100, 22 * len(lines) + 120),
         ).update_yaxes(
             tickmode="array", tickvals=list(range(len(lines))), ticktext=[n for n, _, _ in lines]
         ),

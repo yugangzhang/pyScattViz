@@ -4,7 +4,8 @@ An org is one JSON file (pyDataOrg's organiser) that knows where an
 experiment's reduced frames are: a sample per sample name, a stage per
 folder, every product linked where it is — nothing is copied. It records
 how its folder is read (a *layout*), so opening it again re-reads the
-folder and links the frames written since. The Org pages — Overview, One
+folder and links the frames written since — and, where the layout can say
+(an SMI project), how the data were measured and reduced. The Org pages — Overview, One
 sample, Compare, In-situ, Ask AI — all work on the folder opened here.
 
 A folder no layout recognises can be described by an AI model the user
@@ -18,10 +19,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 from pyscattviz.app.auth import require_password
-from pyscattviz.app.state import action_key, keep_widget_state
+from pyscattviz.app.state import action_key, coerce_choice, keep_widget_state
 
 keep_widget_state(st.session_state)
 require_password()
@@ -100,7 +102,9 @@ with open_tab:
             _go(state.open_org, chosen)
     st.caption(
         "An org kept beside its data (`<proposal>/Org/`) records its paths "
-        "relative to itself, so it opens wherever the proposal is mounted."
+        "relative to itself, so it opens wherever the proposal is mounted. "
+        "Opening it links the frames measured since it was saved — an org being "
+        "measured is opened again, not made again."
     )
 
 # ---------------------------------------------------------------------------
@@ -214,10 +218,25 @@ with make_tab:
     folder = render_folder_picker(
         "svorg_make",
         "Data folder",
-        help_text="The experiment's folder: a CMS `experiments/<name>`, or any folder "
-        "with the reduction's product folders (cir_avg, q_image, qphi, qc …) "
-        "below it.",
+        help_text="The experiment's folder: a CMS `experiments/<name>` — or the proposal "
+        "folder above it, to choose one of its experiments — an SMI project's `Results`, "
+        "or any folder with the reduction's product folders (cir_avg, q_image, qphi, "
+        "qc …) below it.",
     )
+    if folder and layouts.detect_layout(folder) is None:
+        inside = store.experiments_in(folder)
+        if inside:
+            names = [p.name for p in inside]
+            coerce_choice(st.session_state, "svorg_make_experiment", names)
+            chosen = st.selectbox(
+                f"Experiment ({len(names)} in this proposal)",
+                names,
+                key="svorg_make_experiment",
+                help="A proposal keeps its experiments in `experiments/`; an org is "
+                "made of one of them.",
+            )
+            folder = str(inside[names.index(chosen)])
+            st.caption(f"Reading `{state.shown(folder)}`")
     if folder:
         detected = layouts.detect_layout(folder)
         keys = list(layouts.LAYOUTS)
@@ -303,6 +322,89 @@ with make_tab:
 # The open folder
 # ---------------------------------------------------------------------------
 
+
+def _listed(value) -> str:
+    """One value of the beamline record, as one line."""
+    if isinstance(value, dict):
+        return "; ".join(f"{k}: {_listed(v)}" for k, v in value.items())
+    if isinstance(value, list):
+        return ", ".join(f"{v:g}" if isinstance(v, float) else str(v) for v in value)
+    return "" if value is None else str(value)
+
+
+def _beamline(info: dict) -> None:
+    """How the open org's data were measured and reduced, as it keeps it."""
+    keys = ("facility", "beamline", "cycle", "proposal", "project")
+    where = " · ".join(str(info[k]) for k in keys if info.get(k))
+    with st.expander(f"Beamline, acquisition and reduction — {where}"):
+        plan = info.get("strategy") or {}
+        if plan:
+            st.markdown("**How the samples were measured**, as the raw frames' names say")
+            st.dataframe(
+                pd.DataFrame({"": list(plan), "value": [_listed(v) for v in plan.values()]}),
+                hide_index=True,
+                width="stretch",
+            )
+        raw = info.get("acquisition") or {}
+        if raw:
+            st.markdown("**Raw folders** (`user_data/`)")
+            rows = [
+                {
+                    "folder": name,
+                    "frames": r.get("frames"),
+                    "of samples": r.get("sample_frames"),
+                    "scans": _listed(r.get("scans")),
+                    "written": _listed(r.get("written")),
+                    "energy (eV)": _listed(r.get("energy_eV")),
+                    "arcs (°)": _listed(r.get("arcs_deg")),
+                    "sdd (mm)": _listed(r.get("sdd_mm")),
+                    "exposure (s)": _listed(r.get("exposure_s")),
+                    "beamline's own": _listed(
+                        {k: v.get("frames") for k, v in (r.get("other") or {}).items()}
+                    ),
+                }
+                for name, r in raw.items()
+            ]
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        configs = info.get("reduction") or {}
+        if configs:
+            st.markdown("**The reduction's configs** (`configs/*.yaml`)")
+            rows = []
+            for name, found in configs.items():
+                config = found.get("config") or {}
+                det = config.get("detector") or {}
+                cal = config.get("calibration") or {}
+                rows.append(
+                    {
+                        "config": name,
+                        "technique": (config.get("identity") or {}).get("technique"),
+                        "detector": det.get("det_str"),
+                        "energy (keV)": det.get("energy_keV"),
+                        "sdd (mm)": cal.get("sdd_mm"),
+                        "beam centre (px)": _listed(cal.get("b_xy")),
+                        "geometry": (config.get("geometry") or {}).get("geometry"),
+                        "mask": Path(cal["mask_path"]).name if cal.get("mask_path") else None,
+                        "not read": found.get("error"),
+                    }
+                )
+            st.dataframe(
+                pd.DataFrame(rows).dropna(axis=1, how="all"), hide_index=True, width="stretch"
+            )
+        logs = info.get("logs") or {}
+        if logs:
+            books = logs.get("logbooks") or {}
+            st.markdown(
+                f"**The acquisition's logs** (`{logs.get('folder')}`): "
+                + ", ".join(f"{k} ({v.get('rows')} rows)" for k, v in books.items())
+                + (f"; {len(logs['alignments'])} alignments" if logs.get("alignments") else "")
+            )
+        st.caption(
+            f"Read {info.get('described_at', '')}, and again by **Link new frames and save**. "
+            "All of it is kept in the org's file:"
+        )
+        st.json(info, expanded=False)
+
+
 where = state.root()
 if where is None:
     st.stop()
@@ -350,26 +452,41 @@ st.caption(
     f"× angle) · kept in `{state.shown(path)}` "
     f"{'(saved)' if path.exists() else '(not saved yet)'}"
 )
-a, b, c = st.columns(3)
-if a.button("Link new frames now", key=action_key(st.session_state, "svorg_org_sync")):
-    state.rescan()
-    n = state.sync_org()
-    st.toast(f"{n} samples relinked" if n else "Nothing new")
-if b.button("💾 Save the org", key=action_key(st.session_state, "svorg_org_save")):
+if store.beamline(org):
+    _beamline(store.beamline(org))
+notice = st.empty()
+a, b = st.columns(2)
+if a.button(
+    "💾 Link new frames and save",
+    type="primary" if state.unsaved() else "secondary",
+    key=action_key(st.session_state, "svorg_org_update"),
+    help="Re-read the folders now, link every frame written since, and write the org's file.",
+):
     try:
-        org.save()
-        st.toast(f"Saved {state.shown(path)}")
+        with st.spinner("Reading the folders …"):
+            gained = state.update_org()
+        st.toast(
+            f"Saved {state.shown(path)}: " + (f"{gained} new frames" if gained else "up to date")
+        )
     except OSError as exc:
         st.error(f"Could not save: {exc}")
-c.download_button(
+b.download_button(
     "Links (CSV)",
     cms.link_rows(frames).to_csv(index=False),
     file_name=f"{store.tag(where)}_links.csv",
     key=action_key(st.session_state, "svorg_org_links"),
 )
+if state.unsaved():
+    notice.info(
+        f"{state.unsaved()} reduced frames written since the file was saved are "
+        "linked here, but not in the file yet.",
+        icon=":material/sync:",
+    )
 st.caption(
-    "New frames are linked as they come, on every Org page; **Save** writes them "
-    "into the file, so the next person to open it sees them at once."
+    "While data are still coming, there is no need to make the org again: "
+    "opening it links the frames written since, and so does every Org page as "
+    "they come. **Link new frames and save** (or the sidebar's **Save**) writes "
+    "them into the file, so the next person to open it sees them at once."
 )
 with st.expander("The same in Python"):
     st.code(
@@ -380,6 +497,7 @@ source = store.source_of(org)                    # layout "{src["layout"]}"
 frames = layouts.index(store.data_root(org), source.layout, source.options)
 cms.sample_table(frames)                         # one row per sample
 org.table(level="measurement")                   # what is linked
+store.beamline(org)                              # how it was measured, where kept
 org.save()''',
         language="python",
     )

@@ -133,6 +133,25 @@ def test_the_menu_offers_folders_already_visited(drive):
     assert any(option.endswith("proposal_two/Results/giwaxs") for option in picker.options)
 
 
+def test_a_path_typed_after_a_menu_choice_is_kept(drive):
+    """The menu used to put its folder back over whatever was pasted below it."""
+
+    first, second = drive
+    app = AppTest.from_file(str(PAGES_DIR / "05_GIWAXS_Explorer.py"), default_timeout=120)
+    app.session_state["pyscattviz_active_root"] = str(first)
+    app.run()
+    picker = next(item for item in app.selectbox if item.key == "pyscattviz_giwaxs_folder_pick")
+    picker.set_value(str(first)).run()
+    assert _folder_box(app).value == str(first)
+
+    _folder_box(app).set_value(str(second)).run()
+    app.run()
+
+    assert not app.exception
+    assert _folder_box(app).value == str(second)
+    assert app.session_state["pyscattviz_active_root"] == str(second)
+
+
 @pytest.mark.parametrize("page", EXPLORERS)
 def test_every_explorer_offers_and_or_exclude(page, drive):
     first, _second = drive

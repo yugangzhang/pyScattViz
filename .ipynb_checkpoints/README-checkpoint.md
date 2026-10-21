@@ -1,0 +1,1238 @@
+# pyScattViz
+
+> Continuing this work in a new chat or development session? Read
+> [recorde.md](recorde.md) first. It records the current release, design
+> decisions, verified behavior, Windows test status, and next steps.
+
+I wrote **pyScattViz** so collaborators can explore their scattering data on
+their own computer without asking me to run anything for them. It covers
+GISAXS, GIWAXS, transmission SAXS and WAXS reduction products from NSLS-II, and
+it also plots plain data files — a two-column `.dat`, an `.npz`, a detector
+`.tif` — that never came from a beamline reduction at all.
+
+The data can reach the computer three ways, and all three are free:
+
+1. **Mount the NSLS-II proposal over SFTP.** RaiDrive on Windows, SSHFS on macOS
+   and Linux, rclone on all three. Only the bytes of an opened frame cross the
+   network; the proposal is never copied whole.
+2. **Copy a subset to the local disk.** `sftp -r`, `rclone copy`, FileZilla, or
+   Cyberduck. Best for one result folder, a slow link, or working offline.
+3. **Use data that is already local.** A disk, a USB drive, or a laboratory
+   network share needs no setup at all.
+
+The application runs locally on Windows, macOS, and Linux, listens on
+`127.0.0.1`, and never asks for or stores a BNL password or Duo response.
+
+## What is in it
+
+| Page | What it is for |
+|---|---|
+| **Data Sources & Mounts** | Every free way to make the data visible, with the exact command generated for your platform |
+| **Data Selection** | Find folders or files with *must contain* / *may contain* / *must not contain* term lists; keep them in a dataset basket and save it under a name |
+| **File Selection** | Filter thousands of reduced filenames without opening a single array |
+| **GISAXS · GIWAXS · Transmission SAXS · Transmission WAXS** | Four independent explorers with their own q defaults, panels, and line cuts |
+| **Quick Plot** | Hand it any list of full paths and get 1D overlays, a stacked intensity map, or 2D images |
+| **Publication Plot** | Export-ready I(q) overlays with publication themes |
+| **Plotting Studio** | 1D, 2D, 3D, and multi-axes workspaces on the `pyscattviz.plotting` API |
+| **Output Folder** | Where saved figures go, and what has been written there |
+| **Terminal** | `ls`, `cd`, `cat`, `find` over a mounted folder, and `select` to build a named list every plotting tab reads |
+| **Python Console** | Your own code against the session's data, with the readers and plotting API already imported |
+
+Each explorer can also export one panel for *every* frame that passes its
+filters, which turns an angle series or an in-situ run into a folder of figures
+in one click.
+
+Everything that draws something can write it **straight to a folder you name**,
+in a subfolder named after the page it came from — no hunting through the
+browser's download directory. See
+[Saving figures to your own folder](#saving-figures-to-your-own-folder).
+
+## Installation from zero
+
+These instructions assume no programming or terminal experience. A terminal is
+a text window used to give the computer commands. Copy one command at a time,
+paste it after the prompt, and press **Enter**. Do not copy the prompt itself
+(for example, do not type `PS C:\Users\name>`).
+
+Installing Python or Git may require an administrator password or help from the
+computer's IT department. Python 3.9–3.12 is supported; I recommend 64-bit
+Python 3.12 for a new installation.
+
+> **The environment folder is different on each platform.** Windows commands
+> use `.venv\Scripts`; macOS and Linux commands use `.venv/bin`. I included a
+> separate start file for each platform so the path does not need to be
+> remembered.
+
+### Windows 10 or 11
+
+#### 1. Open PowerShell or Windows Terminal
+
+1. Click the **Start** button or press the **Windows** key.
+2. Type `PowerShell`.
+3. Open **Windows PowerShell** or open **Windows Terminal** and select its
+   **PowerShell** tab. Either choice works.
+4. A blue or black window opens with a prompt similar to
+   `PS C:\Users\name>`. Paste commands with `Ctrl+V`.
+
+#### 2. Install Python and Git
+
+Paste these commands one at a time:
+
+```powershell
+winget install --exact --id Python.Python.3.12
+winget install --exact --id Git.Git
+```
+
+Accept any license or installation prompts. When both commands finish, close
+every PowerShell/Terminal window and open PowerShell again from the Start menu.
+This restart makes the new programs visible.
+
+If the computer reports that `winget` is not recognized:
+
+1. Open a web browser and visit
+   [Python for Windows](https://www.python.org/downloads/windows/).
+2. Download the latest **Python 3.12 64-bit installer** and open it.
+3. On the first installer screen, select **Add python.exe to PATH** and install
+   the **Python launcher (`py`)**.
+4. Download [Git for Windows](https://git-scm.com/download/win), open the
+   installer, and keep its default choices.
+5. Close and reopen PowerShell.
+
+#### 3. Check the installation
+
+```powershell
+py -3.12 --version
+git --version
+```
+
+The first command should print `Python 3.12...`; the second should print a Git
+version. If Windows instead displays “Python was not found; run without
+arguments to install from the Microsoft Store,” return to step 2 and install a
+real Python interpreter. Use `py -3.12`, not the `python` Store alias.
+
+#### 4. Download pyScattViz
+
+```powershell
+cd $HOME
+git clone https://github.com/yugangzhang/pyScattViz.git
+cd .\pyScattViz
+```
+
+`git clone` downloads the package into the personal home folder. If it was
+already downloaded, skip the clone command and enter:
+
+```powershell
+cd $HOME\pyScattViz
+```
+
+#### 5. Create the private Python environment and install
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install .
+```
+
+The last command downloads the scientific Python dependencies and may take
+several minutes. Wait until the prompt returns without a red error message.
+The commands call the environment directly, so PowerShell activation and its
+script-execution policy are not involved.
+
+#### 6. Start pyScattViz
+
+The easiest method is to open the `pyScattViz` folder in File Explorer and
+double-click **`start_windows.bat`**. If Windows displays a security prompt,
+select **More info → Run anyway**.
+
+The PowerShell method is:
+
+```powershell
+.\.venv\Scripts\python.exe -m pyscattviz
+```
+
+The browser should open at <http://127.0.0.1:8501>. Keep the PowerShell window
+open while using the application.
+
+#### Start it again on another day
+
+Open PowerShell from the Start menu and run:
+
+```powershell
+cd $HOME\pyScattViz
+.\start_windows.bat
+```
+
+The `Scripts` folder in these Windows commands is required. A command such as
+`./.venv/bin/pyscattviz` is for macOS/Linux and PowerShell cannot find it.
+
+### macOS
+
+#### 1. Install Python and Git
+
+1. Open a web browser and visit
+   [Python for macOS](https://www.python.org/downloads/macos/).
+2. Download and open the latest **Python 3.12 universal2 installer** (`.pkg`).
+3. Follow the installer using its default choices.
+4. Git is often already available. macOS can install it in step 3 below if it
+   is missing.
+
+#### 2. Open Terminal
+
+1. Press **Command+Space** to open Spotlight Search.
+2. Type `Terminal` and press **Return**. Terminal is also under
+   **Applications → Utilities → Terminal** in Finder.
+3. A window opens with a prompt ending in `%` or `$`. Paste with `Command+V`.
+
+#### 3. Check Python and Git
+
+```bash
+python3.12 --version
+git --version
+```
+
+The Python command should print `Python 3.12...`. If the Git command opens a
+dialog asking to install Command Line Developer Tools, click **Install**, wait
+for it to finish, and run `git --version` again.
+
+#### 4. Download and install pyScattViz
+
+```bash
+cd "$HOME"
+git clone https://github.com/yugangzhang/pyScattViz.git
+cd pyScattViz
+python3.12 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install .
+```
+
+If the repository was already downloaded, skip `git clone` and begin with
+`cd "$HOME/pyScattViz"`. Wait for installation to finish and the prompt to
+return.
+
+#### 5. Start pyScattViz
+
+In Finder, open the `pyScattViz` folder and double-click
+**`start_macos.command`**. If macOS blocks it the first time, Control-click the
+file, select **Open**, and then select **Open** again.
+
+The Terminal method is:
+
+```bash
+./.venv/bin/python -m pyscattviz
+```
+
+The browser should open at <http://127.0.0.1:8501>. Keep Terminal open. On
+another day, open Terminal and run:
+
+```bash
+cd "$HOME/pyScattViz"
+./start_macos.command
+```
+
+### Linux
+
+#### 1. Open a terminal
+
+On Ubuntu, Debian, Fedora, and many other Linux desktops, press
+**Ctrl+Alt+T**. Another option is to open the applications menu, search for
+`Terminal`, and select it. Paste commands with `Ctrl+Shift+V` on most Linux
+terminals.
+
+#### 2. Install Python and Git
+
+For Ubuntu, Debian, Linux Mint, or related systems:
+
+```bash
+sudo apt update
+sudo apt install git python3 python3-venv python3-pip
+```
+
+For Fedora:
+
+```bash
+sudo dnf install git python3
+```
+
+The terminal may request the login password. No characters appear while a
+Linux password is typed; this is normal. Press **Enter** after typing it.
+
+Check the installation:
+
+```bash
+python3 --version
+git --version
+```
+
+Python must be version 3.9 or newer.
+
+#### 3. Download and install pyScattViz
+
+```bash
+cd "$HOME"
+git clone https://github.com/yugangzhang/pyScattViz.git
+cd pyScattViz
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install .
+```
+
+If the repository was already downloaded, skip `git clone` and begin with
+`cd "$HOME/pyScattViz"`.
+
+#### 4. Start pyScattViz
+
+From the file manager, double-click **`start_linux.sh`** and select **Run** if
+the desktop asks how to open it. The terminal method is:
+
+```bash
+./.venv/bin/python -m pyscattviz
+```
+
+The browser should open at <http://127.0.0.1:8501>. Keep the terminal open. On
+another day, open a terminal and run:
+
+```bash
+cd "$HOME/pyScattViz"
+./start_linux.sh
+```
+
+### Stop or update pyScattViz
+
+To stop the application on any platform, return to the terminal and press
+`Ctrl+C`.
+
+To install a later update on Windows:
+
+```powershell
+cd $HOME\pyScattViz
+git pull --ff-only
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+.\.venv\Scripts\python.exe -m pip install --upgrade .
+.\start_windows.bat
+```
+
+> From 0.7.2 the `Remove-Item ... build` line is belt and braces — packaging
+> clears that folder itself. It mattered when upgrading from 0.7.0 or 0.7.1,
+> where a leftover `build` folder put the old page files back into the new
+> install and Streamlit refused to start with *Multiple Pages specified with URL
+> pathname*. If you hit that, just start pyScattViz again: it removes the stale
+> files itself and reports what it removed.
+
+> **Do not run `python3 -m venv .venv` on Windows after `git pull`.** The
+> `python3` command is normally for macOS/Linux, and pulling an update does not
+> remove the existing environment. Check it first:
+
+```powershell
+.\.venv\Scripts\python.exe --version
+```
+
+If that prints a Python version, keep the environment and run the update
+commands above. Only when Windows reports that `.venv\Scripts\python.exe` does
+not exist should the environment be created again:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install .
+```
+
+To install a later update on macOS or Linux:
+
+```bash
+cd "$HOME/pyScattViz"
+git pull
+rm -rf build
+./.venv/bin/python -m pip install --upgrade .
+./.venv/bin/python -m pyscattviz
+```
+
+### Troubleshooting startup
+
+**PowerShell says `./.venv/bin/pyscattviz` is not recognized:** this is a
+macOS/Linux path. From the `pyScattViz` folder on Windows, run:
+
+```powershell
+.\start_windows.bat
+```
+
+or:
+
+```powershell
+.\.venv\Scripts\python.exe -m pyscattviz
+```
+
+**PowerShell says `python3` was not found or opens the Microsoft Store:** do
+not use `python3` on Windows. Use `py -3.12` when creating an environment, or
+call `.\.venv\Scripts\python.exe` directly when the environment already exists.
+
+**A start file says pyScattViz is not installed:** return to the installation
+section for that operating system and create `.venv` before starting the app.
+
+**The browser does not open automatically:** enter <http://127.0.0.1:8501> in
+a web browser while the terminal window is still running.
+
+If port 8501 is already in use, start on another port by adding `--port 8502`
+to the final start command. The application listens only on the local computer
+by default.
+
+## Getting the data onto the computer
+
+pyScattViz needs normal filesystem paths because NumPy, pandas, and image
+readers open the selected CSV, NPZ, and image files directly. Choose one of the
+three routes below, then register the folder on **Data Sources & Mounts**.
+
+Open that page first: it asks for the beamline, cycle, proposal, and BNL
+username, then generates the exact command for the platform and method you
+select, tests the resulting folder, and saves the path mapping. Password and
+Duo prompts run in a real terminal or desktop mount client; the web GUI
+intentionally never receives or stores credentials.
+
+Every example below uses placeholders rather than a real experiment. Substitute
+your own:
+
+| Placeholder | Replace with |
+|---|---|
+| `xxx` | your beamline's three-letter code |
+| `xxxxxx` | your six-digit proposal number |
+| `username` | your BNL username |
+| `myproject` | the project folder inside your proposal |
+
+So the remote root the page builds looks like this, with your own values in
+place of the placeholders:
+
+```text
+/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx
+```
+
+### Choose the mount scope
+
+| Scope | Remote root | Recommended use |
+|---|---|---|
+| Proposal | `/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx` | Safest default for collaborators |
+| Beamline proposals | `/nsls2/data/xxx/proposals` | Several authorized proposals at one beamline |
+| NSLS-II data | `/nsls2/data` | Staff working across beamlines |
+| Custom | Any validated path below `/nsls2/data` | A specific project or results tree |
+
+A broader mount exposes more directory names and may be slower to browse. It
+does not grant new permissions: the SFTP server still enforces the BNL account's
+authorization.
+
+### Which method on which platform
+
+| Platform | Method | Cost | Status |
+|---|---|---|---|
+| Windows | RaiDrive | free edition | **Verified** with BNL password and Duo Push |
+| Windows | rclone + WinFsp | free, open source | Works cross-platform; Duo behaviour not yet confirmed by me |
+| macOS | SSHFS + macFUSE | free | Standard route; macFUSE needs a security approval |
+| macOS | rclone + macFUSE | free, open source | Same commands as Windows and Linux |
+| Linux | SSHFS | free | Standard route, fastest of the three |
+| Linux | Files → Connect to Server | free, nothing to install | Convenient; slower for large image folders |
+| Any | `sftp -r`, FileZilla, Cyberduck | free | Copies a subset; no driver needed |
+| Any | Already-local folder | — | Nothing to configure |
+
+**RaiDrive is Windows-only.** macOS and Linux users should not look for it —
+SSHFS is the equivalent there, and rclone is the one client that behaves
+identically on all three platforms.
+
+### Windows: RaiDrive (verified)
+
+This is the route I tested against the NSLS-II server, with the BNL password,
+Duo Push, and a mounted `Z:` drive. pyScattViz needs read access only.
+
+1. Connect to the BNL VPN if the SFTP service is unavailable from the current
+   network.
+2. Test SFTP in PowerShell:
+
+   ```powershell
+   sftp username@sftp.nsls2.bnl.gov
+   ```
+
+3. Enter the BNL password, enter `1` for Duo Push, approve it, and run:
+
+   ```text
+   ls /nsls2/data/xxx/proposals/2026-2/pass-xxxxxx
+   exit
+   ```
+
+4. Install [RaiDrive](https://www.raidrive.com/) from PowerShell:
+
+   ```powershell
+   winget install --exact --id OpenBoxLab.RaiDrive
+   ```
+
+5. Open RaiDrive, add a new **SFTP** storage connection, and enter:
+
+   ```text
+   Address:      sftp.nsls2.bnl.gov
+   Port:         22
+   Username:     your BNL username
+   Path:         /nsls2/data/xxx/proposals/2026-2/pass-xxxxxx
+   Drive letter: Z: (or another available letter)
+   Access:       Read-only, when available
+   ```
+
+6. Verify the server's ED25519 fingerprint before accepting it:
+
+   ```text
+   SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE
+   ```
+
+7. Connect, complete the BNL password and Duo Push prompts, and confirm that the
+   drive opens in File Explorer.
+8. In **Data Sources & Mounts**, enter the mounted location shown by File
+   Explorer, select **Test this folder**, then **Register folder for the other
+   pages**.
+9. In Data Selection or File Selection, browse from the mounted proposal root to
+   a result folder, for example:
+
+   ```text
+   Z:\projects\myproject\Results\giwaxs
+   ```
+
+   Use the actual drive or mounted location shown on the computer; it may not
+   be `Z:`.
+
+The mounted account may have write permission. For scientific review, enable
+read-only access when possible and do not rename, move, or delete proposal
+content. The pyScattViz folder command bar itself implements only `pwd`, `ls`,
+`cd`, and bounded `du`; it does not provide write commands.
+
+SSHFS-Win is not used for password authentication because its Windows provider
+cannot complete the separate Duo prompt. WSL plus Linux SSHFS remains another
+free option for advanced users.
+
+### Linux: SSHFS
+
+Install SSHFS:
+
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install sshfs
+
+# Fedora/RHEL alternative
+sudo dnf install fuse-sshfs
+```
+
+Create a proposal-specific mount point and mount it:
+
+```bash
+mkdir -p "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+sshfs -o follow_symlinks,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 \
+  username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/ \
+  "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+```
+
+On the first connection, accept the host only if its ED25519 fingerprint is
+`SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE`. Enter the BNL password,
+select Duo option `1`, and approve the push. Test it:
+
+```bash
+ls "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+```
+
+Register that folder under **Data Sources & Mounts**. Unmount later with:
+
+```bash
+fusermount3 -u "$HOME/NSLS_II_Link/xxx-pass-xxxxxx" || \
+  fusermount -u "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+```
+
+The proposal SFTP server is direct; it does not require the two-hop beamline
+workstation jump used for some legacy data.
+
+### Linux: Files → Connect to Server (nothing to install)
+
+On a GNOME desktop such as Ubuntu or Fedora there is no installation step at
+all:
+
+1. Open **Files**.
+2. Select **Other Locations** at the bottom of the sidebar.
+3. In **Connect to Server**, enter `sftp://username@sftp.nsls2.bnl.gov/` and
+   select **Connect**.
+4. Enter the BNL password, choose the Duo option, and approve the push.
+
+The mount then appears as an ordinary folder:
+
+```bash
+/run/user/$(id -u)/gvfs/sftp:host=sftp.nsls2.bnl.gov,user=username
+```
+
+Paste that path into **Data Sources & Mounts** and register it. GVFS is slower
+than SSHFS for folders holding thousands of images, so prefer SSHFS when
+browsing a large reduction.
+
+### macOS: SSHFS + macFUSE
+
+Install Homebrew if needed, then install macFUSE and SSHFS:
+
+```bash
+brew install --cask macfuse
+brew install gromgit/fuse/sshfs-mac
+```
+
+macOS may require approval of the macFUSE system extension under **System
+Settings → Privacy & Security** and may request a restart. Then mount:
+
+```bash
+mkdir -p "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+sshfs -o follow_symlinks,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 \
+  username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/ \
+  "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+```
+
+On the first connection, accept the host only if its ED25519 fingerprint is
+`SHA256:OxSNZKjRbOQ2QTl7Gc1tVf6d6F2AN39w6Dw7yjUCahE`. Enter the BNL password,
+select Duo option `1`, approve the push, and register the mounted folder under
+**Data Sources & Mounts**. Unmount with:
+
+```bash
+umount "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+```
+
+### Any platform: rclone
+
+rclone is free and open source and uses the same commands on Windows, macOS, and
+Linux, so it is what I recommend when a whole group needs one set of
+instructions. It needs a FUSE driver: WinFsp on Windows, macFUSE on macOS.
+
+Install:
+
+```powershell
+# Windows
+winget install --exact --id WinFsp.WinFsp
+winget install --exact --id Rclone.Rclone
+```
+
+```bash
+# macOS
+brew install --cask macfuse
+brew install rclone
+
+# Ubuntu/Debian
+sudo apt update && sudo apt install rclone fuse3
+```
+
+Configure the connection once. `ask_password true` keeps the BNL password out
+of the rclone configuration file — rclone prompts for it, and for the Duo
+challenge, at mount time:
+
+```bash
+rclone config create nsls2 sftp host sftp.nsls2.bnl.gov user username port 22 ask_password true
+```
+
+Mount it. On Windows use a free drive letter; on macOS and Linux use an empty
+folder:
+
+```powershell
+# Windows
+rclone mount nsls2:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx Z: --read-only --vfs-cache-mode full --dir-cache-time 60s --attr-timeout 60s --network-mode
+```
+
+```bash
+# macOS and Linux
+mkdir -p "$HOME/NSLS_II_Link/xxx-pass-xxxxxx"
+rclone mount nsls2:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx \
+  "$HOME/NSLS_II_Link/xxx-pass-xxxxxx" \
+  --read-only --vfs-cache-mode full --dir-cache-time 60s --attr-timeout 60s --daemon
+```
+
+Release the mount with `Ctrl+C` in the rclone window on Windows, `umount` on
+macOS, or `fusermount3 -u` on Linux.
+
+I have not yet confirmed the BNL Duo prompt through rclone myself. If rclone
+stops without asking for the Duo option, fall back to RaiDrive on Windows or
+SSHFS on macOS/Linux, both of which are known to work.
+
+### Any platform: copy a subset to the local disk
+
+No mount, no driver, nothing to install — OpenSSH ships with Windows 10/11,
+macOS, and every Linux distribution. This is the right answer for a single
+result folder, a slow link, or working on a plane:
+
+```bash
+# macOS and Linux
+mkdir -p "$HOME/pyScattViz_Data/giwaxs"
+sftp -r username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/projects/myproject/Results/giwaxs \
+  "$HOME/pyScattViz_Data/giwaxs"
+```
+
+```powershell
+# Windows
+New-Item -ItemType Directory -Force -Path "$HOME\pyScattViz_Data\giwaxs"
+sftp -r username@sftp.nsls2.bnl.gov:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/projects/myproject/Results/giwaxs "$HOME\pyScattViz_Data\giwaxs"
+```
+
+With rclone configured, a filtered copy is often better than a whole folder:
+
+```bash
+rclone copy nsls2:/nsls2/data/xxx/proposals/2026-2/pass-xxxxxx/projects/myproject/Results/giwaxs \
+  "$HOME/pyScattViz_Data/giwaxs" --progress --include "*sampleA*"
+```
+
+Graphical alternatives that also work on every platform:
+[FileZilla](https://filezilla-project.org/) and, on Windows and macOS,
+[Cyberduck](https://cyberduck.io/). Both connect to `sftp.nsls2.bnl.gov` with
+the BNL username, ask for the password and Duo, and let a folder be dragged to
+the local disk.
+
+Narrow the remote folder before copying. Copying a whole proposal is rarely what
+anyone wants.
+
+### Data already on this computer
+
+Nothing to configure. Open **Data Sources & Mounts**, choose **Data already on
+this computer**, enter the folder, and select **Register folder for the other
+pages**. A local disk, an external drive, and a laboratory network share are all
+treated identically to a mount, and every page — Data Selection, the four
+explorers, Quick Plot, Publication Plot — works exactly the same way.
+
+### Mount troubleshooting
+
+- `Permission denied` usually means the BNL password/Duo authentication failed
+  or the account is not authorized for that proposal.
+- `Connection timed out` usually means the BNL VPN or network route is needed.
+- A mount that worked earlier but is now empty may need to be unmounted and
+  reconnected after a network interruption.
+- pyScattViz never writes credentials into its configuration. It saves only
+  remote-to-mounted path mappings in `~/.pyscattviz/path_mappings.json`, saved
+  dataset collections in `~/.pyscattviz/collections/`, and output preferences in
+  `~/.pyscattviz/settings.json`.
+- Never unmount while a frame is actively loading.
+
+## Selecting the data you care about
+
+The **Data Selection** page is the GUI form of the `ls_dir` helper I have used in
+pyScatt for years. Give it search roots and three term lists:
+
+| List | Meaning |
+|---|---|
+| **Must contain (AND)** | every term must appear |
+| **May contain (OR)** | at least one term must appear |
+| **Must not contain (EXCLUDE)** | no term may appear |
+
+A term is a plain substring unless it contains a shell wildcard (`*`, `?`, `[`),
+in which case it is matched against the whole name. Matching ignores case.
+Separate terms with commas, semicolons, or new lines.
+
+Search **Folders** (the usual choice) or **Files**, match on the folder *name* or
+on the whole *path* — `Results` AND `giwaxs` matched on the path is how you find
+every result folder in a proposal — and limit the depth so a broad search over a
+network mount cannot run forever.
+
+Whatever you tick goes into a **dataset basket**: an ordered list of full paths
+that Quick Plot and the explorers read directly. A basket can be saved under a
+name and reopened next week; the file is plain JSON under
+`~/.pyscattviz/collections/` and holds nothing but paths.
+
+If you already have the paths — from an email, a notebook, a previous session —
+use the **Paste full paths** tab instead. Folders and files may be mixed, and an
+original `/nsls2/...` path is translated through the registered mount mappings.
+
+The same logic is available from Python:
+
+```python
+from pyscattviz.discovery import find_folders, ls_dir
+
+ls_dir("/mnt/proposal/Results/giwaxs/cir_avg", and_list=["sampleA"], no_list=["AgBH"])
+
+rows, truncated = find_folders(
+    ["/mnt/proposal"],
+    and_list=["Results"],
+    or_list=["giwaxs", "gisaxs"],
+    no_list=["test"],
+    match_on="path",
+    max_depth=5,
+)
+```
+
+## Plotting a list of files
+
+**Quick Plot** takes the dataset basket, one folder, or a pasted list of full
+paths and plots it. No reduction layout is required — it reads:
+
+| Kind | Extensions |
+|---|---|
+| Curves | `.csv`, `.txt`, `.dat`, `.chi`, `.xy` |
+| Arrays | `.npz`, `.npy` |
+| Images | `.tif`, `.tiff`, `.png`, `.jpg`, `.jpeg` |
+
+Comment blocks, missing headers, Fit2D `.chi` header blocks, and
+comma/tab/semicolon/whitespace delimiters are all handled. `q_ca`/`iq_ca` and
+`q`/`I` are recognized automatically; any other column can be chosen by name.
+
+The three plotting tabs are:
+
+- **1D curves** — overlay, normalize (maximum, integral, or at a chosen x),
+  offset additively or multiplicatively, log axes, x range, automatic legend
+  trimming of the boilerplate every beamline stem carries, and a matching
+  matplotlib publication figure with the science/notebook/presentation/poster
+  themes.
+- **Stacked map** — interpolate every curve onto one x grid and show the set as
+  an intensity map or a waterfall. This is how an in-situ or angle series is
+  read at a glance.
+- **2D images** — detector images and 2D arrays with robust percentile contrast,
+  log/linear colour, equal aspect, and vertical flip.
+
+## The terminal
+
+Clicking through a mounted proposal is slower than typing, and everyone here
+already knows `ls`. The **Terminal** page gives the familiar verbs over any
+mounted or local folder — `ls`, `cd`, `cat`, `head`, `tail`, `find`, `wc`, `du`
+— with globs, so `ls *UV_2*` does what you expect.
+
+Nothing is handed to a system shell. Every command is parsed by pyScattViz and
+carried out with Python's `pathlib`, so there is no command that can rename,
+move, or delete anything; `rm` is simply not a word it knows.
+
+The second half is building a list:
+
+```text
+cd Z:/projects/myproject/Results/giwaxs/cir_avg
+ls *UV_2*
+select *UV_20* *UV_30*      # several patterns are OR-ed
+unselect *AgBH*
+save uv_series
+```
+
+That list *is* the dataset basket, so it shows up immediately in Quick Plot, in
+Publication Plot, and in the explorers. `save <name>` keeps it as a named
+collection under `~/.pyscattviz/collections/`, and `load <name>` brings it back
+next week. Type `help` in the page to see every command.
+
+## From clicking to code
+
+Clicking is fast for looking; a script is what you keep. Every plotting page —
+Quick Plot's 1D overlay, stacked map and 2D image, the Publication Plot, and the
+explorer panels — offers **🐍 Python for this figure**: the code behind what is
+on screen, written out with the file paths, using only the public API. It runs
+unchanged in a notebook, in a terminal, or in the console below. Download it,
+save it beside the figures, or open it in the console with one button.
+
+The **Python Console** page is where it continues. The namespace arrives loaded:
+
+| Name | What it is |
+|---|---|
+| `basket` | the current file list, from the Terminal or Data Selection |
+| `folder` | the active data folder |
+| `read_curve`, `read_table`, `read_arrays`, `read_image`, `stack_curves` | the readers |
+| `ls_dir`, `find_files`, `find_folders` | the same selection helpers the GUI uses |
+| `pv`, `np`, `pd`, `plt`, `go` | plotting and the usual scientific stack |
+| `build_curve_figure`, `save_matplotlib_figure`, `resolve_output_dir` | figures and saving |
+
+A trailing expression is echoed as in a notebook, `print` output is captured,
+and matplotlib figures, Plotly figures and DataFrames are rendered. Names persist
+between runs, so a session builds up. Four worked examples are built in — an
+overlay, a power-law fit, a folder listing, and writing a figure to disk:
+
+```python
+curve = read_curve(basket[0])
+q, intensity = curve["x"], curve["y"]
+
+window = (q > 0.01) & (q < 0.05) & (intensity > 0)
+slope, _ = np.polyfit(np.log10(q[window]), np.log10(intensity[window]), 1)
+print(f"I(q) ~ q^{slope:.2f}")
+```
+
+The console runs your code in this process with your permissions — the same as
+typing it at a Python prompt, which is the point. It refuses to run at all if the
+server has been bound to an address other people can reach; pyScattViz listens
+on `127.0.0.1` by default.
+
+## Batch: set it up on one frame, run it over the rest
+
+Every explorer has **⚙️ Batch process**. The workflow it exists for: point at a
+folder, filter it to the frames you care about, open one of them, get the
+cleaning right — mask out the hot pixels, draw over the substrate peak — then
+apply exactly that to the other 755 and write what you need.
+
+*Exactly that* is the point. The batch takes the same cleaning object the panels
+are using, so there is no second implementation to drift out of step: if the
+curve on screen has a gap where the mask is, so does every curve in the batch.
+The panel says what it will apply before you run it.
+
+What gets written is tick boxes rather than a mode, because these are not
+alternatives — a run usually wants the curves *and* a picture *and* a record:
+
+| | what it writes |
+|---|---|
+| **I(q)** | the q–φ map averaged down φ. One CSV per frame, or one per φ band if you give band centres — which is a sector average |
+| **I(φ)** | the same map averaged across q — the orientation profile. Whole q range, or one CSV per q band |
+| **Panels** | the figures as they appear on screen, one file per frame per panel, as PNG/SVG/PDF/HTML |
+| **Arrays** | the cleaned 2D products as NPZ, to carry on in your own code |
+| **Manifest** | one CSV describing the run: every frame, what was written, how much was masked away, and which mask was used |
+
+Those two reductions cover what the four geometries ask for: a GIWAXS I(q) with
+the substrate ring masked out, a GISAXS line cut as a φ or q band, a
+transmission SAXS anisotropy as I(φ), a transmission WAXS mask-then-average
+either way. Grazing pages open with **I(q)** ticked, transmission pages with
+**I(q)** and **I(φ)**.
+
+A masked region is a **gap** in the written curve — NaN, not zero — because
+every average is a `nanmean` and an excluded pixel should drop out of its bin
+rather than drag it towards zero. Progress, rate and an ETA are shown while it
+runs.
+
+## Excluding regions you do not want averaged
+
+Hot-pixel removal answers "is this a detector defect?". A substrate Bragg peak,
+the specular rod, the Yoneda streak are none of those — they are real signal,
+and you may still want them out of an azimuthal average before comparing one
+sample against another. That is a judgement, so **🎭 Exclusion mask** is
+authored rather than detected.
+
+Two ways in, because a region is sometimes easier to name than to draw:
+
+- **Numerically** — a **ring** (a |q| band, for a substrate powder ring), a
+  **wedge** (a φ band), or a **box** in either product's own axes. This is what
+  you want for "drop the ring at 1.9–2.05 Å⁻¹", and it is reproducible across a
+  beamtime because it is a number.
+- **By drawing** — box- or lasso-select directly on the q-image or the q–φ map
+  and press **Add to mask**. The selection comes back in data coordinates, so
+  the shape is stored in q rather than in pixels and stays correct when the
+  frame or the zoom changes.
+
+A region is defined once and applies to **both** products. A polygon drawn on
+the q-image is in (qx, qz) and a caked map is in (q, φ); pyScattViz converts
+between them, so a spot excluded on the picture is excluded from the q–φ map,
+from the line cuts, and therefore from the 1D curve integrated out of it. Draw
+it where you can see it; it acts where it matters.
+
+Regions can be suspended individually without deleting them, and **Keep only
+these regions** inverts the whole set for when the part you want is easier to
+draw than the part you do not.
+
+A mask is a small JSON file in `~/.pyscattviz/masks/`, so the same exclusions
+reload next session and apply to a whole **batch export** rather than being
+re-drawn per frame — the batch panel names the mask it is applying.
+
+## The folders you use are remembered
+
+pyScattViz keeps a list of every data folder you have opened in
+`~/.pyscattviz/data_folders.md`, so a new session starts where the last one
+left off: the folder you used last is already in the box, and every folder you
+have opened is in the **Known folders** menu above it. Nothing to set up — it
+happens the first time you open a folder.
+
+It is markdown rather than a configuration format on purpose. A list of data
+folders is something you want to read, tidy up, annotate, and paste into an
+email, and a long path such as
+`…/2026-2/pass-xxxxxx/experiments/0_Static/maxs/analysis` tells you nothing at a
+glance three weeks later. So each line carries a note of your own and the date
+it was last used:
+
+```markdown
+## Pinned
+
+- `/mnt/data32/.../0_Static/maxs/analysis` — PVDF on MXene <!-- used 2026-08-19 -->
+
+## Recent
+
+- `/mnt/data32/.../1_Static/saxs/analysis` — the transmission run
+```
+
+Open the file in any editor and add, remove or reorder folders by hand;
+pyScattViz reads the change next time it starts. The parser takes what a person
+would actually type, so the backticks, the note and the date are all optional
+and `- /some/folder` on its own is read correctly.
+
+Under the folder box, **📁 Remembered folders** lets you do the same from
+inside the application: write the note, **pin** a folder so it is offered first
+and never ages out of the list, or forget one. A folder whose mount has gone is
+kept in the file — mounts come back — but it is not opened, and it is marked
+*not mounted* in the list.
+
+The file lives in your own configuration folder, never inside a repository, so
+a path to an embargoed proposal cannot be committed by accident.
+`PYSCATTVIZ_CONFIG_DIR` moves it, which is useful if you keep several profiles.
+
+## Saving figures to your own folder
+
+pyScattViz runs on your computer, so it writes where you tell it to. Every page
+that draws something has a **💾 Save to disk** panel:
+
+- one **output root**, which you set on the **Output Folder** page and which is
+  remembered between sessions in `~/.pyscattviz/settings.json`;
+- one **subfolder per page**, so a figure from the GIWAXS Explorer lands in
+  `<output root>/GIWAXS_Explorer/` and a Publication Plot lands in
+  `<output root>/Publication_Plot/`;
+- an optional extra subfolder for a sample or session name, and an optional date
+  subfolder;
+- no silent overwriting — a repeated name becomes `name_001`, `name_002`, …
+  unless **Overwrite** is turned on.
+
+Figures can be written as PNG, SVG, PDF, interactive HTML, or Plotly JSON;
+matplotlib figures also as EPS and TIFF. The plotted table can be written beside
+the figure as CSV, and the displayed array as NPZ or NPY, so a figure and the
+numbers behind it stay together.
+
+Static images of the interactive Plotly figures are produced by the free
+`kaleido` package, which is installed with pyScattViz. On a computer with no
+Chrome or Chromium, run `plotly_get_chrome` once in the same environment; HTML
+export works without it.
+
+The default output root is `~/pyScattViz_Output`. `PYSCATTVIZ_OUTPUT_DIR`
+overrides it for a new installation.
+
+The same helpers are available from Python:
+
+```python
+from pyscattviz.exporting import resolve_output_dir, save_matplotlib_figure
+
+folder = resolve_output_dir("~/pyScattViz_Output", "GIWAXS Explorer", create=True)
+save_matplotlib_figure(fig, folder, "sample_A_cir_avg", fmt="png", dpi=300)
+```
+
+## File selection and lazy loading
+
+Naming a folder opens nothing. Every page scans directory entries — filenames,
+never contents — and then stops and waits. The four explorers open on no frame,
+Quick Plot and Publication Plot on no file, Plotting Studio on no saved bundle;
+each shows the catalogue of what it found and reads the first byte of data only
+when a frame or file is chosen. A folder holding one frame is no exception, so
+the rule needs no explaining. A configurable cap prevents a broad match from
+building an unbounded in-memory table, and the viewer holds only the frame on
+screen.
+
+Boolean expressions support `AND`, `OR`, `NOT`, parentheses, quoted phrases,
+and wildcards:
+
+```text
+sampleA AND (0.1000deg OR 0.1500deg) NOT AgBH
+"sample one" OR sample_two
+sampleA_*_WAXS
+```
+
+Adjacent terms imply `AND`. A pasted or uploaded filename list provides exact
+selection. Product prefixes and extensions are normalized, so
+`Cir_Avg_sample.tif.csv`, `qimg_sample.tif.npz`, and `sample` select the same
+frame.
+
+## Geometry-specific scattering explorers
+
+The four experiment geometries have independent pages and independent widget
+state. They share tested file loaders and plotting primitives, but not a single
+set of scientific defaults.
+
+| Explorer | Default q axis | Geometry preset (Å⁻¹) | Primary review tools |
+|---|---|---:|---|
+| GISAXS | logarithmic I(q) | 0.001–0.5 | low-q qx/qz maps and band cuts |
+| GIWAXS | linear q | 0–3.0 | wide-q orientation maps and q–φ cuts |
+| Transmission SAXS | logarithmic I(q) | 0.001–0.5 | SAXS detector path, anisotropy, low-q I(q) |
+| Transmission WAXS | linear q | 0–3.5 | WAXS detector path, orientation, high-q I(q) |
+
+Each explorer opens on the window that geometry is normally reviewed in, and the
+window follows the beamline — point the explorer at a CMS folder and it uses the
+CMS preset, point it at SMI and it uses that one. The CMS GIWAXS preset is qx and
+qz over 0–3 Å⁻¹, q–φ over q 0.5–3.5 and φ over 0–180°, since the two halves of a
+q–φ map mirror each other.
+
+Those values fill the limit boxes, but **auto q limits still win on arrival**,
+because how far a frame reaches in q is a property of the detector rather than a
+preference. A CMS Pilatus800 whose active area starts about 300 px left of the
+beam centre covers qx from −2.18 to +1.23, so the preset's 0–3 window put a band
+of blank on one side and hid most of the data on the other. Untick **Auto q
+limits** and the preset numbers are what you get, in one click.
+
+The line under the limit boxes always reports what the frame covers — *This
+frame covers qx −2.18 … +1.23 · qz +0.16 … +2.78 · …* — measured from the frame
+itself. It is the quickest way to see that a detector sits off-centre, and it
+means a hand-typed window that misses the data says so instead of just drawing
+an empty panel.
+
+**Hot pixels** are removed from the 2D maps by default. Every CMS and SMI
+detector carries a few that read absurdly high whatever the sample, and because
+the azimuthal average is a mean, one 500,000-count pixel moves a whole q bin and
+the 1D curve grows a peak that is not there. A pixel is only blanked when its
+excess is significant against counting statistics *and* it is several times its
+local median, so sharp reflections — which are smooth over a few pixels — are
+kept. Turn it off in the display controls if you want to see the raw map.
+
+Whether a given pixel is a defect or the tip of a sharp reflection is a
+judgement, not a fact, so every threshold is on screen under **Hot-pixel
+thresholds**: the neighbourhood size, the significance in σ, the multiple of the
+local median it must exceed, and an optional counts floor, with Default, Strict
+and Loose presets. The panel reports how many pixels the current settings would
+blank on the frame in front of you and how bright the worst of them was, which
+is the only way to tell a good threshold from a bad one. On one CMS GIWAXS frame
+the same map gives 57, 25 or 7 removed pixels as the thresholds tighten.
+
+The explorers can also **re-integrate every filtered frame into a despiked 1D
+curve**, one CSV per frame, over an azimuthal window you choose. The reduction's
+own circular average is computed before anyone has looked at the data, so a hot
+pixel is baked into it; this is the way to get a clean batch of curves without
+re-running the reduction. For a batch, tick **Build one defect mask from the
+whole selection**: a first pass over an evenly spread sample of the frames keeps
+only the pixels that recur, and that mask is applied to every frame. This is the
+test that separates a detector defect from a Bragg spot — a defect is hot in
+every frame, an oriented sample's reflection is hot in one — so sample frames
+from *different* samples. Over one sample's own angle series a majority vote
+flags that sample's peaks as defects.
+
+**Auto-fit** handles the rest, as two independent switches. *Auto q limits*
+frames the q-image and the q–φ q axis on the pixels that actually hold data: a
+remeshed q-image covers only part of the qx–qz plane and everything outside it
+is NaN, so a fixed window can leave the picture stranded in a field of blank —
+SMI GISAXS on the old ±0.5 default was mostly empty, and its negative qz was cut
+off entirely. *Auto intensity limits* frames I(q) on the points **inside the q
+window currently shown**, so the common case works: pin a q range by hand and
+the intensity rescales to match it. Zoom a CMS SAXS frame to 0.05–0.15 Å⁻¹ and
+I goes from 0.0013–3246 to 1.3–95, instead of leaving the decade you asked for
+as a flat line along the top of the panel. Both are on wherever there is no
+explicit beamline preset, and both leave φ alone.
+
+Three buttons sit above the limit boxes: **Fit to this frame** measures the
+current frame once, the **beamline preset** restores the values in the table
+above, and **Clear back to auto** empties the boxes.
+
+The **QC image** panel starts unchecked — it is the reduction's own diagnostic
+picture rather than the data under review, and drawing it slows every frame
+change on a mounted folder. Tick it when something looks wrong.
+
+Every explorer also exposes editable intensity limits, detector/raw paths,
+line-cut centers and widths, and product selection.
+
+**Choosing the folder.** One mounted drive usually holds many proposals, several
+beamlines, and dozens of projects. Every explorer offers a menu of the folders
+the session already knows — recent ones, registered mounts, the dataset basket —
+plus a box you can paste into. A pasted `/nsls2/...` path is translated through
+the registered mounts, and a path that is not available yet stays in the box so
+it can be corrected rather than vanishing.
+
+**Narrowing the frames.** Three boxes, the same everywhere: *must contain*,
+*may contain*, *must not contain*. Two samples at once is the *may contain* box:
+`UV_20, UV_30`. Large 2D products are downsampled
+for browser display; line cuts use the selected loaded array.
+
+Any panel, and any set of line cuts, can be written to disk from the explorer
+itself. **Export every filtered frame** renders the same panel for each frame
+that passes the current filters and writes the set into its own subfolder — a
+contact sheet of an angle series or an in-situ run, in one click. Frames that
+lack that product are reported rather than silently dropped.
+
+Each explorer sidebar also lists the folders in the dataset basket, so moving
+between samples does not mean retyping a mounted path.
+
+## Plotting Studio
+
+The **Plotting Studio** exposes the principal plotting tools in the web GUI:
+
+- **1D:** multiple curves, normalization, log axes, markers, unified hover, and
+  plotted-table CSV download;
+- **2D:** NPY/NPZ, numeric table, detector-image, or saved q-image input with
+  robust percentile contrast and linear/log color display;
+- **3D:** interactive surfaces, wireframes, and top-down contours from demo or
+  uploaded matrices;
+- **Multi-axes:** grids, main-plus-residual layouts, and named mosaics using the
+  science, notebook, presentation, or poster themes, with PNG/SVG/PDF export.
+
+The page uses the same supported `pyscattviz.plotting` functions available to
+notebooks and scripts. NPY/NPZ uploads are loaded with Python object pickles
+disabled.
+
+## Publication plots
+
+The **Publication Plot** page reads only the explicitly selected circular-average
+CSVs, and gives you the whole of matplotlib over the result.
+
+Per curve, edited as a table — one row each, in plotting order: colour, line
+style, width, marker, marker size, how often to draw a marker, opacity, and the
+legend label. Leave the colour blank to follow the theme's own cycle.
+
+For the figure: science/notebook/presentation/poster themes, maximum or integral
+normalization, x and y limits, axis labels, log axes, an additive offset and a
+multiplicative stacking factor, base font size, major and minor grids with
+adjustable opacity, minor ticks, tick direction, length and width, ticks on the
+top and right, frame width, and legend position, columns, font size and box.
+Output as PNG, SVG, PDF, EPS or TIFF, either downloaded or written straight to
+disk.
+
+## Python plotting API
+
+The earlier `pyViz` functionality lives under the supported pyScattViz
+namespace:
+
+```python
+import numpy as np
+import pyscattviz.plotting as pv
+
+pv.set_theme("science")
+
+q = np.logspace(-3, 0, 200)
+intensity = 1e3 * q**-2
+ax = pv.plot1d(intensity, x=q, logx=True, logy=True, xlabel=r"q ($\AA^{-1}$)", ylabel="I(q)")
+ax.figure.savefig("scattering_curve.svg", bbox_inches="tight")
+```
+
+The API includes 1D overlays and fits, 2D images and transforms, 3D plots,
+N-D correlations, custom scattering colormaps, multi-panel layouts, ROI
+overlays, safe scientific labels, and figure serialization. See
+[the plotting API guide](docs/PLOTTING_API.md).
+
+## Supported reduction layout
+
+The scattering viewers recognize these direct product folders:
+
+```text
+gisaxs/ or giwaxs/          # CMS reduction
+├── cir_avg/     # Cir_Avg_*.csv
+├── q_image/     # qimg_*.npz
+├── qc/          # qc_*.png, .tif, ...
+├── qphi/        # qphi_*.npz
+└── stitched/    # optional CMS stitched/raw images
+```
+
+A CMS `analysis/GISAXS` folder writes the q-map differently — as a float TIFF
+with its axes beside it — and that is read too:
+
+```text
+analysis/GISAXS/            # CMS grazing-incidence reduction
+├── Qimage/      # Qimage_*.tiff.tiff  → the q-map, with its qx/qz axes in the
+│                #   sibling Qimage_qx_*/_qz_* CSVs, plus its rendered PNG
+└── Raw_Plot/    # Raw_Plot_*.tiff.png → the raw detector plot
+```
+
+SMI's stitching pipeline writes the same products under its own names, and
+every one of them is discovered, listed, and separately selectable:
+
+```text
+WAXS/ or SAXS/              # SMI stitched reduction
+├── Cir_Avg/       # Cir_Avg_*.tif.csv       → circular average I(q)
+├── Stitch_Data/   # Stitch_Data_*.tif.tiff  → the stitched q-map, with its
+│                  #   qx/qz axes in the sibling Stitch_Data_qx_*/_qz_* CSVs
+├── Stitch_Image/  # Stitch_Image_*.tif.png  → the rendered stitched image
+├── Raw_Plot/      # Raw_Plot_*.tif.png      → the raw detector plot
+└── Check_Stitch/  # Check_Stitch_q_iq_*.png → the stitching QC figure
+```
+
+Folder names are matched without regard to case or word separators, so
+`Cir_Avg` and `cir_avg`, or `Qimage` and `q_image`, are the same product on a
+case-sensitive mount. Products are listed with the name they carry on disk, and
+File Selection lets you index any subset of them.
+A rendered figure (PNG/JPG) is shown as the image it is; only the detector and
+q-space arrays go through the interactive heatmap.
+
+The same reduced-product names are supported for transmission SAXS/WAXS.
+The transmission page also accepts editable raw-image locations used by CMS
+and SMI. Data that does not follow this layout is not a problem — use Data
+Selection and Quick Plot instead.
+
+## Development
+
+```bash
+python -m pip install -e ".[dev]"
+pytest -q
+ruff check .
+```
+
+More detail is available in [the user guide](docs/USER_GUIDE.md),
+[the mount guide](docs/MOUNTS.md), and
+[the plotting API guide](docs/PLOTTING_API.md).
+
+The development/session handoff is maintained in [recorde.md](recorde.md).
+
+## Contact and license
+
+I welcome issue reports at <https://github.com/yugangzhang/pyScattViz/issues>.
+Scientific-use questions can be sent to Yugang Zhang at `yuzhang@bnl.gov`.
+
+pyScattViz is released under the MIT License.

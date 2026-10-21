@@ -1,17 +1,21 @@
 # pyScattViz development handoff
 
 Read this file before continuing work after a chat, terminal, or development
-session restart. It deliberately contains no passwords, Duo codes, tokens, or
-private keys.
+session restart. It records what has been done, decided and verified;
+[plan.md](plan.md) holds what is still to do. It deliberately contains no
+passwords, Duo codes, tokens, or private keys.
 
 ## Repository state
 
 - Repository: `https://github.com/yugangzhang/pyScattViz`
 - Branch: `main`
-- Current package version: `0.21.0`
+- Current package version: `0.22.0`
 - The Windows launcher `start_windows.bat` was confirmed working by the user.
-- At the end of this handoff update, `main` is expected to be committed, pushed,
-  and clean. Confirm with `git status` and `git log -5 --oneline --decorate`.
+- `0.22.0` was written on 2026-10-18 on top of `ef69663` (`0.21.0`) and was not
+  yet committed when this file was last updated; committing it is the first
+  step of `plan.md`. Confirm with `git status` and
+  `git log -5 --oneline --decorate`.
+- The handoff file was `recorde.md` until `0.22.0`; it is `record.md` now.
 
 ## User goal and verified access
 
@@ -193,6 +197,18 @@ folders hold only AgBH calibration frames, which the default filter hides.
     start `svorg_`; a frame slider must go through `controls.pick_frame`,
     because a value from a longer run otherwise raises
     `StreamlitValueAboveMaxError` when a shorter one is chosen.
+27. The Org plot pages carry the explorers' controls, built in
+    `components/org/controls.py` (`display_options`, `ranges`,
+    `curve_controls`) and honoured in `figures.py`. Limits are `(lo, hi)` with
+    either side None for auto, and auto is not Plotly's: `image_limits` frames
+    a map on the box holding data and scales its colour on the window shown,
+    `curve_limits` frames curves on the points that can be drawn and fits I to
+    the q window. So a blank box is the useful default and **Fit** only fills
+    the boxes in to be edited. An org being measured is reopened, not remade:
+    `state.SAVED` counts the frames the file links when it is opened or saved,
+    `state.unsaved()` the difference, `state.update_org()` rescans, links and
+    saves. The *Known folders* menu moves the folder box only through its
+    `on_change`; comparing the two on every rerun reverted any pasted path.
 
 Commit messages are written in my own voice and carry no assistant
 co-author trailer.
@@ -314,8 +330,9 @@ Streamlit layer:
 - `src/pyscattviz/app/pages/14_Org.py` to `19_Ask_AI.py`: make or open an
   org, then Overview, Sample, Compare, In-situ, and Ask AI. They share
   `components/org/state.py` (the open org or folder, `PYSCATTVIZ_ORG`, the
-  15 s re-read), `controls.py` (folder, sample, angle and frame pickers) and
-  `figures.py`.
+  15 s re-read, saving), `controls.py` (folder, sample, angle and frame
+  pickers; the explorers' display row and ranges) and `figures.py` (the maps
+  and curves, framed and scaled on what they show).
 
 Tests:
 
@@ -345,19 +362,29 @@ Tests:
   humidity and spin-coating folders, a repeat, an unreduced frame, a dead T
   sensor). `tests/test_org_cms.py`, `test_org_store.py`, `test_org_ask.py`
   and `test_org_pages.py` run on it; a model is a stand-in Python script.
+  `tests/test_org_figures.py` checks the auto limits on arrays.
   The org tests that need pyDataOrg skip without it.
 
 ## Last verification
 
-The `0.21.0` implementation passed, with pyDataOrg importable:
+The `0.22.0` implementation passed, with pyDataOrg importable and
+`PYSCATTVIZ_CONFIG_DIR`/`PYSCATTVIZ_OUTPUT_DIR` pointed at empty folders
+(three `test_app_smoke.py` tests otherwise read `~/.pyscattviz/settings.json`;
+see `plan.md`):
 
 ```text
-python -m pytest -q           651 passed, 4 skipped
+python -m pytest -q           661 passed, 4 skipped
 python -m ruff check src tests
 python -m ruff format --check src tests
 git diff --check
-python -m pip wheel . --no-deps   (the org package, products.py and pages 14–19 are in it)
 ```
+
+The wheel was last checked at `0.21.0` (`python -m pip wheel . --no-deps`: the
+org package, products.py and pages 14–19 are in it); no file was added to or
+moved out of the package since. The Org pages were also run on two real CMS
+experiments, a static and humidity GIWAXS one and a static and thermal
+transmission SAXS one (3,089 frames, 44 heated runs): every page draws with no
+error and every axis opens framed on its data.
 
 Figures were confirmed written to disk from Quick Plot, the four explorers, and
 Publication Plot, each landing in its own page subfolder, with PNG produced
@@ -377,19 +404,25 @@ The CMS `Qimage` layout was checked against a real grazing-incidence beamtime
 confirmed by re-rendering the TIFF with row 0 at the lowest qz and matching the
 asymmetric detector-gap streak against the reduction's own PNG.
 
-## Next work
+The `smi` layout (2026-10-21) was checked against the four SMI projects of
+`pass-321337` (read-only from the sandbox): it recognises each `Results`
+(and a group's folder below it, `TSAXS384/Results/UPenn`), and reads QYu as
+8 samples of group `QYu` in 336 frames (0.3 s), HZheng 17 in 290, PGuo 43 in
+5,201 (1.9 s), UPenn 111 in 2,886. The strategy it reads back matches the run
+sheets: QYu GI at 7 angles, WAXS arcs 0, 20, 40, SAXS at 40, 3 spots at
+−1000, 0, +1000 µm, 16.15 keV, 1 s (`2026C3_HZheng.py`'s `GI`); HZheng 9
+spots on a 3 × 3 grid; UPenn a 13-point cross of ±900 µm; PGuo 12 angles,
+5 spots. A QYu org built from it into the scratchpad was 512 KB and opened
+again with its record. The live GUI was not run on it.
 
-Only these two are still open, and both need a machine and credentials that are
-not available from here:
+## Open work
 
-1. Pull and install `0.7.1` on Windows and register the verified RaiDrive `Z:`
-   mapping at the chosen remote scope.
-2. Try rclone against BNL Duo on Windows and record the result here. If it
-   works, the GUI note in `01_Data_Sources_and_Mounts.py` and the README table
-   should be upgraded from "not yet confirmed". Do not soften that wording
-   without the test.
+What is still to do, in order, is in [plan.md](plan.md). When an item there is
+done, move its evidence here and take it out of the plan.
 
-Closed in `0.7.1`, with evidence:
+## Closed, with evidence
+
+Closed in `0.7.1`:
 
 - Data Selection was run over the real SMI beamtime tree at
   `/mnt/data32/NSLSII_Data/SMI/2026_Cycle1`: 235 folders at depth 6 in about one
@@ -403,7 +436,8 @@ Closed in `0.7.1`, with evidence:
 ## Suggested prompt for a new chat
 
 ```text
-Please continue pyScattViz from the repository. First read README.md and
-recorde.md completely, then inspect git status and recent git log. Keep the GUI
-mount-only and credential-free, and keep the core modules Streamlit-free.
+Please continue pyScattViz from the repository. First read README.md,
+record.md and plan.md completely, then inspect git status and recent git log.
+Keep the GUI mount-only and credential-free, and keep the core modules
+Streamlit-free.
 ```

@@ -60,6 +60,24 @@ def test_parse_spin_frame():
     assert m["index"] is None and m["x"] == 28.8
 
 
+def test_parse_heated_run_with_its_reading_before_x():
+    """A transmission run on a heated stage: `<series>_<t>s_T<T>C_x…_y…`."""
+    m = cms.parse_frame("AS_5-5_1023.6s_T37.136C_x+0.001_y-0.000_1.00s_2483348_000000_saxs.tiff")
+    assert (m["sample"], m["kind"], m["elapsed_s"], m["T_C"]) == (
+        "AS_5-5",
+        "insitu",
+        1023.6,
+        37.136,
+    )
+    assert m["index"] is None and m["th"] is None and m["exposure_s"] == 1.0
+    cold = cms.parse_frame(
+        "EA_0.5stitch_10575.8s_T-273.150C_x+0.000_y-0.000_1.00s_2484021_000000_saxs.tiff"
+    )
+    assert (cold["sample"], cold["kind"], cold["T_C"]) == ("EA_0.5stitch", "insitu", None)
+    spot = cms.parse_frame("AS_2_16_x+0.000_y+0.600_20.00s_2483077_000000_saxs.tiff")
+    assert (spot["sample"], spot["kind"], spot["exposure_s"]) == ("AS_2_16", "static", 20.0)
+
+
 def test_parse_saxs_and_odd_names():
     m = cms.parse_frame("AgBH_cali_5m_13.5kev_x-0.000_th+0.000_10.00s_1000110_000000_saxs.tiff")
     assert (m["sample"], m["kind"], m["th"]) == ("AgBH_cali_5m_13.5kev", "static", 0.0)

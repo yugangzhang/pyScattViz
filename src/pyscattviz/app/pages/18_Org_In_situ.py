@@ -13,7 +13,9 @@ from pyscattviz.app.state import action_key, keep_widget_state
 keep_widget_state(st.session_state)
 require_password()
 
+from pyscattviz.app.components import scattering as sv  # noqa: E402
 from pyscattviz.app.components.org import controls, figures, state  # noqa: E402
+from pyscattviz.dataio import DataReadError  # noqa: E402
 from pyscattviz.org import analysis, cms  # noqa: E402
 
 state.on_page()
@@ -53,8 +55,26 @@ axes = [
     if k == "time" or np.isfinite(pd.to_numeric(part[k], errors="coerce")).any()
 ]
 axis = b.selectbox("Against", axes, format_func=lambda k: cms.RUN_AXES[k], key="svorg_run_axis")
-images = controls.image_options("svorg_run_img")
-curves = controls.curve_options("svorg_run_iq", offset=True)
+first_qimg = next((p for p in part["qimg"] if isinstance(p, str)), None)
+try:
+    has_qr = first_qimg is not None and sv.qimage_has_qr(state.load_qimage_data(first_qimg))
+except DataReadError:
+    has_qr = False
+show = controls.display_options("svorg_run", qr=has_qr, logx=str(det).lower().startswith("saxs"))
+limits = controls.ranges(
+    "svorg_run",
+    {
+        "Waterfall": [("map_I", "I"), ("q", "q (every I(q))"), ("axis", cms.RUN_AXES[axis])],
+        "First · this · last": [("iq_I", "I")],
+        "Frames along the run": [("along_I", "I")],
+        "q-image": [
+            ("qimg_I", "I"),
+            ("qimg_x", "qr" if has_qr and show["qmode"] == "qr" else "qx"),
+            ("qimg_z", "qz"),
+        ],
+    },
+)
+lines_shown = controls.curve_controls("svorg_run_lines")
 every = controls.live("svorg_run")
 
 
@@ -87,7 +107,7 @@ def body() -> None:
 
     left, right = st.columns([3, 2])
     with left:
-        keep = controls.q_window(q, curves["q_range"])
+        keep = controls.q_window(q, limits["q"])
         st.plotly_chart(
             figures.waterfall_figure(
                 q[keep],
@@ -95,12 +115,14 @@ def body() -> None:
                 stack[:, keep],
                 v_label,
                 title=" · ".join(x for x in (series, th_text) if x),
-                cmap=images["cmap"],
-                log=images["log"],
-                logq=curves["logx"],
-                vmin=images["vmin"],
-                vmax=images["vmax"],
+                cmap=show["cmap"],
+                log=show["log"],
+                logq=show["logx"],
+                vmin=limits["map_I"][0],
+                vmax=limits["map_I"][1],
+                y_range=limits["axis"],
                 marker=values[i],
+                height=show["height"] + 40,
             ),
             width="stretch",
             key="svorg_run_waterfall_chart",
@@ -114,12 +136,16 @@ def body() -> None:
         st.plotly_chart(
             figures.curves_figure(
                 lines,
-                logx=curves["logx"],
-                logy=curves["logy"],
-                x_range=curves["q_range"],
+                logx=show["logx"],
+                logy=show["logy"],
+                x_range=limits["q"],
+                y_range=limits["iq_I"],
                 line_colors=["#9aa5b1", "#d62728", "#1f2a44"],
+                width=lines_shown["width"],
+                markers=lines_shown["markers"],
+                legend=lines_shown["legend"],
                 title="I(q)",
-                height=460,
+                height=show["height"] + 40,
             ),
             width="stretch",
             key="svorg_run_frame_iq_chart",
@@ -139,26 +165,32 @@ def body() -> None:
     if isinstance(row["qimg"], str) and st.toggle(
         "Show the q-image of this frame", value=False, key="svorg_run_show_qimg"
     ):
-        z, qx, qz, mask, xlabel = state.load_qimage(row["qimg"])
-        st.plotly_chart(
-            figures.image_figure(
-                z,
-                qx,
-                qz,
-                xlabel,
-                "qz (Å⁻¹)",
-                mask=mask,
-                title="q-image",
-                cmap=images["cmap"],
-                log=images["log"],
-                vmin=images["vmin"],
-                vmax=images["vmax"],
-                aspect=images["aspect"],
-                height=520,
-            ),
-            width="stretch",
-            key="svorg_run_qimg_chart",
-        )
+        try:
+            z, qx, qz, mask, xlabel = state.load_qimage(row["qimg"], show["qmode"])
+        except DataReadError as exc:  # caught half-written by the reduction
+            st.warning(str(exc))
+        else:
+            st.plotly_chart(
+                figures.image_figure(
+                    z,
+                    qx,
+                    qz,
+                    xlabel,
+                    "qz (Å⁻¹)",
+                    mask=mask,
+                    title="q-image",
+                    cmap=show["cmap"],
+                    log=show["log"],
+                    vmin=limits["qimg_I"][0],
+                    vmax=limits["qimg_I"][1],
+                    x_range=limits["qimg_x"],
+                    y_range=limits["qimg_z"],
+                    aspect=show["aspect"],
+                    height=show["height"] + 100,
+                ),
+                width="stretch",
+                key="svorg_run_qimg_chart",
+            )
 
     table = pd.DataFrame(stack.T, columns=[f"{v:g}" for v in values])
     table.insert(0, "q", q)
@@ -177,20 +209,23 @@ def body() -> None:
     pick = cms.evenly_spaced(len(run), int(count))
     finite = values[np.isfinite(values)]
     lo, hi = (float(finite.min()), float(finite.max())) if finite.size else (0.0, 1.0)
-    cmap = curves["cmap"] or "Viridis"
+    cmap = lines_shown["cmap"] or "Viridis"
     st.plotly_chart(
         figures.curves_figure(
             [(f"{values[k]:g}", q, stack[k]) for k in pick],
-            logx=curves["logx"],
-            logy=curves["logy"],
-            offset=curves["offset"],
+            logx=show["logx"],
+            logy=show["logy"],
+            offset=lines_shown["offset"],
             cmap=cmap,
             line_colors=figures.value_colors(values[pick], cmap, lo, hi),
-            x_range=curves["q_range"],
+            x_range=limits["q"],
+            y_range=limits["along_I"],
+            width=lines_shown["width"],
+            markers=lines_shown["markers"],
             legend=False,
             colorbar=(v_label, lo, hi),
             title=f"coloured by {v_label}",
-            height=480,
+            height=show["height"] + 60,
         ),
         width="stretch",
         key="svorg_run_along_chart",
