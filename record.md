@@ -373,7 +373,7 @@ The `0.22.0` implementation passed, with pyDataOrg importable and
 see `plan.md`):
 
 ```text
-python -m pytest -q           661 passed, 4 skipped
+python -m pytest -q           668 passed, 4 skipped   (2026-10-21, with the smi layout)
 python -m ruff check src tests
 python -m ruff format --check src tests
 git diff --check

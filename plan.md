@@ -63,7 +63,8 @@ Last updated: 2026-10-21, at `0.22.0` (not yet committed).
    parsed, key spots on `pos`, `x` and `y`, and show y in the spot label when
    a sample has it. Done when a test with OGang-style names (same x, two y)
    gives two spots, and the OGang org's spot and repeat counts are checked on
-   the real folder.
+   the real folder. SMI frames carry y already (`smi.parse_frame`):
+   HZheng's 3 × 3 grid of spots reads as 3 spots × 3 repeats until then.
 3. **Save a figure from the Org pages.** Every other plotting page saves its
    panels to the output folder through `components/saving.py`; the Org pages
    download their data as CSV (the I(q), the curves, the waterfall, the peak

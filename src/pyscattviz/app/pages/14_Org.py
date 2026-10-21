@@ -323,12 +323,17 @@ with make_tab:
 # ---------------------------------------------------------------------------
 
 
-def _listed(value) -> str:
+#: Values of the beamline record that are a first and a last, not a list.
+_SPANS = ("scans", "written", "elapsed_s", "T_C", "potential_V")
+
+
+def _listed(value, key: str = "") -> str:
     """One value of the beamline record, as one line."""
     if isinstance(value, dict):
         return "; ".join(f"{k}: {_listed(v)}" for k, v in value.items())
     if isinstance(value, list):
-        return ", ".join(f"{v:g}" if isinstance(v, float) else str(v) for v in value)
+        items = [f"{v:g}" if isinstance(v, float) else str(v) for v in value]
+        return " – ".join(dict.fromkeys(items)) if key in _SPANS else ", ".join(items)
     return "" if value is None else str(value)
 
 
@@ -341,7 +346,7 @@ def _beamline(info: dict) -> None:
         if plan:
             st.markdown("**How the samples were measured**, as the raw frames' names say")
             st.dataframe(
-                pd.DataFrame({"": list(plan), "value": [_listed(v) for v in plan.values()]}),
+                pd.DataFrame({"": list(plan), "value": [_listed(v, k) for k, v in plan.items()]}),
                 hide_index=True,
                 width="stretch",
             )
@@ -353,8 +358,8 @@ def _beamline(info: dict) -> None:
                     "folder": name,
                     "frames": r.get("frames"),
                     "of samples": r.get("sample_frames"),
-                    "scans": _listed(r.get("scans")),
-                    "written": _listed(r.get("written")),
+                    "scans": _listed(r.get("scans"), "scans"),
+                    "written": _listed(r.get("written"), "written"),
                     "energy (eV)": _listed(r.get("energy_eV")),
                     "arcs (°)": _listed(r.get("arcs_deg")),
                     "sdd (mm)": _listed(r.get("sdd_mm")),
