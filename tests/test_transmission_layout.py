@@ -175,6 +175,21 @@ def test_the_batch_offers_both_q_phi_reductions(transmission):
     assert app.session_state["pyscattviz_tsaxs_bp_iphi"] is True
 
 
+def test_linecuts_use_the_cleaning_pipeline():
+    """A hot pixel hidden on panel C must not leak back into its line cut."""
+
+    source = (PAGES_DIR.parent / "components" / "transmission_explorer_page.py").read_text()
+    linecut_block = source[source.index("if centers and \"qphi\"") : source.index(
+        "# ===========================================================================\n"
+        "# Four panels"
+    )]
+
+    assert "cleaning.clean_qphi(sel)" in linecut_block
+    assert "load_qphi(sel" not in linecut_block
+    assert "_band_profile(qphi, phi, q, c, width, pmask)" not in linecut_block
+    assert "_band_profile(qphi, q, phi, c, width, pmask)" not in linecut_block
+
+
 def test_the_intensity_limits_follow_the_chosen_q_window():
     """Choosing a q range by hand must rescale I, or the zoom is a flat line."""
 

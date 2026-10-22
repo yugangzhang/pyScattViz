@@ -559,16 +559,15 @@ _band_color = "rgba(255,0,0,0.15)"
 _line_color = "crimson"
 
 if centers and "qphi" in active_products and sel["has_qphi"]:
-    try:
-        q, phi, qphi, pmask = load_qphi(sel["qphi"])
-    except DataReadError as exc:
-        st.error(str(exc))
-        q = phi = qphi = pmask = None
-    pmask = pmask if getattr(pmask, "shape", None) == getattr(qphi, "shape", None) else None
+    # Use the same cleaned map as panel C and the re-integrated curve.  The old
+    # path passed only the reduction mask to ``band_profile``, so GUI-selected
+    # hot pixels and exclusion regions disappeared from the picture but leaked
+    # straight back into both kinds of line cut.
+    q, phi, qphi, _clean_info = cleaning.clean_qphi(sel)
     if qphi is not None:
         for c in centers:
             if _is_qcut:  # band in q → profile along phi
-                res = _band_profile(qphi, phi, q, c, width, pmask)
+                res = _band_profile(qphi, phi, q, c, width)
                 if res:
                     cut_curves.append((f"q={c:g}", res[0], res[1]))
                 qphi_shapes.append(
@@ -585,7 +584,7 @@ if centers and "qphi" in active_products and sel["has_qphi"]:
                     )
                 )
             else:  # band in phi → profile along q
-                res = _band_profile(qphi, q, phi, c, width, pmask)
+                res = _band_profile(qphi, q, phi, c, width)
                 if res:
                     cut_curves.append((f"φ={c:g}", res[0], res[1]))
                 qphi_shapes.append(

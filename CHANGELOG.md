@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Transmission SAXS/WAXS q–φ line cuts now use the same reduction mask,
+  hot-pixel cleaning, recurring-defect vote, and user exclusion regions as the
+  displayed q–φ map. Previously those pixels disappeared from panel C but
+  could still create false peaks in a selected φ-band I(q) curve.
+
 ## 0.22.0
 
 - **An SMI project is read as one, and its org keeps how it was measured.**
